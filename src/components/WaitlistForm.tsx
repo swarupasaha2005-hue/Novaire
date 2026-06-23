@@ -62,7 +62,7 @@ export function WaitlistForm() {
                   type="email"
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); setErrorMsg(null); }}
-                  placeholder="Priority Access"
+                  placeholder="Enter your email"
                   className="flex-1 bg-transparent px-4 sm:px-5 py-3.5 sm:py-4 text-[15px] sm:text-[15px] text-[#F5F5F3] placeholder:text-[rgba(245,245,243,0.35)] outline-none min-w-0"
                   required
                   disabled={status === "submitting"}
@@ -77,6 +77,10 @@ export function WaitlistForm() {
                   {status === "submitting" ? "Submitting…" : "Request Early Access"}
                 </button>
               </div>
+
+              <p className="text-[12px] sm:text-[13px] font-normal text-[rgba(245,245,243,0.45)] pl-1 mt-1 tracking-wide">
+                Priority Access.
+              </p>
 
 
 
