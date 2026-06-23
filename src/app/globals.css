@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+@theme {
+  --color-nova-bg: #0A0A0C;
+  --color-nova-text: #F5F5F3;
+  --color-nova-muted: rgba(245, 245, 243, 0.55);
+  --color-nova-surface: rgba(255, 255, 255, 0.04);
+  --color-nova-border: rgba(255, 255, 255, 0.08);
+
+  --font-sans: var(--font-inter);
+  --font-serif: var(--font-instrument);
+
+  --animate-pulse-slow: pulse-slow 8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-spin-extremely-slow: spin 60s linear infinite;
+  --animate-morph-slow: morph 20s ease-in-out infinite alternate;
+  --animate-morph-slower: morph 30s ease-in-out infinite alternate-reverse;
+
+  @keyframes pulse-slow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  @keyframes morph {
+    0% { transform: scale(1) translate(0, 0); }
+    50% { transform: scale(1.1) translate(2%, 3%); }
+    100% { transform: scale(0.9) translate(-2%, -1%); }
+  }
+}
+
+:root {
+  --background: var(--color-nova-bg);
+  --foreground: var(--color-nova-text);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), sans-serif;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+html {
+  overflow-x: hidden;
+}
+
+/* Glassmorphism utility */
+.glass-panel {
+  background: var(--color-nova-surface);
+  border: 1px solid var(--color-nova-border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Waitlist email input */
+.waitlist-input {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.waitlist-input:focus {
+  border-color: rgba(255, 255, 255, 0.28);
+}
