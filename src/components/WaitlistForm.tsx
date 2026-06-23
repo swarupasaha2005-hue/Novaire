@@ -56,19 +56,14 @@ export function WaitlistForm() {
             transition={{ duration: 0.35, ease: "easeInOut" }}
           >
             <form onSubmit={handleSubmit} className="flex flex-col gap-3" noValidate>
-              {/* Input + Button row — stacks on very small screens */}
-              <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3">
+              {/* Unified Input + Button */}
+              <div className="waitlist-input flex flex-row items-center rounded-lg w-full transition-colors duration-300">
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); setErrorMsg(null); }}
-                  placeholder="Enter your email"
-                  className="waitlist-input w-full flex-1 rounded-lg
-                    px-4 sm:px-5 py-3.5 sm:py-4
-                    text-[15px] sm:text-[15px]
-                    text-[#F5F5F3] placeholder:text-[rgba(245,245,243,0.35)]
-                    outline-none transition-colors duration-200
-                    min-h-[48px]"
+                  placeholder="Priority Access"
+                  className="flex-1 bg-transparent px-4 sm:px-5 py-3.5 sm:py-4 text-[15px] sm:text-[15px] text-[#F5F5F3] placeholder:text-[rgba(245,245,243,0.35)] outline-none min-w-0"
                   required
                   disabled={status === "submitting"}
                   autoComplete="email"
@@ -77,23 +72,13 @@ export function WaitlistForm() {
                 <button
                   type="submit"
                   disabled={status === "submitting"}
-                  className="w-full sm:w-auto
-                    bg-[#F5F5F3] text-[#0A0A0C]
-                    text-[13px] sm:text-[14px] font-medium tracking-wide
-                    px-5 sm:px-6 rounded-lg
-                    hover:bg-white active:scale-[0.98]
-                    transition-all duration-200
-                    disabled:opacity-50
-                    whitespace-nowrap cursor-pointer
-                    min-h-[48px]"
+                  className="bg-transparent text-[#F5F5F3] border-l border-[rgba(255,255,255,0.12)] text-[13px] sm:text-[14px] font-medium tracking-wide px-5 sm:px-6 py-3.5 sm:py-4 hover:bg-[rgba(255,255,255,0.03)] hover:text-white transition-colors duration-200 disabled:opacity-50 whitespace-nowrap cursor-pointer min-h-[48px]"
                 >
                   {status === "submitting" ? "Submitting…" : "Request Early Access"}
                 </button>
               </div>
 
-              <p className="text-[11px] sm:text-[12px] text-[rgba(245,245,243,0.38)] pl-0.5 tracking-wide">
-                Launch updates only.
-              </p>
+
 
               <AnimatePresence>
                 {errorMsg && (

@@ -28,17 +28,7 @@ export default function Home() {
           gap-0 xl:gap-12">
 
           {/* ── LEFT: HERO CONTENT ── */}
-          <div className="flex-1 flex flex-col items-start w-full xl:justify-center xl:-mt-12">
-
-            {/* Badge */}
-            <div className="inline-flex items-center px-3 py-1.5 rounded-full border
-              border-white/[0.06] bg-white/[0.02] backdrop-blur-md mb-7 sm:mb-8">
-              <span className="w-1.5 h-1.5 rounded-full bg-white/40 mr-2 shrink-0" />
-              <span className="text-[10px] sm:text-xs uppercase tracking-[0.18em]
-                text-nova-muted font-sans font-medium whitespace-nowrap">
-                COMING TO STELLAR
-              </span>
-            </div>
+          <div className="flex-1 flex flex-col items-start w-full xl:justify-center xl:-mt-16">
 
             {/* Headline */}
             <h1 className="font-serif tracking-tight text-nova-text mb-5 sm:mb-6
