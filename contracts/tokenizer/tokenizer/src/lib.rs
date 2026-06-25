@@ -150,11 +150,11 @@ impl Tokenizer {
         let vault_addr: Address = env.storage().instance().get(&Symbol::new(&env, "vault")).unwrap();
         let vault_client = VaultClient::new(&env, &vault_addr);
         
-        vault_client.withdraw_for(&env.current_contract_address(), &user, &shares_to_withdraw);
+        let actual_underlying = vault_client.withdraw_for(&env.current_contract_address(), &user, &shares_to_withdraw);
 
-        env.events().publish((Symbol::new(&env, "redeem_pt"), user), (pt_amount, underlying));
+        env.events().publish((Symbol::new(&env, "redeem_pt"), user), (pt_amount, actual_underlying));
 
-        Ok(underlying)
+        Ok(actual_underlying)
     }
 
     pub fn claim_yield(env: Env, user: Address) -> Result<i128, NovaireTokenizerError> {
@@ -185,11 +185,11 @@ impl Tokenizer {
         let vault_addr: Address = env.storage().instance().get(&Symbol::new(&env, "vault")).unwrap();
         let vault_client = VaultClient::new(&env, &vault_addr);
         
-        vault_client.withdraw_for(&env.current_contract_address(), &user, &shares_to_withdraw);
+        let actual_underlying = vault_client.withdraw_for(&env.current_contract_address(), &user, &shares_to_withdraw);
 
-        env.events().publish((Symbol::new(&env, "yield_claimed"), user), claimable);
+        env.events().publish((Symbol::new(&env, "yield_claimed"), user), actual_underlying);
 
-        Ok(claimable)
+        Ok(actual_underlying)
     }
 
     pub fn settle_epoch(env: Env) -> Result<(), NovaireTokenizerError> {

@@ -416,6 +416,57 @@ impl NovaireMarketplace {
         Ok(actual_yt_out)
     }
 
+    pub fn swap_yt_for_underlying(
+        env: Env,
+        seller: Address,
+        yt_in: i128,
+        min_underlying_out: i128,
+    ) -> Result<i128, NovaireMarketError> {
+        seller.require_auth();
+        if yt_in <= 0 || min_underlying_out <= 0 {
+            return Err(NovaireMarketError::ZeroInput);
+        }
+
+        let maturity_ledger: u32 = env.storage().instance().get(&DataKey::MaturityLedger).unwrap();
+        if env.ledger().sequence() >= maturity_ledger {
+            return Err(NovaireMarketError::EpochExpired);
+        }
+
+        let pt_reserves: i128 = env.storage().instance().get(&DataKey::PtReserves).unwrap();
+        let underlying_reserves: i128 = env.storage().instance().get(&DataKey::UnderlyingReserves).unwrap();
+
+        let implied_pt_price = compute_pt_price(&env, pt_reserves, underlying_reserves);
+        let yt_price = 1_000_000_000i128.saturating_sub(implied_pt_price);
+        
+        let underlying_out = (yt_in * yt_price) / 1_000_000_000;
+        let actual_underlying_out = (underlying_out * 995) / 1000; // 0.5% fee
+
+        if actual_underlying_out < min_underlying_out {
+            return Err(NovaireMarketError::SlippageExceeded);
+        }
+
+        let mut yt_reserves: i128 = env.storage().instance().get(&DataKey::YtReserves).unwrap();
+        
+        yt_reserves += yt_in;
+        env.storage().instance().set(&DataKey::YtReserves, &yt_reserves);
+
+        let yt_token_addr: Address = env.storage().instance().get(&DataKey::YtToken).unwrap();
+        let underlying_addr: Address = env.storage().instance().get(&DataKey::Underlying).unwrap();
+        
+        let yt_client = token::Client::new(&env, &yt_token_addr);
+        let underlying_client = token::Client::new(&env, &underlying_addr);
+
+        yt_client.transfer(&seller, &env.current_contract_address(), &yt_in);
+        underlying_client.transfer(&env.current_contract_address(), &seller, &actual_underlying_out);
+
+        env.events().publish(
+            (soroban_sdk::Symbol::new(&env, "swap_yt_u"), seller),
+            (yt_in, actual_underlying_out),
+        );
+
+        Ok(actual_underlying_out)
+    }
+
     pub fn get_pt_price(env: Env) -> i128 {
         let pt_reserves: i128 = env.storage().instance().get(&DataKey::PtReserves).unwrap_or(0);
         let underlying_reserves: i128 = env.storage().instance().get(&DataKey::UnderlyingReserves).unwrap_or(0);
