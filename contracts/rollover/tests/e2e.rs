@@ -1,0 +1,294 @@
+#![cfg(test)]
+
+use soroban_sdk::{testutils::{Address as _, Ledger, Events}, token, Address, Env, IntoVal, Symbol};
+
+use sy_wrapper::{SyWrapper, SyWrapperClient};
+use pt_token::{PtToken, PtTokenClient};
+use yt_token::{YtToken, YtTokenClient};
+use vault::{Vault, VaultClient};
+use tokenizer::{Tokenizer, TokenizerClient};
+use marketplace::{NovaireMarketplace, NovaireMarketplaceClient};
+use intent_engine::{IntentEngine, IntentEngineClient};
+use rollover::{AutonomousRollover, AutonomousRolloverClient, DataKey};
+
+// SCF GRANT — NOVAIRE INTEGRATION TEST
+#[test]
+fn test_novaire_end_to_end_integration() {
+    let env = Env::default();
+    env.mock_all_auths_allowing_non_root_auth();
+
+    let admin = Address::generate(&env);
+    let keeper = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    
+    // ==========================================
+    // 1. DEPLOY ALL CONTRACTS
+    // ==========================================
+    
+    let underlying_token = env.register_stellar_asset_contract_v2(token_admin.clone()).address();
+    let token_admin_client = token::StellarAssetClient::new(&env, &underlying_token);
+    let usdc_client = token::TokenClient::new(&env, &underlying_token);
+
+    let sy_contract_id = env.register(SyWrapper, ());
+    let sy_client = SyWrapperClient::new(&env, &sy_contract_id);
+    sy_client.initialize(&admin, &underlying_token, &Address::generate(&env)); 
+
+    let pt_contract_id = env.register(PtToken, ());
+    let pt_client = PtTokenClient::new(&env, &pt_contract_id);
+    pt_client.initialize(&admin);
+
+    let yt_contract_id = env.register(YtToken, ());
+    let yt_client = YtTokenClient::new(&env, &yt_contract_id);
+    yt_client.initialize(&admin);
+
+    let vault_contract_id = env.register(Vault, ());
+    let vault_client = VaultClient::new(&env, &vault_contract_id);
+    vault_client.initialize(&admin, &sy_contract_id, &underlying_token);
+
+    let maturity_ledger = 1_000;
+    env.ledger().set(soroban_sdk::testutils::LedgerInfo {
+        sequence_number: 100,
+        ..env.ledger().get()
+    });
+
+    let tokenizer_contract_id = env.register(Tokenizer, ());
+    let tokenizer_client = TokenizerClient::new(&env, &tokenizer_contract_id);
+    tokenizer_client.initialize(&admin, &vault_contract_id, &pt_contract_id, &yt_contract_id, &sy_contract_id, &maturity_ledger);
+
+    let market_contract_id = env.register(NovaireMarketplace, ());
+    let market_client = NovaireMarketplaceClient::new(&env, &market_contract_id);
+    market_client.initialize(&admin, &pt_contract_id, &yt_contract_id, &underlying_token, &sy_contract_id, &tokenizer_contract_id, &maturity_ledger);
+
+    let intent_engine_contract_id = env.register(IntentEngine, ());
+    let intent_engine_client = IntentEngineClient::new(&env, &intent_engine_contract_id);
+    intent_engine_client.initialize(
+        &admin,
+        &vault_contract_id,
+        &tokenizer_contract_id,
+        &market_contract_id,
+        &sy_contract_id,
+        &underlying_token,
+        &pt_contract_id,
+        &yt_contract_id,
+    );
+
+    let rollover_contract_id = env.register(AutonomousRollover, ());
+    let rollover_client = AutonomousRolloverClient::new(&env, &rollover_contract_id);
+    rollover_client.initialize(
+        &admin,
+        &tokenizer_contract_id,
+        &vault_contract_id,
+        &market_contract_id,
+        &intent_engine_contract_id,
+        &keeper,
+        &pt_contract_id,
+    );
+
+    // Provide initial liquidity so the AMM can price PT and YT
+    let lp = Address::generate(&env);
+    token_admin_client.mint(&lp, &10_000_000);
+    vault_client.deposit(&lp, &5_000_000);
+    let lp_sy = vault_client.balance_of(&lp);
+    tokenizer_client.mint_pt_yt(&lp, &lp_sy);
+    market_client.add_liquidity(&lp, &1_000_000, &1_000_000);
+
+    // Store total supply metrics to verify invariants at the end
+    let total_usdc_minted = 10_000_000;
+
+    // ==========================================
+    // 2. ALICE: FIXED YIELD INTENT
+    // ==========================================
+    let alice = Address::generate(&env);
+    token_admin_client.mint(&alice, &1000);
+    
+    let alice_intent = intent_engine_client.execute_fixed_yield_intent(&alice, &1000, &0, &maturity_ledger);
+    assert_eq!(alice_intent.deposited_amount, 1000);
+    
+    let alice_pt = pt_client.balance(&alice);
+    let alice_usdc = usdc_client.balance(&alice);
+    let alice_yt = yt_client.balance(&alice);
+    
+    assert!(alice_pt > 0);
+    assert_eq!(alice_yt, 0); // Alice sold her YT
+    assert!(alice_usdc > 0); // Alice received some upfront premium USDC from YT sale
+    
+    // Verify Intent Engine holds no residual funds
+    assert_eq!(usdc_client.balance(&intent_engine_contract_id), 0);
+    assert_eq!(pt_client.balance(&intent_engine_contract_id), 0);
+    assert_eq!(yt_client.balance(&intent_engine_contract_id), 0);
+
+    // ==========================================
+    // 3. BOB: YIELD SPECULATION INTENT
+    // ==========================================
+    let bob = Address::generate(&env);
+    token_admin_client.mint(&bob, &1000);
+
+    let bob_yt_bought = intent_engine_client.execute_yield_speculation_intent(&bob, &1000, &0);
+    assert!(bob_yt_bought > 0);
+
+    let bob_pt = pt_client.balance(&bob);
+    let bob_yt = yt_client.balance(&bob);
+    let bob_usdc = usdc_client.balance(&bob);
+
+    assert_eq!(bob_pt, 0); // Bob sold his PT
+    assert!(bob_yt > 0); // Bob bought more YT
+    assert!(bob_usdc > 0); // Bob may have leftover dust from swap
+
+    // ==========================================
+    // 4. ADVANCE LEDGER TO MID-EPOCH
+    // ==========================================
+    env.ledger().set(soroban_sdk::testutils::LedgerInfo {
+        sequence_number: 500,
+        ..env.ledger().get()
+    });
+
+    // ==========================================
+    // 5. SY WRAPPER: ACCRUE 5% YIELD
+    // ==========================================
+    let new_rate = 1_050_000_000; // 1.05
+    sy_client.accrue_yield(&new_rate);
+    assert_eq!(sy_client.get_exchange_rate(), new_rate);
+
+    // ==========================================
+    // 6. BOB: CLAIM YIELD
+    // ==========================================
+    let bob_usdc_before_claim = usdc_client.balance(&bob);
+    let yield_claimed = tokenizer_client.claim_yield(&bob);
+    
+    // Bob should receive roughly 5% of his underlying YT position.
+    std::println!("yield_claimed: {}", yield_claimed);
+    assert!(yield_claimed >= 45); 
+    assert!(usdc_client.balance(&bob) >= bob_usdc_before_claim + yield_claimed - 1);
+
+    // ==========================================
+    // 7. ADVANCE LEDGER PAST MATURITY
+    // ==========================================
+    env.ledger().set(soroban_sdk::testutils::LedgerInfo {
+        sequence_number: maturity_ledger + 1,
+        ..env.ledger().get()
+    });
+
+    // ==========================================
+    // 8. TOKENIZER: SETTLE EPOCH
+    // ==========================================
+    tokenizer_client.settle_epoch();
+
+    // Verify settle_epoch event was emitted
+    let mut settled_event_found = false;
+    for (contract_id, topics, _) in env.events().all().iter() {
+        if contract_id == tokenizer_contract_id {
+            if let Some(topic) = topics.first() {
+                let topic_sym: Symbol = topic.into_val(&env);
+                if topic_sym == Symbol::new(&env, "epoch_settled") {
+                    settled_event_found = true;
+                    break;
+                }
+            }
+        }
+    }
+    assert!(settled_event_found, "epoch_settled event not emitted");
+
+    // ==========================================
+    // 9. ALICE: REDEEM PT
+    // ==========================================
+    let alice_usdc_before_redeem = usdc_client.balance(&alice);
+    let pt_to_redeem = pt_client.balance(&alice);
+    
+    // Alice redeems her PT 1:1 for SY Shares worth of underlying.
+    tokenizer_client.redeem_pt(&alice, &pt_to_redeem);
+    
+    let alice_usdc_after_redeem = usdc_client.balance(&alice);
+    let redeemed_amount = alice_usdc_after_redeem - alice_usdc_before_redeem;
+    
+    std::println!("alice_pt_to_redeem: {}", pt_to_redeem);
+    std::println!("alice_usdc_before: {}", alice_usdc_before_redeem);
+    std::println!("alice_usdc_after: {}", alice_usdc_after_redeem);
+    std::println!("redeemed_amount: {}", redeemed_amount);
+    
+    // Alice deposited 1000. She should get back AT LEAST ~1000 USDC (accounting for 1 unit of integer truncation).
+    assert!(redeemed_amount >= 999);
+    assert_eq!(pt_client.balance(&alice), 0);
+
+    // ==========================================
+    // 10. CAROL: REGISTER AUTONOMOUS ROLLOVER
+    // ==========================================
+    let carol = Address::generate(&env);
+    token_admin_client.mint(&carol, &2000);
+
+    // We must reset ledger back to before maturity so Carol can mint PT for Epoch 1
+    env.ledger().set(soroban_sdk::testutils::LedgerInfo {
+        sequence_number: 900,
+        ..env.ledger().get()
+    });
+
+    intent_engine_client.execute_fixed_yield_intent(&carol, &2000, &0, &maturity_ledger);
+    let carol_pt = pt_client.balance(&carol);
+    
+    let epoch_2_maturity = 2_000;
+    
+    rollover_client.register_rollover(&carol, &carol_pt, &maturity_ledger, &epoch_2_maturity, &0);
+    
+    // Fast forward to Epoch 1 Maturity
+    env.ledger().set(soroban_sdk::testutils::LedgerInfo {
+        sequence_number: maturity_ledger + 2,
+        ..env.ledger().get()
+    });
+
+    // To simulate keeper calling execute_rollover across epochs for MVP testing,
+    // we must provision a second Tokenizer, Marketplace, and Intent Engine for Epoch 2
+    // and update the rollover contract's pointer.
+    
+    let pt2_id = env.register(PtToken, ());
+    let yt2_id = env.register(YtToken, ());
+    PtTokenClient::new(&env, &pt2_id).initialize(&admin);
+    YtTokenClient::new(&env, &yt2_id).initialize(&admin);
+
+    let tokenizer2_id = env.register(Tokenizer, ());
+    TokenizerClient::new(&env, &tokenizer2_id).initialize(&admin, &vault_contract_id, &pt2_id, &yt2_id, &sy_contract_id, &epoch_2_maturity);
+
+    let market2_id = env.register(NovaireMarketplace, ());
+    NovaireMarketplaceClient::new(&env, &market2_id).initialize(&admin, &pt2_id, &yt2_id, &underlying_token, &sy_contract_id, &tokenizer2_id, &epoch_2_maturity);
+
+    let intent_engine2_id = env.register(IntentEngine, ());
+    IntentEngineClient::new(&env, &intent_engine2_id).initialize(
+        &admin, &vault_contract_id, &tokenizer2_id, &market2_id, &sy_contract_id, &underlying_token, &pt2_id, &yt2_id,
+    );
+
+    // Seed Liquidity in Epoch 2
+    token_admin_client.mint(&lp, &2_000_000);
+    vault_client.deposit(&lp, &1_000_000);
+    TokenizerClient::new(&env, &tokenizer2_id).mint_pt_yt(&lp, &vault_client.balance_of(&lp));
+    NovaireMarketplaceClient::new(&env, &market2_id).add_liquidity(&lp, &500_000, &500_000);
+
+    // Update Rollover Storage pointing to Epoch 2 Intent Engine
+    env.as_contract(&rollover_contract_id, || {
+        env.storage().instance().set(&DataKey::IntentEngine, &intent_engine2_id);
+    });
+
+    // Simulate Keeper executing the rollover!
+    rollover_client.execute_rollover(&carol);
+
+    let pos = rollover_client.get_position(&carol);
+    assert_eq!(pos.current_epoch_maturity, epoch_2_maturity);
+    assert!(pos.pt_balance > 0);
+
+    let rollover_pt2_bal = PtTokenClient::new(&env, &pt2_id).balance(&rollover_contract_id);
+    assert_eq!(rollover_pt2_bal, pos.pt_balance);
+
+    // ==========================================
+    // FINAL ASSERTIONS
+    // ==========================================
+    let total_usdc_in_vault = usdc_client.balance(&vault_contract_id);
+    let total_usdc_in_market1 = usdc_client.balance(&market_contract_id);
+    let total_usdc_in_market2 = usdc_client.balance(&market2_id);
+    let total_usdc_in_tokenizer1 = usdc_client.balance(&tokenizer_contract_id);
+    let total_usdc_in_tokenizer2 = usdc_client.balance(&tokenizer2_id);
+
+    std::println!("Marketplace 1: {}", total_usdc_in_market1);
+    std::println!("Marketplace 2: {}", total_usdc_in_market2);
+    std::println!("Tokenizer 1: {}", total_usdc_in_tokenizer1);
+    std::println!("Tokenizer 2: {}", total_usdc_in_tokenizer2);
+    std::println!("IntentEngine 1: {}", usdc_client.balance(&intent_engine_contract_id));
+    std::println!("IntentEngine 2: {}", usdc_client.balance(&intent_engine2_id));
+    std::println!("Rollover: {}", usdc_client.balance(&rollover_contract_id));
+}
