@@ -7,6 +7,7 @@ use soroban_sdk::token;
 #[soroban_sdk::contractclient(name = "VaultClient")]
 pub trait VaultInterface {
     fn deposit(env: Env, from: Address, amount: i128) -> i128;
+    fn balance_of(env: Env, user: Address) -> i128;
 }
 
 #[soroban_sdk::contractclient(name = "TokenizerClient")]
@@ -25,6 +26,7 @@ pub trait MarketplaceInterface {
 #[soroban_sdk::contractclient(name = "YtTokenClient")]
 pub trait YtTokenInterface {
     fn transfer(env: Env, from: Address, to: Address, amount: i128);
+    fn balance(env: Env, id: Address) -> i128;
 }
 
 #[soroban_sdk::contractclient(name = "PtTokenClient")]
@@ -43,6 +45,8 @@ pub enum NovaireIntentError {
     RateTooLow = 4,
     IntentFailed = 5,
     AlreadyInitialized = 6,
+    StorageMissing = 7,
+    InvariantViolated = 8,
 }
 
 #[contracttype]
@@ -71,6 +75,26 @@ pub struct IntentRecord {
     pub created_ledger: u32,
 }
 
+mod storage {
+    use super::*;
+
+    pub fn is_initialized(env: &Env) -> bool {
+        env.storage().instance().has(&DataKey::Admin)
+    }
+
+    pub fn get_address(env: &Env, key: DataKey) -> Result<Address, NovaireIntentError> {
+        env.storage().instance().get(&key).ok_or(NovaireIntentError::StorageMissing)
+    }
+
+    pub fn get_paused(env: &Env) -> Result<bool, NovaireIntentError> {
+        env.storage().instance().get(&DataKey::Paused).ok_or(NovaireIntentError::StorageMissing)
+    }
+
+    pub fn set_paused(env: &Env, val: bool) {
+        env.storage().instance().set(&DataKey::Paused, &val);
+    }
+}
+
 #[contract]
 pub struct IntentEngine;
 
@@ -87,7 +111,7 @@ impl IntentEngine {
         pt_token: Address,
         yt_token: Address,
     ) -> Result<(), NovaireIntentError> {
-        if env.storage().instance().has(&DataKey::Admin) {
+        if storage::is_initialized(&env) {
             return Err(NovaireIntentError::AlreadyInitialized);
         }
 
@@ -99,33 +123,33 @@ impl IntentEngine {
         env.storage().instance().set(&DataKey::Underlying, &underlying);
         env.storage().instance().set(&DataKey::PtToken, &pt_token);
         env.storage().instance().set(&DataKey::YtToken, &yt_token);
-        env.storage().instance().set(&DataKey::Paused, &false);
+        storage::set_paused(&env, false);
 
         Ok(())
     }
 
     pub fn pause(env: Env) -> Result<(), NovaireIntentError> {
-        let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+        let admin = storage::get_address(&env, DataKey::Admin)?;
         admin.require_auth();
-        env.storage().instance().set(&DataKey::Paused, &true);
+        storage::set_paused(&env, true);
         Ok(())
     }
 
     pub fn unpause(env: Env) -> Result<(), NovaireIntentError> {
-        let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+        let admin = storage::get_address(&env, DataKey::Admin)?;
         admin.require_auth();
-        env.storage().instance().set(&DataKey::Paused, &false);
+        storage::set_paused(&env, false);
         Ok(())
     }
 
-    pub fn get_current_best_rate(env: Env) -> i128 {
-        let marketplace_addr: Address = env.storage().instance().get(&DataKey::Marketplace).unwrap();
+    pub fn get_current_best_rate(env: Env) -> Result<i128, NovaireIntentError> {
+        let marketplace_addr = storage::get_address(&env, DataKey::Marketplace)?;
         let marketplace_client = MarketplaceClient::new(&env, &marketplace_addr);
-        marketplace_client.get_twap_rate()
+        Ok(marketplace_client.get_twap_rate())
     }
 
-    pub fn get_user_intent(env: Env, user: Address) -> IntentRecord {
-        env.storage().persistent().get(&DataKey::UserIntents(user)).unwrap()
+    pub fn get_user_intent(env: Env, user: Address) -> Result<IntentRecord, NovaireIntentError> {
+        env.storage().persistent().get(&DataKey::UserIntents(user)).ok_or(NovaireIntentError::StorageMissing)
     }
 
     pub fn execute_fixed_yield_intent(
@@ -137,8 +161,7 @@ impl IntentEngine {
     ) -> Result<IntentRecord, NovaireIntentError> {
         user.require_auth();
 
-        let paused: bool = env.storage().instance().get(&DataKey::Paused).unwrap();
-        if paused {
+        if storage::get_paused(&env)? {
             return Err(NovaireIntentError::Paused);
         }
 
@@ -146,7 +169,7 @@ impl IntentEngine {
             return Err(NovaireIntentError::ZeroAmount);
         }
 
-        let marketplace_addr: Address = env.storage().instance().get(&DataKey::Marketplace).unwrap();
+        let marketplace_addr = storage::get_address(&env, DataKey::Marketplace)?;
         let marketplace_client = MarketplaceClient::new(&env, &marketplace_addr);
 
         let current_twap = marketplace_client.get_twap_rate();
@@ -154,32 +177,33 @@ impl IntentEngine {
             return Err(NovaireIntentError::RateTooLow);
         }
 
-        let underlying_addr: Address = env.storage().instance().get(&DataKey::Underlying).unwrap();
+        let underlying_addr = storage::get_address(&env, DataKey::Underlying)?;
         let underlying_client = token::Client::new(&env, &underlying_addr);
 
-        // Step 1: Pull usdc_amount from user to Intent Engine
         let intent_engine_addr = env.current_contract_address();
+        
+        // 1: Pull
         underlying_client.transfer(&user, &intent_engine_addr, &usdc_amount);
 
-        // Step 2: Call vault.deposit(intent_engine_address, usdc_amount) -> sy_shares
-        let vault_addr: Address = env.storage().instance().get(&DataKey::Vault).unwrap();
+        // 2: Deposit
+        let vault_addr = storage::get_address(&env, DataKey::Vault)?;
         let vault_client = VaultClient::new(&env, &vault_addr);
         let sy_shares = vault_client.deposit(&intent_engine_addr, &usdc_amount);
 
-        // Step 3: Call tokenizer.mint_pt_yt(intent_engine_address, sy_shares)
-        let tokenizer_addr: Address = env.storage().instance().get(&DataKey::Tokenizer).unwrap();
+        // 3: Mint
+        let tokenizer_addr = storage::get_address(&env, DataKey::Tokenizer)?;
         let tokenizer_client = TokenizerClient::new(&env, &tokenizer_addr);
         let (pt_amount, yt_amount) = tokenizer_client.mint_pt_yt(&intent_engine_addr, &sy_shares);
 
-        // Step 4: Call marketplace.swap_yt_for_underlying
+        // 4: Swap YT
         let underlying_from_yt = marketplace_client.swap_yt_for_underlying(&intent_engine_addr, &yt_amount, &1);
 
-        // Step 5: Transfer PT tokens to user
-        let pt_token_addr: Address = env.storage().instance().get(&DataKey::PtToken).unwrap();
+        // 5: Transfer PT
+        let pt_token_addr = storage::get_address(&env, DataKey::PtToken)?;
         let pt_client = PtTokenClient::new(&env, &pt_token_addr);
         pt_client.transfer(&intent_engine_addr, &user, &pt_amount);
 
-        // Step 6: Transfer underlying_from_yt back to user
+        // 6: Transfer Underlying back
         underlying_client.transfer(&intent_engine_addr, &user, &underlying_from_yt);
 
         let record = IntentRecord {
@@ -198,6 +222,7 @@ impl IntentEngine {
             (usdc_amount, pt_amount, underlying_from_yt, current_twap),
         );
 
+        Self::assert_invariant(env)?;
         Ok(record)
     }
 
@@ -209,8 +234,7 @@ impl IntentEngine {
     ) -> Result<i128, NovaireIntentError> {
         user.require_auth();
 
-        let paused: bool = env.storage().instance().get(&DataKey::Paused).unwrap();
-        if paused {
+        if storage::get_paused(&env)? {
             return Err(NovaireIntentError::Paused);
         }
 
@@ -218,21 +242,17 @@ impl IntentEngine {
             return Err(NovaireIntentError::ZeroAmount);
         }
 
-        let underlying_addr: Address = env.storage().instance().get(&DataKey::Underlying).unwrap();
+        let underlying_addr = storage::get_address(&env, DataKey::Underlying)?;
         let underlying_client = token::Client::new(&env, &underlying_addr);
-
         let intent_engine_addr = env.current_contract_address();
 
-        // Step 1: Pull usdc_amount from user
         underlying_client.transfer(&user, &intent_engine_addr, &usdc_amount);
 
-        // Step 2: vault.deposit -> sy_shares
-        let vault_addr: Address = env.storage().instance().get(&DataKey::Vault).unwrap();
+        let vault_addr = storage::get_address(&env, DataKey::Vault)?;
         let vault_client = VaultClient::new(&env, &vault_addr);
         let sy_shares = vault_client.deposit(&intent_engine_addr, &usdc_amount);
 
-        // Step 3: tokenizer.mint_pt_yt -> (pt_amount, yt_amount)
-        let tokenizer_addr: Address = env.storage().instance().get(&DataKey::Tokenizer).unwrap();
+        let tokenizer_addr = storage::get_address(&env, DataKey::Tokenizer)?;
         let tokenizer_client = TokenizerClient::new(&env, &tokenizer_addr);
         let (pt_amount, yt_amount) = tokenizer_client.mint_pt_yt(&intent_engine_addr, &sy_shares);
 
@@ -240,17 +260,14 @@ impl IntentEngine {
             return Err(NovaireIntentError::IntentFailed);
         }
 
-        // Step 4: marketplace.swap_pt_for_underlying -> underlying_from_pt
-        let marketplace_addr: Address = env.storage().instance().get(&DataKey::Marketplace).unwrap();
+        let marketplace_addr = storage::get_address(&env, DataKey::Marketplace)?;
         let marketplace_client = MarketplaceClient::new(&env, &marketplace_addr);
         let underlying_from_pt = marketplace_client.swap_pt_for_underlying(&intent_engine_addr, &pt_amount, &1);
 
-        // Step 5: Transfer YT to user
-        let yt_token_addr: Address = env.storage().instance().get(&DataKey::YtToken).unwrap();
+        let yt_token_addr = storage::get_address(&env, DataKey::YtToken)?;
         let yt_client = YtTokenClient::new(&env, &yt_token_addr);
         yt_client.transfer(&intent_engine_addr, &user, &yt_amount);
 
-        // Step 6: Transfer underlying_from_pt back to user
         underlying_client.transfer(&intent_engine_addr, &user, &underlying_from_pt);
 
         env.events().publish(
@@ -258,7 +275,38 @@ impl IntentEngine {
             (usdc_amount, yt_amount, underlying_from_pt),
         );
 
+        Self::assert_invariant(env)?;
         Ok(yt_amount)
+    }
+
+    fn assert_invariant(env: Env) -> Result<(), NovaireIntentError> {
+        let current_contract = env.current_contract_address();
+        
+        let underlying_addr = storage::get_address(&env, DataKey::Underlying)?;
+        let underlying_client = token::Client::new(&env, &underlying_addr);
+        if underlying_client.balance(&current_contract) != 0 {
+            return Err(NovaireIntentError::InvariantViolated);
+        }
+
+        let pt_token_addr = storage::get_address(&env, DataKey::PtToken)?;
+        let pt_client = PtTokenClient::new(&env, &pt_token_addr);
+        if pt_client.balance(&current_contract) != 0 {
+            return Err(NovaireIntentError::InvariantViolated);
+        }
+
+        let yt_token_addr = storage::get_address(&env, DataKey::YtToken)?;
+        let yt_client = YtTokenClient::new(&env, &yt_token_addr);
+        if yt_client.balance(&current_contract) != 0 {
+            return Err(NovaireIntentError::InvariantViolated);
+        }
+
+        let vault_addr = storage::get_address(&env, DataKey::Vault)?;
+        let vault_client = VaultClient::new(&env, &vault_addr);
+        if vault_client.balance_of(&current_contract) != 0 {
+            return Err(NovaireIntentError::InvariantViolated);
+        }
+
+        Ok(())
     }
 }
 
@@ -286,19 +334,18 @@ mod tests {
 
         let sy_contract_id = env.register(SyWrapper, ());
         let sy_client = RealSyWrapperClient::new(&env, &sy_contract_id);
-        sy_client.initialize(&admin, &underlying_token, &Address::generate(&env));
-
-        let pt_contract_id = env.register(PtToken, ());
-        let pt_client = RealPtClient::new(&env, &pt_contract_id);
-        pt_client.initialize(&admin);
-
-        let yt_contract_id = env.register(YtToken, ());
-        let yt_client = RealYtClient::new(&env, &yt_contract_id);
-        yt_client.initialize(&admin);
 
         let vault_contract_id = env.register(Vault, ());
         let vault_client = RealVaultClient::new(&env, &vault_contract_id);
+        
+        sy_client.initialize(&admin, &underlying_token, &vault_contract_id, &1_000_000_000);
         vault_client.initialize(&admin, &sy_contract_id, &underlying_token);
+
+        let pt_contract_id = env.register(PtToken, ());
+        let pt_client = RealPtClient::new(&env, &pt_contract_id);
+
+        let yt_contract_id = env.register(YtToken, ());
+        let yt_client = RealYtClient::new(&env, &yt_contract_id);
 
         let maturity_ledger = 1_000;
         env.ledger().set(soroban_sdk::testutils::LedgerInfo {
@@ -308,6 +355,10 @@ mod tests {
 
         let tokenizer_contract_id = env.register(Tokenizer, ());
         let tokenizer_client = RealTokenizerClient::new(&env, &tokenizer_contract_id);
+        
+        pt_client.initialize(&admin, &tokenizer_contract_id);
+        yt_client.initialize(&admin, &tokenizer_contract_id, &maturity_ledger);
+        
         tokenizer_client.initialize(&admin, &vault_contract_id, &pt_contract_id, &yt_contract_id, &sy_contract_id, &maturity_ledger);
 
         let market_contract_id = env.register(NovaireMarketplace, ());
@@ -340,7 +391,7 @@ mod tests {
     }
 
     #[test]
-    fn test_1_fixed_yield_intent() {
+    fn test_fixed_yield_intent() {
         let (env, _, _, intent_engine, _, pt_client, _, token_admin, underlying) = setup_env();
         let user = Address::generate(&env);
         token_admin.mint(&user, &10_000);
@@ -357,7 +408,7 @@ mod tests {
     }
 
     #[test]
-    fn test_2_yield_speculation() {
+    fn test_yield_speculation() {
         let (env, _, _, intent_engine, _, pt_client, yt_client, token_admin, underlying) = setup_env();
         let user = Address::generate(&env);
         token_admin.mint(&user, &10_000);
@@ -373,7 +424,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "Error(Contract, #4)")]
-    fn test_3_rate_slippage() {
+    fn test_rate_slippage() {
         let (env, _, _, intent_engine, _, _, _, token_admin, _) = setup_env();
         let user = Address::generate(&env);
         token_admin.mint(&user, &10_000);
@@ -384,7 +435,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "Error(Contract, #1)")]
-    fn test_4_paused() {
+    fn test_paused() {
         let (env, admin, _, intent_engine, _, _, _, token_admin, _) = setup_env();
         let user = Address::generate(&env);
         token_admin.mint(&user, &10_000);
@@ -392,5 +443,23 @@ mod tests {
         intent_engine.pause();
 
         intent_engine.execute_fixed_yield_intent(&user, &10_000, &1, &1000);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #3)")]
+    fn test_zero_amount() {
+        let (env, _, _, intent_engine, _, _, _, _, _) = setup_env();
+        let user = Address::generate(&env);
+        intent_engine.execute_fixed_yield_intent(&user, &0, &1, &1000);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #5)")]
+    fn test_intent_failed_slippage() {
+        let (env, _, _, intent_engine, _, _, _, token_admin, _) = setup_env();
+        let user = Address::generate(&env);
+        token_admin.mint(&user, &10_000);
+        // Ask for 1,000,000 YT which is impossible with 10k deposit
+        intent_engine.execute_yield_speculation_intent(&user, &10_000, &1_000_000);
     }
 }

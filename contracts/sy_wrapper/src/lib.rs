@@ -1,5 +1,5 @@
 #![no_std]
-use soroban_sdk::{contract, contracterror, contractimpl, token, Address, Env, Symbol};
+use soroban_sdk::{contract, contracterror, contractimpl, contracttype, token, Address, Env, Symbol};
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -11,238 +11,256 @@ pub enum NovaireSyError {
     InvalidAmount = 4,
     RateCannotDecrease = 5,
     InsufficientShares = 6,
+    MathOverflow = 7,
+    MathUnderflow = 8,
+    StorageMissing = 9,
+    Paused = 10,
+    InvalidAdminTransfer = 11,
+    RateIncreaseTooLarge = 12,
+}
+
+#[contracttype]
+#[derive(Clone)]
+pub enum DataKey {
+    Admin,
+    PendingAdmin,
+    Underlying,
+    YieldSource,
+    TotalShares,
+    ExchangeRate,
+    LastUpdated,
+    Paused,
+    MaxRateStep,
 }
 
 const EXCHANGE_RATE_SCALAR: i128 = 1_000_000_000;
+const VERSION: u32 = 1;
+
+mod storage {
+    use super::*;
+    
+    pub fn is_initialized(env: &Env) -> bool {
+        env.storage().instance().has(&DataKey::Admin)
+    }
+
+    pub fn get_admin(env: &Env) -> Result<Address, NovaireSyError> {
+        env.storage().instance().get(&DataKey::Admin).ok_or(NovaireSyError::StorageMissing)
+    }
+
+    pub fn get_underlying(env: &Env) -> Result<Address, NovaireSyError> {
+        env.storage().instance().get(&DataKey::Underlying).ok_or(NovaireSyError::StorageMissing)
+    }
+
+    pub fn get_exchange_rate(env: &Env) -> Result<i128, NovaireSyError> {
+        env.storage().instance().get(&DataKey::ExchangeRate).ok_or(NovaireSyError::StorageMissing)
+    }
+    
+    pub fn get_total_shares(env: &Env) -> i128 {
+        env.storage().instance().get(&DataKey::TotalShares).unwrap_or(0)
+    }
+
+    pub fn is_paused(env: &Env) -> bool {
+        env.storage().instance().get(&DataKey::Paused).unwrap_or(false)
+    }
+    
+    pub fn require_not_paused(env: &Env) -> Result<(), NovaireSyError> {
+        if is_paused(env) {
+            return Err(NovaireSyError::Paused);
+        }
+        Ok(())
+    }
+}
 
 #[contract]
 pub struct SyWrapper;
 
 #[contractimpl]
 impl SyWrapper {
+    pub fn version() -> u32 {
+        VERSION
+    }
+
     pub fn initialize(
         env: Env,
         admin: Address,
         underlying: Address,
         yield_source: Address,
+        max_rate_step: i128,
     ) -> Result<(), NovaireSyError> {
-        if env.storage().instance().has(&Symbol::new(&env, "admin")) {
+        if storage::is_initialized(&env) {
             return Err(NovaireSyError::AlreadyInitialized);
         }
 
-        env.storage().instance().set(&Symbol::new(&env, "admin"), &admin);
-        env.storage().instance().set(&Symbol::new(&env, "underlying"), &underlying);
-        env.storage().instance().set(&Symbol::new(&env, "yield_source"), &yield_source);
-        env.storage().instance().set(&Symbol::new(&env, "total_shares"), &0i128);
-        env.storage().instance().set(&Symbol::new(&env, "exchange_rate"), &EXCHANGE_RATE_SCALAR);
-        env.storage().instance().set(&Symbol::new(&env, "last_updated"), &env.ledger().sequence());
+        env.storage().instance().set(&DataKey::Admin, &admin);
+        env.storage().instance().set(&DataKey::Underlying, &underlying);
+        env.storage().instance().set(&DataKey::YieldSource, &yield_source);
+        env.storage().instance().set(&DataKey::TotalShares, &0i128);
+        env.storage().instance().set(&DataKey::ExchangeRate, &EXCHANGE_RATE_SCALAR);
+        env.storage().instance().set(&DataKey::LastUpdated, &env.ledger().sequence());
+        env.storage().instance().set(&DataKey::Paused, &false);
+        env.storage().instance().set(&DataKey::MaxRateStep, &max_rate_step);
 
         Ok(())
     }
 
     pub fn deposit(env: Env, from: Address, amount: i128) -> Result<i128, NovaireSyError> {
         from.require_auth();
+        storage::require_not_paused(&env)?;
 
         if amount <= 0 {
             return Err(NovaireSyError::InvalidAmount);
         }
 
-        let underlying_addr: Address = env
-            .storage()
-            .instance()
-            .get(&Symbol::new(&env, "underlying"))
-            .ok_or(NovaireSyError::NotInitialized)?;
+        let underlying_addr = storage::get_underlying(&env)?;
+        let rate = storage::get_exchange_rate(&env)?;
+        let mut total_shares = storage::get_total_shares(&env);
 
-        let rate: i128 = env
-            .storage()
-            .instance()
-            .get(&Symbol::new(&env, "exchange_rate"))
-            .ok_or(NovaireSyError::NotInitialized)?;
+        let shares_to_mint = amount
+            .checked_mul(EXCHANGE_RATE_SCALAR)
+            .ok_or(NovaireSyError::MathOverflow)?
+            .checked_div(rate)
+            .ok_or(NovaireSyError::MathUnderflow)?;
 
-        let mut total_shares: i128 = env
-            .storage()
-            .instance()
-            .get(&Symbol::new(&env, "total_shares"))
-            .unwrap_or(0);
-
-        // Calculate shares to mint
-        let shares_to_mint = amount.checked_mul(EXCHANGE_RATE_SCALAR).unwrap() / rate;
-
-        // Pull underlying token from user to this contract
         let token_client = token::Client::new(&env, &underlying_addr);
         token_client.transfer(&from, &env.current_contract_address(), &amount);
 
-        // Update total_shares in storage
-        total_shares += shares_to_mint;
-        env.storage().instance().set(&Symbol::new(&env, "total_shares"), &total_shares);
+        total_shares = total_shares.checked_add(shares_to_mint).ok_or(NovaireSyError::MathOverflow)?;
+        env.storage().instance().set(&DataKey::TotalShares, &total_shares);
 
-        env.events()
-            .publish((Symbol::new(&env, "sy_deposit"), from), (amount, shares_to_mint));
+        env.events().publish(
+            (Symbol::new(&env, "sy_deposit"), from), 
+            (amount, shares_to_mint, total_shares, rate)
+        );
 
         Ok(shares_to_mint)
     }
 
     pub fn withdraw(env: Env, from: Address, shares: i128) -> Result<i128, NovaireSyError> {
         from.require_auth();
+        storage::require_not_paused(&env)?;
 
         if shares <= 0 {
             return Err(NovaireSyError::InvalidAmount);
         }
 
-        let underlying_addr: Address = env
-            .storage()
-            .instance()
-            .get(&Symbol::new(&env, "underlying"))
-            .ok_or(NovaireSyError::NotInitialized)?;
-
-        let rate: i128 = env
-            .storage()
-            .instance()
-            .get(&Symbol::new(&env, "exchange_rate"))
-            .ok_or(NovaireSyError::NotInitialized)?;
-
-        let mut total_shares: i128 = env
-            .storage()
-            .instance()
-            .get(&Symbol::new(&env, "total_shares"))
-            .unwrap_or(0);
+        let underlying_addr = storage::get_underlying(&env)?;
+        let rate = storage::get_exchange_rate(&env)?;
+        let mut total_shares = storage::get_total_shares(&env);
 
         if shares > total_shares {
             return Err(NovaireSyError::InsufficientShares);
         }
 
-        // Calculate underlying to return
-        let underlying_to_return = shares.checked_mul(rate).unwrap() / EXCHANGE_RATE_SCALAR;
+        let underlying_to_return = shares
+            .checked_mul(rate)
+            .ok_or(NovaireSyError::MathOverflow)?
+            .checked_div(EXCHANGE_RATE_SCALAR)
+            .ok_or(NovaireSyError::MathUnderflow)?;
 
-        // Update total_shares in storage
-        total_shares -= shares;
-        env.storage().instance().set(&Symbol::new(&env, "total_shares"), &total_shares);
+        total_shares = total_shares.checked_sub(shares).ok_or(NovaireSyError::MathUnderflow)?;
+        env.storage().instance().set(&DataKey::TotalShares, &total_shares);
 
-        // Push underlying token from this contract back to user
         let token_client = token::Client::new(&env, &underlying_addr);
         token_client.transfer(&env.current_contract_address(), &from, &underlying_to_return);
 
-        env.events()
-            .publish((Symbol::new(&env, "sy_withdraw"), from), (shares, underlying_to_return));
+        env.events().publish(
+            (Symbol::new(&env, "sy_withdraw"), from), 
+            (shares, underlying_to_return, total_shares, rate)
+        );
 
         Ok(underlying_to_return)
     }
 
     pub fn accrue_yield(env: Env, new_exchange_rate: i128) -> Result<(), NovaireSyError> {
-        let admin: Address = env
-            .storage()
-            .instance()
-            .get(&Symbol::new(&env, "admin"))
-            .ok_or(NovaireSyError::NotInitialized)?;
-            
+        let admin = storage::get_admin(&env)?;
         admin.require_auth();
+        storage::require_not_paused(&env)?;
 
-        let current_rate: i128 = env
-            .storage()
-            .instance()
-            .get(&Symbol::new(&env, "exchange_rate"))
-            .unwrap();
+        let current_rate = storage::get_exchange_rate(&env)?;
 
         if new_exchange_rate < current_rate {
             return Err(NovaireSyError::RateCannotDecrease);
         }
 
-        env.storage().instance().set(&Symbol::new(&env, "exchange_rate"), &new_exchange_rate);
-        env.storage().instance().set(&Symbol::new(&env, "last_updated"), &env.ledger().sequence());
+        let max_rate_step: i128 = env.storage().instance().get(&DataKey::MaxRateStep).ok_or(NovaireSyError::StorageMissing)?;
+        let diff = new_exchange_rate.checked_sub(current_rate).ok_or(NovaireSyError::MathUnderflow)?;
+        
+        if diff > max_rate_step {
+            return Err(NovaireSyError::RateIncreaseTooLarge);
+        }
 
-        env.events()
-            .publish((Symbol::new(&env, "yield_accrued"),), (current_rate, new_exchange_rate));
+        env.storage().instance().set(&DataKey::ExchangeRate, &new_exchange_rate);
+        env.storage().instance().set(&DataKey::LastUpdated, &env.ledger().sequence());
+
+        let total_shares = storage::get_total_shares(&env);
+        env.events().publish(
+            (Symbol::new(&env, "yield_accrued"),), 
+            (current_rate, new_exchange_rate, total_shares, env.ledger().sequence())
+        );
 
         Ok(())
     }
 
+    pub fn pause(env: Env) -> Result<(), NovaireSyError> {
+        let admin = storage::get_admin(&env)?;
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::Paused, &true);
+        Ok(())
+    }
+
+    pub fn unpause(env: Env) -> Result<(), NovaireSyError> {
+        let admin = storage::get_admin(&env)?;
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::Paused, &false);
+        Ok(())
+    }
+
+    pub fn transfer_admin(env: Env, new_admin: Address) -> Result<(), NovaireSyError> {
+        let admin = storage::get_admin(&env)?;
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::PendingAdmin, &new_admin);
+        Ok(())
+    }
+
+    pub fn accept_admin(env: Env) -> Result<(), NovaireSyError> {
+        let pending_admin: Address = env.storage().instance().get(&DataKey::PendingAdmin).ok_or(NovaireSyError::InvalidAdminTransfer)?;
+        pending_admin.require_auth();
+        env.storage().instance().set(&DataKey::Admin, &pending_admin);
+        env.storage().instance().remove(&DataKey::PendingAdmin);
+        Ok(())
+    }
+
+    pub fn set_max_rate_step(env: Env, step: i128) -> Result<(), NovaireSyError> {
+        let admin = storage::get_admin(&env)?;
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::MaxRateStep, &step);
+        Ok(())
+    }
+
     pub fn get_exchange_rate(env: Env) -> i128 {
-        env.storage()
-            .instance()
-            .get(&Symbol::new(&env, "exchange_rate"))
-            .unwrap_or(EXCHANGE_RATE_SCALAR)
+        storage::get_exchange_rate(&env).unwrap_or(EXCHANGE_RATE_SCALAR)
     }
 
     pub fn preview_deposit(env: Env, amount: i128) -> i128 {
-        let rate: i128 = env.storage().instance().get(&Symbol::new(&env, "exchange_rate")).unwrap_or(EXCHANGE_RATE_SCALAR);
-        amount.checked_mul(EXCHANGE_RATE_SCALAR).unwrap() / rate
+        let rate = storage::get_exchange_rate(&env).unwrap_or(EXCHANGE_RATE_SCALAR);
+        amount.checked_mul(EXCHANGE_RATE_SCALAR).unwrap_or(0).checked_div(rate).unwrap_or(0)
     }
 
     pub fn preview_withdraw(env: Env, shares: i128) -> i128 {
-        let rate: i128 = env.storage().instance().get(&Symbol::new(&env, "exchange_rate")).unwrap_or(EXCHANGE_RATE_SCALAR);
-        shares.checked_mul(rate).unwrap() / EXCHANGE_RATE_SCALAR
+        let rate = storage::get_exchange_rate(&env).unwrap_or(EXCHANGE_RATE_SCALAR);
+        shares.checked_mul(rate).unwrap_or(0).checked_div(EXCHANGE_RATE_SCALAR).unwrap_or(0)
     }
 
     pub fn total_shares(env: Env) -> i128 {
-        env.storage()
-            .instance()
-            .get(&Symbol::new(&env, "total_shares"))
-            .unwrap_or(0)
+        storage::get_total_shares(&env)
     }
 
     pub fn underlying_asset(env: Env) -> Address {
-        env.storage()
-            .instance()
-            .get(&Symbol::new(&env, "underlying"))
-            .unwrap()
+        storage::get_underlying(&env).unwrap()
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use soroban_sdk::{testutils::Address as _, token, Address, Env};
-
-    #[test]
-    fn test_sy_wrapper_flow() {
-        let env = Env::default();
-        env.mock_all_auths();
-
-        // 1. Initialize addresses
-        let admin = Address::generate(&env);
-        let user = Address::generate(&env);
-        let yield_source = Address::generate(&env);
-        
-        // Setup mock token
-        let token_admin = Address::generate(&env);
-        let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone()).address();
-        let token_client = token::Client::new(&env, &token_contract);
-        let token_admin_client = token::StellarAssetClient::new(&env, &token_contract);
-        
-        // Mint initial tokens to user
-        let initial_deposit: i128 = 1000;
-        token_admin_client.mint(&user, &initial_deposit);
-
-        // Deploy and initialize sy_wrapper
-        let contract_id = env.register(SyWrapper, ());
-        let client = SyWrapperClient::new(&env, &contract_id);
-
-        client.initialize(&admin, &token_contract, &yield_source);
-
-        // 2. Deposit 1000 USDC
-        let shares_minted = client.deposit(&user, &initial_deposit);
-        assert_eq!(shares_minted, 1000); // 1000 * 1e9 / 1e9 = 1000
-        assert_eq!(client.total_shares(), 1000);
-        assert_eq!(token_client.balance(&user), 0);
-        assert_eq!(token_client.balance(&contract_id), 1000);
-
-        // 3. Accrue Yield (10% yield -> rate becomes 1.1e9)
-        let new_rate: i128 = 1_100_000_000;
-        client.accrue_yield(&new_rate);
-        assert_eq!(client.get_exchange_rate(), new_rate);
-
-        // Simulate external yield being added to the contract balance
-        let yield_amount: i128 = 100;
-        token_admin_client.mint(&contract_id, &yield_amount);
-        assert_eq!(token_client.balance(&contract_id), 1100);
-
-        // 4. Withdraw all shares
-        let withdrawn_amount = client.withdraw(&user, &shares_minted);
-        assert_eq!(withdrawn_amount, 1100); // 1000 shares * 1.1e9 / 1e9 = 1100
-        
-        // 5. Verify state
-        assert_eq!(client.total_shares(), 0);
-        assert_eq!(token_client.balance(&user), 1100);
-        assert_eq!(token_client.balance(&contract_id), 0);
-    }
-}
+mod test;
+#[cfg(test)]
+mod audit_tests;

@@ -305,6 +305,7 @@
     ],
     [],
     [],
+    [],
     [
       [
         "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
@@ -435,7 +436,8 @@
           "sub_invocations": []
         }
       ]
-    ]
+    ],
+    []
   ],
   "ledger": {
     "protocol_version": 22,
@@ -896,7 +898,11 @@
                     "storage": [
                       {
                         "key": {
-                          "symbol": "admin"
+                          "vec": [
+                            {
+                              "symbol": "Admin"
+                            }
+                          ]
                         },
                         "val": {
                           "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM"
@@ -904,7 +910,11 @@
                       },
                       {
                         "key": {
-                          "symbol": "exchange_rate"
+                          "vec": [
+                            {
+                              "symbol": "ExchangeRate"
+                            }
+                          ]
                         },
                         "val": {
                           "i128": {
@@ -915,7 +925,11 @@
                       },
                       {
                         "key": {
-                          "symbol": "last_updated"
+                          "vec": [
+                            {
+                              "symbol": "LastUpdated"
+                            }
+                          ]
                         },
                         "val": {
                           "u32": 0
@@ -923,7 +937,38 @@
                       },
                       {
                         "key": {
-                          "symbol": "total_shares"
+                          "vec": [
+                            {
+                              "symbol": "MaxRateStep"
+                            }
+                          ]
+                        },
+                        "val": {
+                          "i128": {
+                            "hi": 9223372036854775807,
+                            "lo": 18446744073709551615
+                          }
+                        }
+                      },
+                      {
+                        "key": {
+                          "vec": [
+                            {
+                              "symbol": "Paused"
+                            }
+                          ]
+                        },
+                        "val": {
+                          "bool": false
+                        }
+                      },
+                      {
+                        "key": {
+                          "vec": [
+                            {
+                              "symbol": "TotalShares"
+                            }
+                          ]
                         },
                         "val": {
                           "i128": {
@@ -934,7 +979,11 @@
                       },
                       {
                         "key": {
-                          "symbol": "underlying"
+                          "vec": [
+                            {
+                              "symbol": "Underlying"
+                            }
+                          ]
                         },
                         "val": {
                           "address": "CACMVW2KK4H5FZDFF2AUCAKQTEJMZZWJUIZF23XMRVYQBSXYLHZ6BKWN"
@@ -942,7 +991,11 @@
                       },
                       {
                         "key": {
-                          "symbol": "yield_source"
+                          "vec": [
+                            {
+                              "symbol": "YieldSource"
+                            }
+                          ]
                         },
                         "val": {
                           "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
@@ -965,7 +1018,7 @@
             "key": {
               "vec": [
                 {
-                  "symbol": "us"
+                  "symbol": "UserShares"
                 },
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
@@ -985,7 +1038,7 @@
                 "key": {
                   "vec": [
                     {
-                      "symbol": "us"
+                      "symbol": "UserShares"
                     },
                     {
                       "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
@@ -1013,7 +1066,7 @@
             "key": {
               "vec": [
                 {
-                  "symbol": "us"
+                  "symbol": "UserShares"
                 },
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
@@ -1033,7 +1086,7 @@
                 "key": {
                   "vec": [
                     {
-                      "symbol": "us"
+                      "symbol": "UserShares"
                     },
                     {
                       "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
@@ -1079,7 +1132,11 @@
                     "storage": [
                       {
                         "key": {
-                          "symbol": "admin"
+                          "vec": [
+                            {
+                              "symbol": "Admin"
+                            }
+                          ]
                         },
                         "val": {
                           "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM"
@@ -1087,7 +1144,11 @@
                       },
                       {
                         "key": {
-                          "symbol": "paused"
+                          "vec": [
+                            {
+                              "symbol": "Paused"
+                            }
+                          ]
                         },
                         "val": {
                           "bool": false
@@ -1095,7 +1156,11 @@
                       },
                       {
                         "key": {
-                          "symbol": "sy_wrapper"
+                          "vec": [
+                            {
+                              "symbol": "SyWrapper"
+                            }
+                          ]
                         },
                         "val": {
                           "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM"
@@ -1103,18 +1168,26 @@
                       },
                       {
                         "key": {
-                          "symbol": "total_deposits"
+                          "vec": [
+                            {
+                              "symbol": "TotalVaultShares"
+                            }
+                          ]
                         },
                         "val": {
                           "i128": {
                             "hi": 0,
-                            "lo": 460
+                            "lo": 509
                           }
                         }
                       },
                       {
                         "key": {
-                          "symbol": "underlying"
+                          "vec": [
+                            {
+                              "symbol": "Underlying"
+                            }
+                          ]
                         },
                         "val": {
                           "address": "CACMVW2KK4H5FZDFF2AUCAKQTEJMZZWJUIZF23XMRVYQBSXYLHZ6BKWN"
@@ -1656,142 +1729,5 @@
       ]
     ]
   },
-  "events": [
-    {
-      "event": {
-        "ext": "v0",
-        "contract_id": "04cadb4a570fd2e4652e814101509912cce6c9a2325d6eec8d7100caf859f3e0",
-        "type_": "contract",
-        "body": {
-          "v0": {
-            "topics": [
-              {
-                "symbol": "transfer"
-              },
-              {
-                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
-              },
-              {
-                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARQG5"
-              },
-              {
-                "string": "aaa:GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAANHUF"
-              }
-            ],
-            "data": {
-              "i128": {
-                "hi": 0,
-                "lo": 10
-              }
-            }
-          }
-        }
-      },
-      "failed_call": false
-    },
-    {
-      "event": {
-        "ext": "v0",
-        "contract_id": "04cadb4a570fd2e4652e814101509912cce6c9a2325d6eec8d7100caf859f3e0",
-        "type_": "contract",
-        "body": {
-          "v0": {
-            "topics": [
-              {
-                "symbol": "transfer"
-              },
-              {
-                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARQG5"
-              },
-              {
-                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM"
-              },
-              {
-                "string": "aaa:GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAANHUF"
-              }
-            ],
-            "data": {
-              "i128": {
-                "hi": 0,
-                "lo": 10
-              }
-            }
-          }
-        }
-      },
-      "failed_call": false
-    },
-    {
-      "event": {
-        "ext": "v0",
-        "contract_id": "0000000000000000000000000000000000000000000000000000000000000007",
-        "type_": "contract",
-        "body": {
-          "v0": {
-            "topics": [
-              {
-                "symbol": "sy_deposit"
-              },
-              {
-                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARQG5"
-              }
-            ],
-            "data": {
-              "vec": [
-                {
-                  "i128": {
-                    "hi": 0,
-                    "lo": 10
-                  }
-                },
-                {
-                  "i128": {
-                    "hi": 0,
-                    "lo": 9
-                  }
-                }
-              ]
-            }
-          }
-        }
-      },
-      "failed_call": false
-    },
-    {
-      "event": {
-        "ext": "v0",
-        "contract_id": "0000000000000000000000000000000000000000000000000000000000000008",
-        "type_": "contract",
-        "body": {
-          "v0": {
-            "topics": [
-              {
-                "symbol": "vault_deposit"
-              },
-              {
-                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
-              }
-            ],
-            "data": {
-              "vec": [
-                {
-                  "i128": {
-                    "hi": 0,
-                    "lo": 10
-                  }
-                },
-                {
-                  "i128": {
-                    "hi": 0,
-                    "lo": 9
-                  }
-                }
-              ]
-            }
-          }
-        }
-      },
-      "failed_call": false
-    }
-  ]
+  "events": []
 }

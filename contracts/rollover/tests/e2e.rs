@@ -31,15 +31,15 @@ fn test_novaire_end_to_end_integration() {
 
     let sy_contract_id = env.register(SyWrapper, ());
     let sy_client = SyWrapperClient::new(&env, &sy_contract_id);
-    sy_client.initialize(&admin, &underlying_token, &Address::generate(&env)); 
+    sy_client.initialize(&admin, &underlying_token, &Address::generate(&env), &0);
 
     let pt_contract_id = env.register(PtToken, ());
     let pt_client = PtTokenClient::new(&env, &pt_contract_id);
-    pt_client.initialize(&admin);
+    pt_client.initialize(&admin, &tokenizer_contract_id);
 
     let yt_contract_id = env.register(YtToken, ());
     let yt_client = YtTokenClient::new(&env, &yt_contract_id);
-    yt_client.initialize(&admin);
+    yt_client.initialize(&admin, &tokenizer_contract_id, &1000);
 
     let vault_contract_id = env.register(Vault, ());
     let vault_client = VaultClient::new(&env, &vault_contract_id);
@@ -82,6 +82,8 @@ fn test_novaire_end_to_end_integration() {
         &intent_engine_contract_id,
         &keeper,
         &pt_contract_id,
+        &underlying_token,
+        &17280
     );
 
     // Provide initial liquidity so the AMM can price PT and YT
@@ -240,10 +242,10 @@ fn test_novaire_end_to_end_integration() {
     
     let pt2_id = env.register(PtToken, ());
     let yt2_id = env.register(YtToken, ());
-    PtTokenClient::new(&env, &pt2_id).initialize(&admin);
-    YtTokenClient::new(&env, &yt2_id).initialize(&admin);
-
     let tokenizer2_id = env.register(Tokenizer, ());
+    PtTokenClient::new(&env, &pt2_id).initialize(&admin, &tokenizer2_id);
+    YtTokenClient::new(&env, &yt2_id).initialize(&admin, &tokenizer2_id, &epoch_2_maturity);
+
     TokenizerClient::new(&env, &tokenizer2_id).initialize(&admin, &vault_contract_id, &pt2_id, &yt2_id, &sy_contract_id, &epoch_2_maturity);
 
     let market2_id = env.register(NovaireMarketplace, ());

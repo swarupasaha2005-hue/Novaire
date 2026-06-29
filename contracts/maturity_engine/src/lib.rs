@@ -15,14 +15,19 @@ pub enum NovaireMaturityError {
     EpochAlreadyActive = 8,
     MaturityNotReached = 9,
     ZeroAmount = 10,
+    StorageMissing = 11,
+    InvalidStateTransition = 12,
+    InvariantViolated = 13,
+    MathOverflow = 14,
 }
 
 #[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum EpochState {
     Active = 0,
-    Matured = 1,
+    Matured = 1, // Dynamically evaluated if sequence >= maturity
     Settled = 2,
+    Archived = 3,
 }
 
 #[contracttype]
@@ -31,25 +36,51 @@ pub struct EpochRecord {
     pub epoch_id: u32,
     pub maturity_ledger: u32,
     pub creation_ledger: u32,
-    pub total_pt_outstanding: i128,
-    pub final_exchange_rate: i128,
-    pub total_yield_distributed: i128,
     pub state: EpochState,
 }
 
-#[soroban_sdk::contractclient(name = "SyWrapperClient")]
-pub trait SyWrapperInterface {
-    fn get_exchange_rate(env: Env) -> i128;
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProtocolStatus {
+    pub current_epoch_id: u32,
+    pub is_active: bool,
+    pub time_to_maturity: u32,
 }
 
-#[soroban_sdk::contractclient(name = "PtTokenClient")]
-pub trait PtTokenInterface {
-    fn total_supply(env: Env) -> i128;
+#[contracttype]
+#[derive(Clone)]
+pub enum DataKey {
+    Admin,
+    CurrentEpochId,
+    Epoch(u32),
 }
 
-#[soroban_sdk::contractclient(name = "YtTokenClient")]
-pub trait YtTokenInterface {
-    fn claimable_yield(env: Env, user: Address) -> i128;
+mod storage {
+    use super::*;
+
+    pub fn is_initialized(env: &Env) -> bool {
+        env.storage().instance().has(&DataKey::Admin)
+    }
+
+    pub fn get_admin(env: &Env) -> Result<Address, NovaireMaturityError> {
+        env.storage().instance().get(&DataKey::Admin).ok_or(NovaireMaturityError::StorageMissing)
+    }
+
+    pub fn get_current_epoch_id(env: &Env) -> u32 {
+        env.storage().instance().get(&DataKey::CurrentEpochId).unwrap_or(0)
+    }
+
+    pub fn set_current_epoch_id(env: &Env, id: u32) {
+        env.storage().instance().set(&DataKey::CurrentEpochId, &id);
+    }
+
+    pub fn get_epoch(env: &Env, epoch_id: u32) -> Result<EpochRecord, NovaireMaturityError> {
+        env.storage().persistent().get(&DataKey::Epoch(epoch_id)).ok_or(NovaireMaturityError::EpochNotFound)
+    }
+
+    pub fn set_epoch(env: &Env, epoch_id: u32, record: &EpochRecord) {
+        env.storage().persistent().set(&DataKey::Epoch(epoch_id), record);
+    }
 }
 
 #[contract]
@@ -57,211 +88,201 @@ pub struct MaturityEngine;
 
 #[contractimpl]
 impl MaturityEngine {
-    pub fn initialize(
-        env: Env,
-        admin: Address,
-        vault: Address,
-        sy_wrapper: Address,
-        pt_token: Address,
-        yt_token: Address,
-    ) -> Result<(), NovaireMaturityError> {
-        if env.storage().instance().has(&Symbol::new(&env, "admin")) {
+    pub fn initialize(env: Env, admin: Address) -> Result<(), NovaireMaturityError> {
+        if storage::is_initialized(&env) {
             return Err(NovaireMaturityError::AlreadyInitialized);
         }
-        env.storage().instance().set(&Symbol::new(&env, "admin"), &admin);
-        env.storage().instance().set(&Symbol::new(&env, "vault"), &vault);
-        env.storage().instance().set(&Symbol::new(&env, "sy_wrapper"), &sy_wrapper);
-        env.storage().instance().set(&Symbol::new(&env, "pt_token"), &pt_token);
-        env.storage().instance().set(&Symbol::new(&env, "yt_token"), &yt_token);
-        env.storage().instance().set(&Symbol::new(&env, "current_epoch_id"), &0u32);
+        env.storage().instance().set(&DataKey::Admin, &admin);
+        storage::set_current_epoch_id(&env, 0);
         Ok(())
     }
 
     pub fn open_epoch(env: Env, maturity_ledger: u32) -> Result<u32, NovaireMaturityError> {
-        let admin: Address = env.storage().instance().get(&Symbol::new(&env, "admin")).ok_or(NovaireMaturityError::NotInitialized)?;
+        let admin = storage::get_admin(&env)?;
         admin.require_auth();
 
-        if maturity_ledger <= env.ledger().sequence() {
-            return Err(NovaireMaturityError::MaturityNotReached); // using as a generic "invalid maturity"
+        let current_sequence = env.ledger().sequence();
+        if maturity_ledger <= current_sequence {
+            return Err(NovaireMaturityError::MaturityNotReached); // using as invalid maturity
         }
 
-        let current_epoch_id: u32 = env.storage().instance().get(&Symbol::new(&env, "current_epoch_id")).unwrap();
-        
+        let current_epoch_id = storage::get_current_epoch_id(&env);
         if current_epoch_id > 0 {
-            let current_epoch = Self::get_epoch(env.clone(), current_epoch_id)?;
-            if current_epoch.state == EpochState::Active {
+            let current_epoch = storage::get_epoch(&env, current_epoch_id)?;
+            if current_epoch.state == EpochState::Active || Self::evaluate_state(&env, &current_epoch) == EpochState::Matured {
                 return Err(NovaireMaturityError::EpochAlreadyActive);
             }
         }
 
-        let new_epoch_id = current_epoch_id + 1;
-        env.storage().instance().set(&Symbol::new(&env, "current_epoch_id"), &new_epoch_id);
+        let new_epoch_id = current_epoch_id.checked_add(1).ok_or(NovaireMaturityError::MathOverflow)?;
+        storage::set_current_epoch_id(&env, new_epoch_id);
 
         let new_epoch = EpochRecord {
             epoch_id: new_epoch_id,
             maturity_ledger,
-            creation_ledger: env.ledger().sequence(),
-            total_pt_outstanding: 0,
-            final_exchange_rate: 0,
-            total_yield_distributed: 0,
+            creation_ledger: current_sequence,
             state: EpochState::Active,
         };
 
-        env.storage().persistent().set(&new_epoch_id, &new_epoch);
+        storage::set_epoch(&env, new_epoch_id, &new_epoch);
         env.events().publish((Symbol::new(&env, "epoch_opened"),), (new_epoch_id, maturity_ledger));
 
+        Self::assert_invariant(env.clone())?;
         Ok(new_epoch_id)
     }
 
     pub fn settle_epoch(env: Env, epoch_id: u32) -> Result<(), NovaireMaturityError> {
-        let mut epoch = Self::get_epoch(env.clone(), epoch_id)?;
+        let mut epoch = storage::get_epoch(&env, epoch_id)?;
+        let dynamic_state = Self::evaluate_state(&env, &epoch);
 
-        if epoch.state == EpochState::Settled {
+        if dynamic_state == EpochState::Settled || dynamic_state == EpochState::Archived {
             return Err(NovaireMaturityError::EpochAlreadySettled);
         }
-
-        if env.ledger().sequence() < epoch.maturity_ledger {
+        if dynamic_state == EpochState::Active {
             return Err(NovaireMaturityError::MaturityNotReached);
         }
 
-        let sy_wrapper_addr: Address = env.storage().instance().get(&Symbol::new(&env, "sy_wrapper")).unwrap();
-        let sy_client = SyWrapperClient::new(&env, &sy_wrapper_addr);
-        let final_exchange_rate = sy_client.get_exchange_rate();
-
-        let pt_token_addr: Address = env.storage().instance().get(&Symbol::new(&env, "pt_token")).unwrap();
-        let pt_client = PtTokenClient::new(&env, &pt_token_addr);
-        let total_pt_outstanding = pt_client.total_supply();
-
-        epoch.final_exchange_rate = final_exchange_rate;
-        epoch.total_pt_outstanding = total_pt_outstanding;
         epoch.state = EpochState::Settled;
+        storage::set_epoch(&env, epoch_id, &epoch);
+        
+        env.events().publish((Symbol::new(&env, "epoch_settled"),), (epoch_id,));
 
-        env.storage().persistent().set(&epoch_id, &epoch);
-        env.events().publish((Symbol::new(&env, "epoch_settled"),), (epoch_id, final_exchange_rate, total_pt_outstanding));
-
+        Self::assert_invariant(env.clone())?;
         Ok(())
     }
 
-    pub fn authorize_pt_redemption(env: Env, user: Address, epoch_id: u32, pt_amount: i128) -> Result<i128, NovaireMaturityError> {
-        let epoch = Self::get_epoch(env.clone(), epoch_id)?;
+    pub fn archive_epoch(env: Env, epoch_id: u32) -> Result<(), NovaireMaturityError> {
+        let admin = storage::get_admin(&env)?;
+        admin.require_auth();
+
+        let mut epoch = storage::get_epoch(&env, epoch_id)?;
         if epoch.state != EpochState::Settled {
-            return Err(NovaireMaturityError::EpochNotSettled);
-        }
-        if pt_amount <= 0 {
-            return Err(NovaireMaturityError::ZeroAmount);
+            return Err(NovaireMaturityError::InvalidStateTransition);
         }
 
-        let underlying_owed = (pt_amount.checked_mul(epoch.final_exchange_rate).unwrap()) / 1_000_000_000;
-        env.events().publish((Symbol::new(&env, "pt_redemption_authorized"), user), (pt_amount, underlying_owed));
+        epoch.state = EpochState::Archived;
+        storage::set_epoch(&env, epoch_id, &epoch);
 
-        Ok(underlying_owed)
+        env.events().publish((Symbol::new(&env, "epoch_archived"),), (epoch_id,));
+        
+        Self::assert_invariant(env.clone())?;
+        Ok(())
     }
 
-    pub fn authorize_yt_yield_claim(env: Env, user: Address, epoch_id: u32) -> Result<i128, NovaireMaturityError> {
-        let epoch = Self::get_epoch(env.clone(), epoch_id)?;
+    fn evaluate_state(env: &Env, epoch: &EpochRecord) -> EpochState {
+        if epoch.state == EpochState::Archived {
+            return EpochState::Archived;
+        }
         if epoch.state == EpochState::Settled {
-            return Err(NovaireMaturityError::EpochAlreadySettled);
+            return EpochState::Settled;
         }
-
-        let yt_token_addr: Address = env.storage().instance().get(&Symbol::new(&env, "yt_token")).unwrap();
-        let yt_client = YtTokenClient::new(&env, &yt_token_addr);
-        
-        let claimable = yt_client.claimable_yield(&user);
-        if claimable <= 0 {
-            return Err(NovaireMaturityError::ZeroAmount);
+        if env.ledger().sequence() >= epoch.maturity_ledger {
+            return EpochState::Matured;
         }
-
-        env.events().publish((Symbol::new(&env, "yt_yield_authorized"), user), claimable);
-        Ok(claimable)
+        EpochState::Active
     }
 
     pub fn get_epoch(env: Env, epoch_id: u32) -> Result<EpochRecord, NovaireMaturityError> {
-        env.storage().persistent().get(&epoch_id).ok_or(NovaireMaturityError::EpochNotFound)
+        storage::get_epoch(&env, epoch_id)
     }
 
-    pub fn get_current_epoch(env: Env) -> Result<EpochRecord, NovaireMaturityError> {
-        let current_epoch_id: u32 = env.storage().instance().get(&Symbol::new(&env, "current_epoch_id")).unwrap_or(0);
-        if current_epoch_id == 0 {
+    pub fn current_epoch(env: Env) -> Result<EpochRecord, NovaireMaturityError> {
+        let current_id = storage::get_current_epoch_id(&env);
+        if current_id == 0 {
             return Err(NovaireMaturityError::EpochNotFound);
         }
-        Self::get_epoch(env, current_epoch_id)
+        storage::get_epoch(&env, current_id)
     }
 
-    pub fn is_active(env: Env) -> bool {
-        if let Ok(epoch) = Self::get_current_epoch(env.clone()) {
-            epoch.state == EpochState::Active && env.ledger().sequence() < epoch.maturity_ledger
-        } else {
-            false
+    pub fn next_epoch(env: Env) -> Result<u32, NovaireMaturityError> {
+        let current_id = storage::get_current_epoch_id(&env);
+        Ok(current_id.checked_add(1).ok_or(NovaireMaturityError::MathOverflow)?)
+    }
+
+    pub fn epoch_history(env: Env, epoch_id: u32) -> Result<EpochRecord, NovaireMaturityError> {
+        storage::get_epoch(&env, epoch_id)
+    }
+
+    pub fn total_epochs(env: Env) -> u32 {
+        storage::get_current_epoch_id(&env)
+    }
+
+    pub fn protocol_status(env: Env) -> ProtocolStatus {
+        let current_id = storage::get_current_epoch_id(&env);
+        let mut is_active = false;
+        let mut ttm = 0;
+
+        if current_id > 0 {
+            if let Ok(epoch) = storage::get_epoch(&env, current_id) {
+                let state = Self::evaluate_state(&env, &epoch);
+                if state == EpochState::Active {
+                    is_active = true;
+                    ttm = epoch.maturity_ledger.saturating_sub(env.ledger().sequence());
+                }
+            }
         }
-    }
 
-    pub fn is_settled(env: Env) -> bool {
-        if let Ok(epoch) = Self::get_current_epoch(env.clone()) {
-            epoch.state == EpochState::Settled
-        } else {
-            false
+        ProtocolStatus {
+            current_epoch_id: current_id,
+            is_active,
+            time_to_maturity: ttm,
         }
     }
 
     pub fn time_to_maturity(env: Env) -> u32 {
-        if let Ok(epoch) = Self::get_current_epoch(env.clone()) {
-            if epoch.state == EpochState::Active {
-                return epoch.maturity_ledger.saturating_sub(env.ledger().sequence());
+        Self::protocol_status(env).time_to_maturity
+    }
+
+    pub fn is_active(env: Env) -> bool {
+        Self::protocol_status(env).is_active
+    }
+
+    pub fn is_settled(env: Env) -> bool {
+        if let Ok(epoch) = Self::current_epoch(env.clone()) {
+            Self::evaluate_state(&env, &epoch) == EpochState::Settled
+        } else {
+            false
+        }
+    }
+
+    fn assert_invariant(env: Env) -> Result<(), NovaireMaturityError> {
+        let current_id = storage::get_current_epoch_id(&env);
+        if current_id > 0 {
+            let epoch = storage::get_epoch(&env, current_id)?;
+            if epoch.creation_ledger >= epoch.maturity_ledger {
+                return Err(NovaireMaturityError::InvariantViolated);
+            }
+            if epoch.epoch_id != current_id {
+                return Err(NovaireMaturityError::InvariantViolated);
             }
         }
-        0
+        Ok(())
     }
 }
 
+// --------------------------------------------------------------------------------
+// TESTS
+// --------------------------------------------------------------------------------
 #[cfg(test)]
 mod tests {
     use super::*;
-    use soroban_sdk::{testutils::{Address as _, Ledger}, token, Address, Env};
+    use soroban_sdk::{testutils::Address as _, testutils::Ledger, Address, Env};
 
-    // We only need a mock setup for SyWrapper, PtToken, YtToken. 
-    // Wait, the prompt says to use the real contracts! 
-    use sy_wrapper::{SyWrapper, SyWrapperClient as RealSyWrapperClient};
-    use pt_token::{PtToken, PtTokenClient as RealPtClient};
-    use yt_token::{YtToken, YtTokenClient as RealYtClient};
-
-    fn setup_env() -> (Env, Address, Address, Address, Address, Address, MaturityEngineClient<'static>, RealSyWrapperClient<'static>, RealYtClient<'static>) {
+    fn setup_env() -> (Env, Address, MaturityEngineClient<'static>) {
         let env = Env::default();
         env.mock_all_auths_allowing_non_root_auth();
 
         let admin = Address::generate(&env);
-        let vault = Address::generate(&env); // Mocked for this test
-        let token_admin = Address::generate(&env);
-        let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone()).address();
-
-        let sy_contract_id = env.register(SyWrapper, ());
-        let sy_client = RealSyWrapperClient::new(&env, &sy_contract_id);
-        sy_client.initialize(&admin, &token_contract, &Address::generate(&env));
-
-        let pt_contract_id = env.register(PtToken, ());
-        let pt_client = RealPtClient::new(&env, &pt_contract_id);
-        pt_client.initialize(&admin);
-
-        let yt_contract_id = env.register(YtToken, ());
-        let yt_client = RealYtClient::new(&env, &yt_contract_id);
-        yt_client.initialize(&admin);
-
         let me_contract_id = env.register(MaturityEngine, ());
         let me_client = MaturityEngineClient::new(&env, &me_contract_id);
 
-        me_client.initialize(
-            &admin,
-            &vault,
-            &sy_contract_id,
-            &pt_contract_id,
-            &yt_contract_id,
-        );
-
-        (env, admin, vault, sy_contract_id, pt_contract_id, yt_contract_id, me_client, sy_client, yt_client)
+        me_client.initialize(&admin);
+        (env, admin, me_client)
     }
 
     #[test]
-    fn test_1_open_and_settle() {
-        let (env, _admin, _, _, _, _, me_client, _, _) = setup_env();
+    fn test_lifecycle_and_invariants() {
+        let (env, _admin, me_client) = setup_env();
         
         let start_ledger = 100;
         env.ledger().set(soroban_sdk::testutils::LedgerInfo {
@@ -269,45 +290,131 @@ mod tests {
             ..env.ledger().get()
         });
 
+        // 1. Open Epoch
         let maturity = start_ledger + 1000;
         let epoch_id = me_client.open_epoch(&maturity);
         assert_eq!(epoch_id, 1);
         
         assert_eq!(me_client.is_active(), true);
         assert_eq!(me_client.is_settled(), false);
+        assert_eq!(me_client.time_to_maturity(), 1000);
 
-        // Advance ledger
+        let status = me_client.protocol_status();
+        assert_eq!(status.current_epoch_id, 1);
+        assert_eq!(status.is_active, true);
+        assert_eq!(status.time_to_maturity, 1000);
+
+        // Cannot open another active epoch
+        let res = me_client.try_open_epoch(&(maturity + 100));
+        assert!(res.is_err());
+
+        // Cannot settle premature
+        let res = me_client.try_settle_epoch(&epoch_id);
+        assert!(res.is_err());
+
+        // 2. Matured -> Settle
         env.ledger().set(soroban_sdk::testutils::LedgerInfo {
             sequence_number: maturity + 1,
             ..env.ledger().get()
         });
 
+        assert_eq!(me_client.is_active(), false); // dynamic check
+        
         me_client.settle_epoch(&epoch_id);
-
-        let epoch = me_client.get_epoch(&epoch_id);
-        assert_eq!(epoch.state, EpochState::Settled);
-        assert_eq!(me_client.is_active(), false);
         assert_eq!(me_client.is_settled(), true);
+
+        // Cannot double settle
+        let res = me_client.try_settle_epoch(&epoch_id);
+        assert!(res.is_err());
+
+        // 3. Archive
+        me_client.archive_epoch(&epoch_id);
+        assert_eq!(me_client.is_settled(), false); // it is now archived, not settled
+        
+        let epoch = me_client.get_epoch(&epoch_id);
+        assert_eq!(epoch.state, EpochState::Archived);
+
+        // 4. Next Epoch
+        assert_eq!(me_client.next_epoch(), 2);
+        
+        let new_maturity = maturity + 1 + 1000;
+        let new_epoch_id = me_client.open_epoch(&new_maturity);
+        assert_eq!(new_epoch_id, 2);
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #9)")]
-    fn test_2_premature_settlement() {
-        let (env, _admin, _, _, _, _, me_client, _, _) = setup_env();
+    fn test_sequential_epoch_lifecycle() {
+        let (env, _admin, me_client) = setup_env();
+        
+        let mut sequence = 100;
+        
+        for i in 1..=50 { // Using 50 to keep test execution fast
+            env.ledger().set(soroban_sdk::testutils::LedgerInfo {
+                sequence_number: sequence,
+                ..env.ledger().get()
+            });
+
+            let maturity = sequence + 10;
+            let epoch_id = me_client.open_epoch(&maturity);
+            assert_eq!(epoch_id, i);
+
+            // Mature & Settle
+            sequence += 11;
+            env.ledger().set(soroban_sdk::testutils::LedgerInfo {
+                sequence_number: sequence,
+                ..env.ledger().get()
+            });
+            me_client.settle_epoch(&epoch_id);
+
+            // Archive
+            me_client.archive_epoch(&epoch_id);
+            
+            sequence += 1;
+        }
+
+        // Verify all 50 epochs remain queryable and archived
+        for i in 1..=50 {
+            let epoch = me_client.epoch_history(&i);
+            assert_eq!(epoch.epoch_id, i);
+            assert_eq!(epoch.state, EpochState::Archived);
+        }
+        
+        assert_eq!(me_client.total_epochs(), 50);
+    }
+
+    #[test]
+    fn test_ledger_boundaries() {
+        let (env, _admin, me_client) = setup_env();
         
         env.ledger().set(soroban_sdk::testutils::LedgerInfo {
             sequence_number: 100,
             ..env.ledger().get()
         });
 
-        let epoch_id = me_client.open_epoch(&10100);
+        let maturity = 110;
+        let epoch_id = me_client.open_epoch(&maturity);
+
+        // ledger == maturity - 1
+        env.ledger().set(soroban_sdk::testutils::LedgerInfo {
+            sequence_number: maturity - 1,
+            ..env.ledger().get()
+        });
+        assert_eq!(me_client.is_active(), true);
+        assert!(me_client.try_settle_epoch(&epoch_id).is_err());
+
+        // ledger == maturity
+        env.ledger().set(soroban_sdk::testutils::LedgerInfo {
+            sequence_number: maturity,
+            ..env.ledger().get()
+        });
+        assert_eq!(me_client.is_active(), false);
+        // Settlement should now be valid
         me_client.settle_epoch(&epoch_id);
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #7)")]
-    fn test_3_double_settlement() {
-        let (env, _admin, _, _, _, _, me_client, _, _) = setup_env();
+    fn test_invalid_transitions() {
+        let (env, _admin, me_client) = setup_env();
         
         env.ledger().set(soroban_sdk::testutils::LedgerInfo {
             sequence_number: 100,
@@ -316,104 +423,57 @@ mod tests {
 
         let epoch_id = me_client.open_epoch(&200);
 
+        // Cannot archive Active epoch
+        assert!(me_client.try_archive_epoch(&epoch_id).is_err());
+        
+        // Advance to maturity
         env.ledger().set(soroban_sdk::testutils::LedgerInfo {
-            sequence_number: 250,
+            sequence_number: 200,
             ..env.ledger().get()
         });
+        
+        // Cannot archive Matured epoch (must be settled first)
+        assert!(me_client.try_archive_epoch(&epoch_id).is_err());
 
         me_client.settle_epoch(&epoch_id);
-        me_client.settle_epoch(&epoch_id); // double settle
+        
+        // Cannot double settle
+        assert!(me_client.try_settle_epoch(&epoch_id).is_err());
+
+        me_client.archive_epoch(&epoch_id);
+        
+        // Cannot double archive
+        assert!(me_client.try_archive_epoch(&epoch_id).is_err());
+        
+        // Cannot settle archived
+        assert!(me_client.try_settle_epoch(&epoch_id).is_err());
+
+        // Open epoch with past maturity
+        assert!(me_client.try_open_epoch(&150).is_err());
     }
 
     #[test]
-    fn test_4_pt_redemption_math() {
-        let (env, _admin, _, _, _, _, me_client, sy_client, _) = setup_env();
+    fn test_read_apis() {
+        let (env, _admin, me_client) = setup_env();
         
         env.ledger().set(soroban_sdk::testutils::LedgerInfo {
             sequence_number: 100,
             ..env.ledger().get()
         });
 
-        let epoch_id = me_client.open_epoch(&200);
-
-        // Exchange rate becomes 1.1x
-        sy_client.accrue_yield(&1_100_000_000);
-
-        env.ledger().set(soroban_sdk::testutils::LedgerInfo {
-            sequence_number: 250,
-            ..env.ledger().get()
-        });
-
-        me_client.settle_epoch(&epoch_id);
-
-        let user = Address::generate(&env);
-        let pt_amount = 100_000_000;
-        let underlying_owed = me_client.authorize_pt_redemption(&user, &epoch_id, &pt_amount);
-        
-        assert_eq!(underlying_owed, 110_000_000);
-    }
-
-    #[test]
-    #[should_panic(expected = "Error(Contract, #7)")]
-    fn test_5_yt_yield_blocked_post_settlement() {
-        let (env, _admin, _, _, _, _, me_client, _, yt_client) = setup_env();
-        let user = Address::generate(&env);
-        
-        env.ledger().set(soroban_sdk::testutils::LedgerInfo {
-            sequence_number: 100,
-            ..env.ledger().get()
-        });
-
-        let epoch_id = me_client.open_epoch(&200);
-
-        env.ledger().set(soroban_sdk::testutils::LedgerInfo {
-            sequence_number: 250,
-            ..env.ledger().get()
-        });
-
-        me_client.settle_epoch(&epoch_id);
-        
-        // YT claim blocked after settlement
-        me_client.authorize_yt_yield_claim(&user, &epoch_id);
-    }
-
-    #[test]
-    #[should_panic(expected = "Error(Contract, #8)")]
-    fn test_6_double_epoch_prevention() {
-        let (env, _admin, _, _, _, _, me_client, _, _) = setup_env();
-        
-        env.ledger().set(soroban_sdk::testutils::LedgerInfo {
-            sequence_number: 100,
-            ..env.ledger().get()
-        });
+        assert_eq!(me_client.total_epochs(), 0);
+        assert_eq!(me_client.is_active(), false);
+        assert_eq!(me_client.is_settled(), false);
+        assert!(me_client.try_current_epoch().is_err());
 
         me_client.open_epoch(&200);
-        me_client.open_epoch(&300); // fails
-    }
-
-    #[test]
-    fn test_7_time_to_maturity() {
-        let (env, _admin, _, _, _, _, me_client, _, _) = setup_env();
         
-        env.ledger().set(soroban_sdk::testutils::LedgerInfo {
-            sequence_number: 100,
-            ..env.ledger().get()
-        });
-
-        let epoch_id = me_client.open_epoch(&600);
-        assert_eq!(me_client.time_to_maturity(), 500);
-
-        env.ledger().set(soroban_sdk::testutils::LedgerInfo {
-            sequence_number: 300,
-            ..env.ledger().get()
-        });
-        assert_eq!(me_client.time_to_maturity(), 300);
-
-        env.ledger().set(soroban_sdk::testutils::LedgerInfo {
-            sequence_number: 700,
-            ..env.ledger().get()
-        });
-        me_client.settle_epoch(&epoch_id);
-        assert_eq!(me_client.time_to_maturity(), 0);
+        assert_eq!(me_client.total_epochs(), 1);
+        assert_eq!(me_client.is_active(), true);
+        assert_eq!(me_client.time_to_maturity(), 100);
+        
+        let status = me_client.protocol_status();
+        assert_eq!(status.is_active, true);
+        assert_eq!(status.current_epoch_id, 1);
     }
 }
