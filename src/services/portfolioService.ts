@@ -62,8 +62,6 @@ export class PortfolioService {
         
         let priceUsd = 0;
         try {
-          // Attempt to fetch price from CoinDCX integration
-          // If Price API is unavailable, defaults to 0 gracefully
           const priceData = await PriceService.getAssetPrice(bal.assetCode);
           if (priceData) {
             priceUsd = priceData.priceUsd;
@@ -81,10 +79,74 @@ export class PortfolioService {
           balance: balanceFloat,
           priceUsd,
           valueUsd,
-          allocationPercent: 0, // Calculated below after total is known
+          allocationPercent: 0,
           isNative: bal.isNative,
-          assetType: 'wallet' // Defaulting to wallet for now, extensible later
+          assetType: 'wallet'
         });
+      }
+
+      // Fetch protocol positions from backend indexer
+      try {
+        const res = await fetch(`/api/portfolio?user=${address}`);
+        if (res.ok) {
+          const data = await res.json();
+          const positions = data.positions || [];
+          
+          for (const pos of positions) {
+            // Vault Shares
+            if (parseFloat(pos.vaultShares) > 0) {
+              const balanceFloat = parseFloat(pos.vaultShares);
+              const valueUsd = balanceFloat * 1.0; // Mock price of 1 for now or fetch underlying
+              totalValueUsd += valueUsd;
+              assets.push({
+                assetCode: `Novaire Vault (${pos.underlyingAsset})`,
+                issuer: pos.epochId,
+                balance: balanceFloat,
+                priceUsd: 1.0,
+                valueUsd,
+                allocationPercent: 0,
+                isNative: false,
+                assetType: 'vault'
+              });
+            }
+
+            // PT Balance
+            if (parseFloat(pos.ptBalance) > 0) {
+              const balanceFloat = parseFloat(pos.ptBalance);
+              const valueUsd = balanceFloat * 0.95; // Mock implied price for PT
+              totalValueUsd += valueUsd;
+              assets.push({
+                assetCode: `PT-${pos.underlyingAsset}`,
+                issuer: pos.epochId,
+                balance: balanceFloat,
+                priceUsd: 0.95,
+                valueUsd,
+                allocationPercent: 0,
+                isNative: false,
+                assetType: 'pt'
+              });
+            }
+
+            // YT Balance
+            if (parseFloat(pos.ytBalance) > 0) {
+              const balanceFloat = parseFloat(pos.ytBalance);
+              const valueUsd = balanceFloat * 0.05; // Mock implied price for YT
+              totalValueUsd += valueUsd;
+              assets.push({
+                assetCode: `YT-${pos.underlyingAsset}`,
+                issuer: pos.epochId,
+                balance: balanceFloat,
+                priceUsd: 0.05,
+                valueUsd,
+                allocationPercent: 0,
+                isNative: false,
+                assetType: 'yt'
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch protocol positions', err);
       }
 
       // Second pass: Calculate allocation percentages and metrics
