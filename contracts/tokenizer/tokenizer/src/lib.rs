@@ -162,6 +162,7 @@ impl Tokenizer {
         if storage::is_initialized(&env) {
             return Err(NovaireTokenizerError::AlreadyInitialized);
         }
+        admin.require_auth();
 
         let sy_client = SyWrapperClient::new(&env, &sy_wrapper);
         let epoch_start_index = sy_client.get_exchange_rate();

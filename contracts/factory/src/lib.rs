@@ -1,0 +1,257 @@
+#![no_std]
+use soroban_sdk::{contract, contracterror, contractimpl, contracttype, Address, Env, Symbol};
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum NovaireFactoryError {
+    AlreadyInitialized = 1,
+    NotInitialized = 2,
+    Unauthorized = 3,
+    EpochAlreadyExists = 4,
+    InvalidEpoch = 5,
+    MathOverflow = 6,
+    StorageMissing = 7,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EpochRecord {
+    pub epoch_id: u32,
+    pub maturity_ledger: u32,
+    pub vault: Address,
+    pub sy_wrapper: Address,
+    pub tokenizer: Address,
+    pub pt_token: Address,
+    pub yt_token: Address,
+    pub marketplace: Address,
+    pub intent_engine: Address,
+    pub rollover_engine: Address,
+    pub deployment_ledger: u32,
+    pub version: u32,
+    pub is_active: bool,
+}
+
+#[contracttype]
+#[derive(Clone)]
+pub enum DataKey {
+    Admin,
+    ProtocolVersion,
+    EpochCount,
+    Epoch(u32),
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DeployEpochParams {
+    pub maturity_ledger: u32,
+    pub underlying_token: Address,
+    pub sy_wrapper: Address,
+    pub vault: Address,
+    pub pt_token: Address,
+    pub yt_token: Address,
+    pub tokenizer: Address,
+    pub marketplace: Address,
+    pub intent_engine: Address,
+    pub rollover_engine: Address,
+    pub keeper: Address,
+    pub grace_period_ledgers: u32,
+}
+
+// ==========================================
+// CLIENT INTERFACES FOR DEPENDENCY INJECTION
+// ==========================================
+
+#[soroban_sdk::contractclient(name = "SyWrapperClient")]
+pub trait SyWrapperInterface {
+    fn initialize(env: Env, admin: Address, underlying_token: Address, vault: Address);
+}
+
+#[soroban_sdk::contractclient(name = "VaultClient")]
+pub trait VaultInterface {
+    fn initialize(env: Env, admin: Address, sy_token: Address, underlying_token: Address);
+}
+
+#[soroban_sdk::contractclient(name = "PtTokenClient")]
+pub trait PtTokenInterface {
+    fn initialize(env: Env, admin: Address, tokenizer: Address);
+}
+
+#[soroban_sdk::contractclient(name = "YtTokenClient")]
+pub trait YtTokenInterface {
+    fn initialize(env: Env, admin: Address, tokenizer: Address, maturity_ledger: u32);
+}
+
+#[soroban_sdk::contractclient(name = "TokenizerClient")]
+pub trait TokenizerInterface {
+    fn initialize(env: Env, admin: Address, vault: Address, pt_token: Address, yt_token: Address, sy_token: Address, maturity_ledger: u32);
+}
+
+#[soroban_sdk::contractclient(name = "MarketplaceClient")]
+pub trait MarketplaceInterface {
+    fn initialize(env: Env, admin: Address, pt_token: Address, yt_token: Address, underlying_token: Address, sy_token: Address, tokenizer: Address, maturity_ledger: u32);
+}
+
+#[soroban_sdk::contractclient(name = "IntentEngineClient")]
+pub trait IntentEngineInterface {
+    fn initialize(env: Env, admin: Address, vault: Address, tokenizer: Address, marketplace: Address, sy_token: Address, underlying_token: Address, pt_token: Address, yt_token: Address);
+}
+
+#[soroban_sdk::contractclient(name = "RolloverEngineClient")]
+pub trait RolloverEngineInterface {
+    fn initialize(env: Env, admin: Address, tokenizer: Address, vault: Address, marketplace: Address, intent_engine: Address, keeper: Address, pt_token: Address, underlying_token: Address, grace_period_ledgers: u32);
+}
+
+// ==========================================
+// STORAGE HELPERS
+// ==========================================
+
+mod storage {
+    use super::*;
+
+    pub fn is_initialized(env: &Env) -> bool {
+        env.storage().instance().has(&DataKey::Admin)
+    }
+
+    pub fn get_admin(env: &Env) -> Result<Address, NovaireFactoryError> {
+        env.storage().instance().get(&DataKey::Admin).ok_or(NovaireFactoryError::StorageMissing)
+    }
+
+    pub fn get_protocol_version(env: &Env) -> u32 {
+        env.storage().instance().get(&DataKey::ProtocolVersion).unwrap_or(1)
+    }
+
+    pub fn get_epoch_count(env: &Env) -> u32 {
+        env.storage().instance().get(&DataKey::EpochCount).unwrap_or(0)
+    }
+
+    pub fn set_epoch_count(env: &Env, count: u32) {
+        env.storage().instance().set(&DataKey::EpochCount, &count);
+    }
+
+    pub fn get_epoch(env: &Env, epoch_id: u32) -> Result<EpochRecord, NovaireFactoryError> {
+        env.storage().persistent().get(&DataKey::Epoch(epoch_id)).ok_or(NovaireFactoryError::InvalidEpoch)
+    }
+
+    pub fn set_epoch(env: &Env, epoch_id: u32, record: &EpochRecord) {
+        env.storage().persistent().set(&DataKey::Epoch(epoch_id), record);
+    }
+}
+
+// ==========================================
+// FACTORY CONTRACT
+// ==========================================
+
+#[contract]
+pub struct Factory;
+
+#[contractimpl]
+impl Factory {
+    pub fn initialize(env: Env, admin: Address, protocol_version: u32) -> Result<(), NovaireFactoryError> {
+        if storage::is_initialized(&env) {
+            return Err(NovaireFactoryError::AlreadyInitialized);
+        }
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::Admin, &admin);
+        env.storage().instance().set(&DataKey::ProtocolVersion, &protocol_version);
+        storage::set_epoch_count(&env, 0);
+        Ok(())
+    }
+
+    pub fn deploy_epoch(
+        env: Env,
+        params: DeployEpochParams,
+    ) -> Result<u32, NovaireFactoryError> {
+        let admin = storage::get_admin(&env)?;
+        admin.require_auth();
+
+        let current_count = storage::get_epoch_count(&env);
+        
+        // Prevent duplicate maturity
+        if current_count > 0 {
+            let last_epoch = storage::get_epoch(&env, current_count)?;
+            if last_epoch.maturity_ledger == params.maturity_ledger {
+                return Err(NovaireFactoryError::EpochAlreadyExists);
+            }
+        }
+
+        let new_epoch_id = current_count.checked_add(1).ok_or(NovaireFactoryError::MathOverflow)?;
+
+        // Inject Dependencies (wire all contracts together)
+        let sy_client = SyWrapperClient::new(&env, &params.sy_wrapper);
+        sy_client.initialize(&admin, &params.underlying_token, &params.vault);
+
+        let vault_client = VaultClient::new(&env, &params.vault);
+        vault_client.initialize(&admin, &params.sy_wrapper, &params.underlying_token);
+
+        let pt_client = PtTokenClient::new(&env, &params.pt_token);
+        pt_client.initialize(&admin, &params.tokenizer);
+
+        let yt_client = YtTokenClient::new(&env, &params.yt_token);
+        yt_client.initialize(&admin, &params.tokenizer, &params.maturity_ledger);
+
+        let tokenizer_client = TokenizerClient::new(&env, &params.tokenizer);
+        tokenizer_client.initialize(&admin, &params.vault, &params.pt_token, &params.yt_token, &params.sy_wrapper, &params.maturity_ledger);
+
+        let marketplace_client = MarketplaceClient::new(&env, &params.marketplace);
+        marketplace_client.initialize(&admin, &params.pt_token, &params.yt_token, &params.underlying_token, &params.sy_wrapper, &params.tokenizer, &params.maturity_ledger);
+
+        let intent_client = IntentEngineClient::new(&env, &params.intent_engine);
+        intent_client.initialize(&admin, &params.vault, &params.tokenizer, &params.marketplace, &params.sy_wrapper, &params.underlying_token, &params.pt_token, &params.yt_token);
+
+        let rollover_client = RolloverEngineClient::new(&env, &params.rollover_engine);
+        rollover_client.initialize(&admin, &params.tokenizer, &params.vault, &params.marketplace, &params.intent_engine, &params.keeper, &params.pt_token, &params.underlying_token, &params.grace_period_ledgers);
+
+        let version = storage::get_protocol_version(&env);
+        
+        let record = EpochRecord {
+            epoch_id: new_epoch_id,
+            maturity_ledger: params.maturity_ledger,
+            vault: params.vault,
+            sy_wrapper: params.sy_wrapper,
+            tokenizer: params.tokenizer,
+            pt_token: params.pt_token,
+            yt_token: params.yt_token,
+            marketplace: params.marketplace,
+            intent_engine: params.intent_engine,
+            rollover_engine: params.rollover_engine,
+            deployment_ledger: env.ledger().sequence(),
+            version,
+            is_active: true,
+        };
+
+        storage::set_epoch(&env, new_epoch_id, &record);
+        storage::set_epoch_count(&env, new_epoch_id);
+
+        env.events().publish((Symbol::new(&env, "epoch_deployed"),), (new_epoch_id, params.maturity_ledger));
+
+        Ok(new_epoch_id)
+    }
+
+    // ==========================================
+    // READ-ONLY GETTERS
+    // ==========================================
+
+    pub fn get_epoch(env: Env, epoch_id: u32) -> Result<EpochRecord, NovaireFactoryError> {
+        storage::get_epoch(&env, epoch_id)
+    }
+
+    pub fn latest_epoch(env: Env) -> Result<EpochRecord, NovaireFactoryError> {
+        let count = storage::get_epoch_count(&env);
+        if count == 0 {
+            return Err(NovaireFactoryError::InvalidEpoch);
+        }
+        storage::get_epoch(&env, count)
+    }
+
+    pub fn epoch_count(env: Env) -> u32 {
+        storage::get_epoch_count(&env)
+    }
+
+    pub fn protocol_version(env: Env) -> u32 {
+        storage::get_protocol_version(&env)
+    }
+}
+
+#[cfg(test)]
+mod test;

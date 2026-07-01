@@ -129,6 +129,7 @@ impl PtToken {
         if storage::is_initialized(&env) {
             return Err(NovairePtError::AlreadyInitialized);
         }
+        admin.require_auth();
 
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::Tokenizer, &tokenizer);

@@ -1,55 +1,15 @@
 'use client';
 
 import { motion } from 'framer-motion';
-
-const POSITIONS = [
-  {
-    id: 1,
-    vault: 'USDC Core',
-    asset: 'USDC',
-    pt: '10,000.00',
-    yt: '10,000.00',
-    value: '$9,850.25',
-    apy: '9.5%',
-    maturity: 'Dec 31, 2026',
-    status: 'Active',
-  },
-  {
-    id: 2,
-    vault: 'XLM Optimizer',
-    asset: 'XLM',
-    pt: '45,200.00',
-    yt: '0.00',
-    value: '$12,430.80',
-    apy: '12.4%',
-    maturity: 'Jan 15, 2027',
-    status: 'Active',
-  },
-  {
-    id: 3,
-    vault: 'yBTC Strategy',
-    asset: 'yBTC',
-    pt: '0.00',
-    yt: '2.50',
-    value: '$1,200.00',
-    apy: '8.2%',
-    maturity: 'Mar 01, 2027',
-    status: 'Pending',
-  },
-  {
-    id: 4,
-    vault: 'USDT Yield',
-    asset: 'USDT',
-    pt: '5,000.00',
-    yt: '5,000.00',
-    value: '$5,000.00',
-    apy: '10.1%',
-    maturity: 'May 01, 2025',
-    status: 'Matured',
-  },
-];
+import { usePortfolio } from '../../hooks/usePortfolio';
 
 export function PositionsTable() {
+  const { portfolio, loading, error } = usePortfolio();
+
+  const isDisconnected = error === 'Wallet not connected' || portfolio?.error === 'Wallet not connected';
+  const assets = portfolio?.assets || [];
+  const isEmpty = !loading && !isDisconnected && assets.length === 0;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -65,11 +25,12 @@ export function PositionsTable() {
         <table className="w-full text-left text-sm">
           <thead className="bg-[#050505]/50 text-xs text-[#9A9A9A]">
             <tr>
-              <th className="px-6 py-4 font-medium">Vault</th>
               <th className="px-6 py-4 font-medium">Asset</th>
+              <th className="px-6 py-4 font-medium text-right">Balance</th>
+              <th className="px-6 py-4 font-medium text-right">Current Price</th>
+              <th className="px-6 py-4 font-medium text-right">Current Value</th>
               <th className="px-6 py-4 font-medium text-right">PT Balance</th>
               <th className="px-6 py-4 font-medium text-right">YT Balance</th>
-              <th className="px-6 py-4 font-medium text-right">Current Value</th>
               <th className="px-6 py-4 font-medium text-right">Fixed APY</th>
               <th className="px-6 py-4 font-medium">Maturity</th>
               <th className="px-6 py-4 font-medium">Status</th>
@@ -77,46 +38,69 @@ export function PositionsTable() {
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
-            {POSITIONS.map((pos, i) => (
+            {loading && (
+              <tr>
+                <td colSpan={10} className="px-6 py-8 text-center">
+                  <div className="flex flex-col items-center justify-center space-y-4">
+                    <div className="h-4 w-full max-w-2xl animate-pulse rounded bg-white/5"></div>
+                    <div className="h-4 w-full max-w-xl animate-pulse rounded bg-white/5"></div>
+                    <div className="h-4 w-full max-w-lg animate-pulse rounded bg-white/5"></div>
+                  </div>
+                </td>
+              </tr>
+            )}
+
+            {isDisconnected && (
+              <tr>
+                <td colSpan={10} className="px-6 py-12 text-center text-[#8E8E8E]">
+                  Connect Wallet to view positions
+                </td>
+              </tr>
+            )}
+
+            {isEmpty && (
+              <tr>
+                <td colSpan={10} className="px-6 py-12 text-center text-[#8E8E8E]">
+                  No Assets Found
+                </td>
+              </tr>
+            )}
+
+            {!loading && !isDisconnected && !isEmpty && assets.map((asset, i) => (
               <motion.tr
-                key={pos.id}
+                key={`${asset.assetCode}-${i}`}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ duration: 0.4, delay: 0.65 + i * 0.05 }}
+                transition={{ duration: 0.4, delay: 0.2 + i * 0.05 }}
                 className="group transition-colors hover:bg-white/5"
               >
                 <td className="whitespace-nowrap px-6 py-4 font-medium text-[#F5F5F2]">
-                  {pos.vault}
+                  {asset.assetCode}
                 </td>
-                <td className="whitespace-nowrap px-6 py-4 text-[#9A9A9A]">
-                  {pos.asset}
+                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#9A9A9A]">
+                  {asset.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                 </td>
-                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#F5F5F2]">
-                  {pos.pt}
-                </td>
-                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#F5F5F2]">
-                  {pos.yt}
+                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#9A9A9A]">
+                  ${asset.priceUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                 </td>
                 <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#F5F5F2]">
-                  {pos.value}
+                  ${asset.valueUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </td>
+                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#F5F5F2]">
+                  0.00
+                </td>
+                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#F5F5F2]">
+                  0.00
                 </td>
                 <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#3ECF8E]">
-                  {pos.apy}
+                  --
                 </td>
                 <td className="whitespace-nowrap px-6 py-4 text-[#9A9A9A]">
-                  {pos.maturity}
+                  --
                 </td>
                 <td className="whitespace-nowrap px-6 py-4">
-                  <span
-                    className={`inline-flex rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${
-                      pos.status === 'Active'
-                        ? 'bg-[#3ECF8E]/10 text-[#3ECF8E]'
-                        : pos.status === 'Pending'
-                        ? 'bg-yellow-500/10 text-yellow-500'
-                        : 'bg-white/10 text-[#9A9A9A]'
-                    }`}
-                  >
-                    {pos.status}
+                  <span className="inline-flex rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-white/10 text-[#9A9A9A]">
+                    Uninvested
                   </span>
                 </td>
                 <td className="whitespace-nowrap px-6 py-4 text-right">

@@ -128,6 +128,7 @@ impl Vault {
         if storage::is_initialized(&env) {
             return Err(NovaireVaultError::AlreadyInitialized);
         }
+        admin.require_auth();
 
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::SyWrapper, &sy_wrapper);
@@ -467,7 +468,7 @@ mod tests {
         // 3. Deploy and Initialize SY Wrapper
         let sy_contract_id = env.register(SyWrapper, ());
         let sy_client = OriginalSyWrapperClient::new(&env, &sy_contract_id);
-        sy_client.initialize(&admin, &token_contract, &yield_source, &i128::MAX);
+        sy_client.initialize(&admin, &token_contract, &yield_source);
 
         // 4. Deploy and Initialize Vault
         let vault_contract_id = env.register(Vault, ());
@@ -487,12 +488,9 @@ mod tests {
         assert_eq!(vault_client.total_vault_shares(), 1000);
         
         // 7. Accrue 10% Yield on SY Wrapper
-        let new_rate: i128 = 1_100_000_000;
-        sy_client.accrue_yield(&new_rate);
-        
-        // Physically add yield to SY wrapper so it can satisfy withdrawals
         token_admin_client.mint(&sy_contract_id, &100);
-
+        sy_client.harvest_yield();
+        
         // 8. Bob withdraws all shares -> receives 550 underlying (500 * 1.1)
         let bob_returned = vault_client.withdraw(&bob, &bob_shares);
         assert_eq!(bob_returned, 550);

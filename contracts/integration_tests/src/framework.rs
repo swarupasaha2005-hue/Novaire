@@ -68,7 +68,7 @@ impl<'a> Protocol<'a> {
         let maturity_engine = MaturityEngineClient::new(&env, &maturity_engine_addr);
 
         // INITIALIZE ALL
-        sy_wrapper.initialize(&admin, &underlying_token_addr, &vault_addr, &0);
+        sy_wrapper.initialize(&admin, &underlying_token_addr, &vault_addr);
         vault.initialize(&admin, &sy_wrapper_addr, &underlying_token_addr);
         pt_token.initialize(&admin, &tokenizer_addr);
         
