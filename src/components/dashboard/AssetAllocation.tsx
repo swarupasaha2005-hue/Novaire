@@ -1,15 +1,62 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import { usePortfolio } from '../../hooks/usePortfolio';
 
-const DATA = [
-  { label: 'PT (Principal)', value: 85000, color: '#3ECF8E', dash: '0 100' },
-  { label: 'YT (Yield)', value: 25000, color: '#F5F5F2', dash: '68 100' },
-  { label: 'Cash (Uninvested)', value: 14592.8, color: '#4A4A4A', dash: '88 100' },
-];
+const PALETTE = ['#3ECF8E', '#F5F5F2', '#4A4A4A', '#8E8E8E', '#2A2A2A'];
 
 export function AssetAllocation() {
-  const total = DATA.reduce((acc, curr) => acc + curr.value, 0);
+  const { portfolio, loading, error } = usePortfolio();
+
+  if (loading) {
+    return (
+      <div className="flex h-[320px] flex-col rounded-2xl border border-white/10 bg-[#111111] p-6">
+        <h3 className="font-serif text-[20px] text-[#F5F5F2] tracking-tight">Asset Allocation</h3>
+        <div className="mt-6 flex flex-1 items-center justify-center">
+          <div className="h-40 w-40 animate-pulse rounded-full border-4 border-white/10" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error === 'Wallet not connected' || portfolio?.error === 'Wallet not connected') {
+    return (
+      <div className="flex h-[320px] flex-col rounded-2xl border border-white/10 bg-[#111111] p-6">
+        <h3 className="font-serif text-[20px] text-[#F5F5F2] tracking-tight">Asset Allocation</h3>
+        <div className="mt-6 flex flex-1 items-center justify-center text-[#8E8E8E] text-sm">
+          Connect Wallet
+        </div>
+      </div>
+    );
+  }
+
+  const allocations = portfolio?.allocation || [];
+  if (allocations.length === 0) {
+    return (
+      <div className="flex h-[320px] flex-col rounded-2xl border border-white/10 bg-[#111111] p-6">
+        <h3 className="font-serif text-[20px] text-[#F5F5F2] tracking-tight">Asset Allocation</h3>
+        <div className="mt-6 flex flex-1 items-center justify-center text-[#8E8E8E] text-sm">
+          No Assets
+        </div>
+      </div>
+    );
+  }
+
+  const totalValue = portfolio?.totalValueUsd || 0;
+
+  // Prepare drawing data
+  let currentOffset = 0;
+  const chartData = allocations.map((alloc, idx) => {
+    const percent = alloc.percentage;
+    const offset = currentOffset;
+    currentOffset -= percent;
+    return {
+      ...alloc,
+      color: PALETTE[idx % PALETTE.length],
+      dashArray: `${percent} ${100 - percent}`,
+      dashOffset: offset
+    };
+  });
 
   return (
     <motion.div
@@ -23,7 +70,7 @@ export function AssetAllocation() {
       <div className="mt-6 flex flex-1 items-center justify-between">
         
         {/* Custom SVG Donut Chart */}
-        <div className="relative h-40 w-40">
+        <div className="relative h-40 w-40 shrink-0">
           <svg viewBox="0 0 36 36" className="h-full w-full -rotate-90">
             {/* Background Ring */}
             <path
@@ -34,75 +81,54 @@ export function AssetAllocation() {
               strokeWidth="3"
             />
             {/* Segments (Simulated via stroke-dasharray) */}
-            <motion.path
-              initial={{ strokeDasharray: '0 100' }}
-              animate={{ strokeDasharray: '68 32' }}
-              transition={{ duration: 1.5, ease: 'easeOut', delay: 0.5 }}
-              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-              fill="none"
-              stroke="#3ECF8E"
-              strokeWidth="3"
-            />
-            <motion.path
-              initial={{ strokeDasharray: '0 100' }}
-              animate={{ strokeDasharray: '20 80' }}
-              transition={{ duration: 1.5, ease: 'easeOut', delay: 0.7 }}
-              strokeDashoffset="-68"
-              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-              fill="none"
-              stroke="#F5F5F2"
-              strokeWidth="3"
-            />
-            <motion.path
-              initial={{ strokeDasharray: '0 100' }}
-              animate={{ strokeDasharray: '12 88' }}
-              transition={{ duration: 1.5, ease: 'easeOut', delay: 0.9 }}
-              strokeDashoffset="-88"
-              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-              fill="none"
-              stroke="#4A4A4A"
-              strokeWidth="3"
-            />
+            {chartData.map((data, i) => (
+              <motion.path
+                key={data.assetCode}
+                initial={{ strokeDasharray: '0 100', strokeDashoffset: data.dashOffset }}
+                animate={{ strokeDasharray: data.dashArray, strokeDashoffset: data.dashOffset }}
+                transition={{ duration: 1.5, ease: 'easeOut', delay: 0.5 + i * 0.1 }}
+                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                fill="none"
+                stroke={data.color}
+                strokeWidth="3"
+              />
+            ))}
           </svg>
           {/* Inner Total */}
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-[10px] text-[#9A9A9A] uppercase tracking-wider">Total</span>
+            <span className="text-[10px] text-[#9A9A9A] uppercase tracking-wider">Portfolio</span>
             <span className="font-serif text-[15px] text-[#F5F5F2] mt-0.5">
-              ${(total / 1000).toFixed(1)}k
+              ${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
         </div>
 
         {/* Legend */}
-        <div className="flex flex-col gap-4">
-          {DATA.map((item, i) => {
-            const percentage = ((item.value / total) * 100).toFixed(0);
-            return (
-              <motion.div
-                key={item.label}
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.4, delay: 0.8 + i * 0.1 }}
-                className="flex items-center justify-between gap-6"
-              >
-                <div className="flex items-center gap-2">
-                  <div
-                    className="h-2.5 w-2.5 rounded-sm"
-                    style={{ backgroundColor: item.color }}
-                  />
-                  <span className="text-xs text-[#9A9A9A]">{item.label}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-medium text-[#F5F5F2]">
-                    ${item.value.toLocaleString()}
-                  </span>
-                  <span className="w-8 text-right text-[10px] text-[#9A9A9A]">{percentage}%</span>
-                </div>
-              </motion.div>
-            );
-          })}
+        <div className="flex flex-col gap-4 w-full pl-6 overflow-y-auto max-h-[160px] pr-2">
+          {chartData.map((item, i) => (
+            <motion.div
+              key={item.assetCode}
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.4, delay: 0.8 + i * 0.1 }}
+              className="flex items-center justify-between gap-4"
+            >
+              <div className="flex items-center gap-2 overflow-hidden">
+                <div
+                  className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                  style={{ backgroundColor: item.color }}
+                />
+                <span className="text-xs text-[#9A9A9A] truncate">{item.assetCode}</span>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <span className="text-xs font-medium text-[#F5F5F2]">
+                  ${item.valueUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+                <span className="w-8 text-right text-[10px] text-[#9A9A9A]">{item.percentage.toFixed(0)}%</span>
+              </div>
+            </motion.div>
+          ))}
         </div>
-
       </div>
     </motion.div>
   );

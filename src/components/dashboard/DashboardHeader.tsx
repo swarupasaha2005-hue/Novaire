@@ -12,7 +12,7 @@ export function DashboardHeader() {
     : '';
 
   return (
-    <div className="flex items-center justify-start gap-4 mb-6">
+    <div className="flex items-center justify-start gap-4">
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}

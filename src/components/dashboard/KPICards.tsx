@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { Briefcase, TrendingUp, HandCoins, PiggyBank, Activity, ShieldCheck } from 'lucide-react';
+import { usePortfolio } from '../../hooks/usePortfolio';
 
 const KPIS = [
   {
@@ -61,8 +62,31 @@ const KPIS = [
 ];
 
 export function KPICards() {
+  const { portfolio, loading, error } = usePortfolio();
+
+  const getPortfolioValue = () => {
+    if (loading) {
+      return <div className="h-8 w-32 animate-pulse rounded bg-white/10" />;
+    }
+    
+    if (error === 'Wallet not connected' || portfolio?.error === 'Wallet not connected') {
+      return 'Connect Wallet';
+    }
+
+    if (!portfolio || portfolio.totalValueUsd === 0) {
+      return '$0.00';
+    }
+
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(portfolio.totalValueUsd);
+  };
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-6 mb-8">
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
       {KPIS.map((kpi, i) => (
         <motion.div
           key={kpi.id}
@@ -70,29 +94,32 @@ export function KPICards() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 + i * 0.05, ease: 'easeOut' }}
           whileHover={{ scale: 1.01 }}
-          className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-white/10 bg-[#111111] p-5 transition-colors hover:border-[#3ECF8E]/50"
+          className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-white/10 bg-[#111111] px-4 py-3.5 transition-colors hover:border-[#3ECF8E]/50"
         >
           {/* Top Row: Icon & Label */}
-          <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-[#9A9A9A] transition-colors group-hover:text-[#3ECF8E]">
-              <kpi.icon className="h-4 w-4" />
+          <div className="flex items-center gap-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/5 text-[#9A9A9A] transition-colors group-hover:text-[#3ECF8E]">
+              <kpi.icon className="h-3.5 w-3.5" />
             </div>
-            <span className="text-[13px] font-medium text-[#9A9A9A]">{kpi.label}</span>
+            <span className="text-xs font-medium text-[#9A9A9A]">{kpi.label}</span>
           </div>
 
           {/* Value & Change */}
-          <div className="mt-4 flex items-end justify-between">
+          <div className="mt-2 flex items-end justify-between relative z-10">
             <div>
-              <div className="font-serif text-2xl text-[#F5F5F2] tracking-tight">{kpi.value}</div>
-              <div className={`mt-1 text-xs font-medium ${kpi.isPositive ? 'text-[#3ECF8E]' : 'text-red-400'}`}>
-                {kpi.change}
+              <div className="font-serif text-xl text-[#F5F5F2] tracking-tight">
+                {kpi.id === 'portfolio' ? getPortfolioValue() : kpi.value}
+              </div>
+              <div className={`mt-0 text-[11px] font-medium ${kpi.isPositive ? 'text-[#3ECF8E]' : 'text-red-400'}`}>
+                {kpi.id === 'portfolio' && loading ? '' : kpi.change}
               </div>
             </div>
           </div>
 
           {/* Sparkline */}
-          <div className="absolute bottom-0 left-0 right-0 h-8 opacity-30 transition-opacity group-hover:opacity-100">
+          <div className="absolute -bottom-1 left-0 right-0 h-6 opacity-30 transition-opacity group-hover:opacity-100 z-0 pointer-events-none">
             <svg width="100%" height="100%" viewBox="0 0 50 20" preserveAspectRatio="none">
+
               <path
                 d={kpi.sparkline}
                 fill="none"

@@ -14,12 +14,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <AmbientBackground />
 
       {/* Main Content Area */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-y-auto relative">
         {/* Top Navigation */}
         <TopNav />
         
-        {/* Scrollable Page Content */}
-        <main className="flex-1 overflow-y-auto">
+        {/* Page Content */}
+        <main className="flex-1">
           {children}
         </main>
       </div>

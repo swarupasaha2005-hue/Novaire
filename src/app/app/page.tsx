@@ -19,14 +19,14 @@ export default function DashboardPage() {
       transition={{ duration: 0.5, ease: 'easeOut' }}
       className="w-full px-6 pt-6 pb-24"
     >
-      <DashboardHeader />
+      <div className="flex flex-col gap-6 pb-24">
+        <DashboardHeader />
 
-      <div className="flex flex-col gap-8 pb-24">
         {/* ROW 1: KPIs */}
         <KPICards />
 
         {/* ROW 2: Performance & Maturities */}
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
           <div className="xl:col-span-8">
             <PerformanceChart />
           </div>
@@ -36,14 +36,14 @@ export default function DashboardPage() {
         </div>
 
         {/* ROW 3: Asset Allocation, Yield Breakdown, Recent Activity */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <AssetAllocation />
           <YieldBreakdown />
           <RecentActivity />
         </div>
 
         {/* ROW 4: Positions & Protocol Overview */}
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
           <div className="xl:col-span-9">
             <PositionsTable />
           </div>

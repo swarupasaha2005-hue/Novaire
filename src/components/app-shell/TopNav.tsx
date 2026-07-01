@@ -24,7 +24,7 @@ export function TopNav() {
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.1, ease: 'easeOut' }}
-      className="flex h-[68px] w-full items-center justify-between border-b border-white/10 bg-[#0A0A0A] px-6"
+      className="flex h-[68px] w-full shrink-0 items-center justify-between border-b border-white/10 bg-[#0A0A0A] px-6"
     >
       {/* Left: Wordmark & Links */}
       <div className="flex h-full items-center gap-8">
