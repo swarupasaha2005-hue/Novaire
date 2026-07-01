@@ -14,8 +14,8 @@ const instrument = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "Novaire | Autonomous Fixed Income",
-  description: "The first Autonomous Fixed Income Operating System on Stellar. Invest by Goal. Not by Complexity.",
+  title: "Novaire | Autonomous Yield Infrastructure",
+  description: "The first Autonomous Yield Operating System on Stellar. Invest by Goal. Not by Complexity.",
 };
 
 export default function RootLayout({
