@@ -1,60 +1,228 @@
-import { Keypair, Network, rpc, TransactionBuilder, Contract, Asset, xdr } from '@stellar/stellar-sdk';
+import { Keypair, rpc, Networks, TransactionBuilder, BASE_FEE, Operation, Asset } from '@stellar/stellar-sdk';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
+import axios from 'axios';
 
 const RPC_URL = process.env.RPC_URL || 'https://soroban-testnet.stellar.org';
-const NETWORK_PASSPHRASE = process.env.NETWORK_PASSPHRASE || Network.TESTNET;
-const ADMIN_SECRET = process.env.ADMIN_SECRET;
+const NETWORK_PASSPHRASE = process.env.NETWORK_PASSPHRASE || Networks.TESTNET;
+const DEPLOYMENTS_FILE = path.resolve(__dirname, 'deployments.testnet.json');
+
+let deployments: Record<string, string> = {};
+if (fs.existsSync(DEPLOYMENTS_FILE)) {
+    deployments = JSON.parse(fs.readFileSync(DEPLOYMENTS_FILE, 'utf-8'));
+}
+
+function saveDeployments() {
+    fs.writeFileSync(DEPLOYMENTS_FILE, JSON.stringify(deployments, null, 2));
+}
+
+async function fundAccount(publicKey: string) {
+    console.log(`Funding ${publicKey} via Friendbot...`);
+    try {
+        await axios.get(`https://friendbot.stellar.org?addr=${publicKey}`);
+    } catch (e: any) {
+        if (e.response && e.response.status === 400) {
+            console.log("Account already funded.");
+        } else {
+            console.warn("Friendbot failed, assuming account has funds.");
+        }
+    }
+}
+
+function runCmd(cmd: string, retries: number = 5): string {
+    for (let i = 0; i < retries; i++) {
+        try {
+            console.log(`Executing (Attempt ${i + 1}/${retries}): ${cmd}`);
+            const result = execSync(cmd, { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+            return result;
+        } catch (e: any) {
+            const stderr = e.stderr ? e.stderr.toString() : '';
+            console.warn(`Command failed on attempt ${i + 1}: ${e.message}\nStderr: ${stderr}`);
+            if (i === retries - 1) throw e;
+            const sleepTime = Math.pow(2, i) * 2000;
+            console.log(`Sleeping for ${sleepTime}ms before retrying...`);
+            execSync(`sleep ${sleepTime / 1000}`);
+        }
+    }
+    return '';
+}
+
+function runCmdNoFail(cmd: string): string {
+    try {
+        return execSync(cmd, { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+    } catch (e: any) {
+        return e.stderr ? e.stderr.toString() : e.message;
+    }
+}
 
 async function deploy() {
-    if (!ADMIN_SECRET) {
-        throw new Error('ADMIN_SECRET environment variable is required');
+    const KEYS_FILE = path.resolve(__dirname, 'testnet_keys.json');
+    let admin: Keypair;
+    let issuer: Keypair;
+
+    if (fs.existsSync(KEYS_FILE)) {
+        const keys = JSON.parse(fs.readFileSync(KEYS_FILE, 'utf-8'));
+        admin = Keypair.fromSecret(keys.admin_secret);
+        issuer = Keypair.fromSecret(keys.issuer_secret);
+        console.log(`Loaded existing Admin: ${admin.publicKey()}`);
+    } else {
+        admin = Keypair.random();
+        issuer = Keypair.random();
+        fs.writeFileSync(KEYS_FILE, JSON.stringify({
+            admin_secret: admin.secret(),
+            admin_public: admin.publicKey(),
+            issuer_secret: issuer.secret(),
+            issuer_public: issuer.publicKey()
+        }, null, 2));
+        console.log(`Created new Admin: ${admin.publicKey()}`);
     }
-    
-    const adminKp = Keypair.fromSecret(ADMIN_SECRET);
+
+    await fundAccount(admin.publicKey());
+    await fundAccount(issuer.publicKey());
+
     const server = new rpc.Server(RPC_URL, { allowHttp: true });
 
-    console.log('Compiling contracts...');
-    execSync('soroban contract build', { stdio: 'inherit', cwd: path.resolve(__dirname, '../') });
+    if (!deployments['underlying_token']) {
+        console.log("Setting up Mock USDC Asset...");
+        const usdcAsset = new Asset('USDC', issuer.publicKey());
+        let adminAcc = await server.getAccount(admin.publicKey());
+        
+        let tx = new TransactionBuilder(adminAcc, { fee: BASE_FEE, networkPassphrase: NETWORK_PASSPHRASE })
+            .addOperation(Operation.changeTrust({ asset: usdcAsset }))
+            .setTimeout(60)
+            .build();
+        tx.sign(admin);
+        try {
+            let res = await server.sendTransaction(tx);
+            if (res.status === 'ERROR') console.warn(`Trustline may already exist or failed: ${JSON.stringify(res)}`);
+        } catch(e) { console.warn("Trustline error caught (likely exists)."); }
 
-    const contracts = [
-        'sy_wrapper',
-        'vault',
-        'tokenizer',
-        'pt_token',
-        'yt_token',
-        'marketplace',
-        'intent_engine',
-        'maturity_engine',
-        'rollover'
+        let issuerAcc = await server.getAccount(issuer.publicKey());
+        tx = new TransactionBuilder(issuerAcc, { fee: BASE_FEE, networkPassphrase: NETWORK_PASSPHRASE })
+            .addOperation(Operation.payment({ destination: admin.publicKey(), asset: usdcAsset, amount: '1000000' }))
+            .setTimeout(60)
+            .build();
+        tx.sign(issuer);
+        try {
+            await server.sendTransaction(tx);
+        } catch(e) { console.warn("Payment error caught (likely exists)."); }
+
+        console.log("Wrapping USDC to Soroban contract...");
+        const underlying_token = runCmd(`stellar contract asset deploy --asset USDC:${issuer.publicKey()} --source-account ${admin.secret()} --rpc-url ${RPC_URL} --network-passphrase "${NETWORK_PASSPHRASE}"`);
+        console.log(`Mock Underlying Token ID: ${underlying_token}`);
+        deployments['underlying_token'] = underlying_token;
+        saveDeployments();
+    } else {
+        console.log(`Mock Token already deployed: ${deployments['underlying_token']}`);
+    }
+
+    console.log('Building contracts...');
+    execSync('stellar contract build', { stdio: 'inherit', cwd: path.resolve(__dirname, '../contracts') });
+
+    const contractsToDeploy = [
+        'factory', 'sy_wrapper', 'vault', 'tokenizer', 'pt_token', 'yt_token', 
+        'marketplace', 'intent_engine', 'rollover'
     ];
 
-    const deployments: Record<string, string> = {};
-
-    console.log(`Deploying from admin: ${adminKp.publicKey()}`);
-
-    for (const name of contracts) {
-        console.log(`Deploying ${name}...`);
+    for (const name of contractsToDeploy) {
+        if (!deployments[`${name}_wasm`]) {
+            console.log(`Uploading WASM for ${name}...`);
+            const wasmPath = path.resolve(__dirname, `../contracts/target/wasm32v1-none/release/${name}.wasm`);
+            const wasmId = runCmd(`stellar contract upload --wasm ${wasmPath} --source ${admin.secret()} --rpc-url ${RPC_URL} --network-passphrase "${NETWORK_PASSPHRASE}"`);
+            deployments[`${name}_wasm`] = wasmId;
+            saveDeployments();
+            console.log(`Uploaded ${name} Wasm: ${wasmId}`);
+        } else {
+            console.log(`${name} WASM already uploaded: ${deployments[`${name}_wasm`]}`);
+        }
         
-        const wasmPath = path.resolve(__dirname, `../target/wasm32-unknown-unknown/release/${name}.wasm`);
-        
-        try {
-            const wasmId = execSync(`soroban contract install --wasm ${wasmPath} --source ${adminKp.secret()} --rpc-url ${RPC_URL} --network-passphrase "${NETWORK_PASSPHRASE}"`).toString().trim();
-            console.log(`Wasm ID for ${name}: ${wasmId}`);
-            
-            const contractId = execSync(`soroban contract deploy --wasm-hash ${wasmId} --source ${adminKp.secret()} --rpc-url ${RPC_URL} --network-passphrase "${NETWORK_PASSPHRASE}"`).toString().trim();
-            
-            console.log(`Deployed ${name} to ${contractId}`);
+        if (!deployments[name]) {
+            console.log(`Deploying raw contract ${name}...`);
+            const wasmId = deployments[`${name}_wasm`];
+            const contractId = runCmd(`stellar contract deploy --wasm-hash ${wasmId} --source ${admin.secret()} --rpc-url ${RPC_URL} --network-passphrase "${NETWORK_PASSPHRASE}"`);
             deployments[name] = contractId;
-        } catch (e) {
-            console.error(`Failed to deploy ${name}`, e);
-            throw e;
+            saveDeployments();
+            console.log(`${name} deployed -> ${contractId}`);
+        } else {
+            console.log(`${name} already deployed: ${deployments[name]}`);
         }
     }
 
-    fs.writeFileSync(path.resolve(__dirname, 'deployments.json'), JSON.stringify(deployments, null, 2));
-    console.log('Deployments saved to deployments.json');
+    if (!deployments['factory_initialized']) {
+        console.log("Initializing Factory...");
+        const out = runCmdNoFail(`stellar contract invoke --id ${deployments.factory} --source ${admin.secret()} --rpc-url ${RPC_URL} --network-passphrase "${NETWORK_PASSPHRASE}" -- initialize --admin ${admin.publicKey()} --protocol_version 1`);
+        if (out.includes("AlreadyInitialized") || !out.includes("error")) {
+            console.log("Factory initialized successfully (or already was).");
+            deployments['factory_initialized'] = "true";
+            saveDeployments();
+        } else {
+            console.warn(`Factory init issue: ${out}`);
+        }
+    } else {
+        console.log("Factory already initialized.");
+    }
+
+    if (!deployments['epoch_deployed']) {
+        console.log("Invoking Factory.deploy_epoch()...");
+        const ledger = await server.getLatestLedger();
+        const maturity_ledger = ledger.sequence + 5000;
+        const grace_period_ledgers = 1000;
+        const keeper = admin.publicKey();
+
+        const paramsJson = JSON.stringify({
+            maturity_ledger: maturity_ledger,
+            underlying_token: deployments.underlying_token,
+            sy_wrapper: deployments.sy_wrapper,
+            vault: deployments.vault,
+            pt_token: deployments.pt_token,
+            yt_token: deployments.yt_token,
+            tokenizer: deployments.tokenizer,
+            marketplace: deployments.marketplace,
+            intent_engine: deployments.intent_engine,
+            rollover_engine: deployments.rollover,
+            keeper: keeper,
+            grace_period_ledgers: grace_period_ledgers
+        });
+
+        const invokeArgs = [
+            `--id ${deployments.factory}`,
+            `--source ${admin.secret()}`,
+            `--rpc-url ${RPC_URL}`,
+            `--network-passphrase "${NETWORK_PASSPHRASE}"`,
+            `--`,
+            `deploy_epoch`,
+            `--params '${paramsJson}'`
+        ].join(' ');
+
+        const out = runCmdNoFail(`stellar contract invoke ${invokeArgs}`);
+        if (out.includes("AlreadyInitialized")) {
+            console.log("Epoch already deployed.");
+            deployments['epoch_deployed'] = "true";
+            saveDeployments();
+        } else if (!out.includes("error") && out.trim() !== '') {
+            console.log(`Epoch Deployed! Epoch ID: ${out.trim()}`);
+            deployments['epoch_deployed'] = "true";
+            saveDeployments();
+        } else {
+            console.warn(`Epoch deploy failed: ${out}`);
+        }
+    } else {
+        console.log("Epoch already deployed.");
+    }
+
+    console.log("Generating TypeScript Bindings...");
+    for (const name of contractsToDeploy) {
+        if (!deployments[`${name}_bindings`]) {
+            runCmd(`stellar contract bindings typescript --id ${deployments[name]} --network testnet --output-dir ../packages/bindings/${name}`);
+            deployments[`${name}_bindings`] = "true";
+            saveDeployments();
+        }
+    }
+    console.log("Deployment and Wiring Complete!");
 }
 
-deploy().catch(console.error);
+deploy().catch((err) => {
+    console.error("Deployment script failed entirely:", err);
+    process.exit(1);
+});

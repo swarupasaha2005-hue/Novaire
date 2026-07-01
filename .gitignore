@@ -43,3 +43,4 @@ next-env.d.ts
 # Rust
 target/
 **/target/
+/src/generated/prisma

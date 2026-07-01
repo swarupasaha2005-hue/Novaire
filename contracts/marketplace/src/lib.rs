@@ -164,6 +164,7 @@ impl NovaireMarketplace {
         if storage::is_initialized(&env) {
             return Err(NovaireMarketError::AlreadyInitialized);
         }
+        admin.require_auth();
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::PtToken, &pt_token);
         env.storage().instance().set(&DataKey::YtToken, &yt_token);
@@ -271,7 +272,7 @@ impl NovaireMarketplace {
         underlying_reserves = underlying_reserves.checked_sub(underlying_out).ok_or(NovaireMarketError::MathOverflow)?;
         total_lp_shares = total_lp_shares.checked_sub(lp_shares).ok_or(NovaireMarketError::MathOverflow)?;
 
-        storage::set_lp_balance(&env, &provider, current_lp.checked_sub(lp_shares).unwrap());
+        storage::set_lp_balance(&env, &provider, current_lp.checked_sub(lp_shares).ok_or(NovaireMarketError::MathOverflow)?);
         storage::set_i128(&env, DataKey::PtReserves, pt_reserves);
         storage::set_i128(&env, DataKey::UnderlyingReserves, underlying_reserves);
         storage::set_i128(&env, DataKey::TotalLpShares, total_lp_shares);
@@ -316,8 +317,8 @@ impl NovaireMarketplace {
         let a_pool = compute_a_pool(&env, underlying_reserves, pt_reserves)?;
         let k = compute_k(a_pool, underlying_reserves, pt_reserves)?;
 
-        let underlying_in_after_fee = underlying_in.checked_mul(997).unwrap().checked_div(1000).unwrap();
-        let new_underlying = underlying_reserves.checked_add(underlying_in_after_fee).unwrap();
+        let underlying_in_after_fee = underlying_in.checked_mul(997).ok_or(NovaireMarketError::MathOverflow)?.checked_div(1000).ok_or(NovaireMarketError::MathOverflow)?;
+        let new_underlying = underlying_reserves.checked_add(underlying_in_after_fee).ok_or(NovaireMarketError::MathOverflow)?;
 
         let new_pt = get_y(a_pool, k, new_underlying)?;
         let pt_out = pt_reserves.checked_sub(new_pt).unwrap_or(0);
@@ -330,8 +331,8 @@ impl NovaireMarketplace {
             return Err(NovaireMarketError::BelowMinimumLiquidity);
         }
 
-        storage::set_i128(&env, DataKey::PtReserves, pt_reserves.checked_sub(pt_out).unwrap());
-        storage::set_i128(&env, DataKey::UnderlyingReserves, underlying_reserves.checked_add(underlying_in).unwrap());
+        storage::set_i128(&env, DataKey::PtReserves, pt_reserves.checked_sub(pt_out).ok_or(NovaireMarketError::MathOverflow)?);
+        storage::set_i128(&env, DataKey::UnderlyingReserves, underlying_reserves.checked_add(underlying_in).ok_or(NovaireMarketError::MathOverflow)?);
 
         // Update TWAP
         let current_spot = get_spot_price(a_pool, new_underlying, new_pt)?;
@@ -379,8 +380,8 @@ impl NovaireMarketplace {
         let a_pool = compute_a_pool(&env, pt_reserves, underlying_reserves)?;
         let k = compute_k(a_pool, pt_reserves, underlying_reserves)?;
 
-        let pt_in_after_fee = pt_in.checked_mul(997).unwrap().checked_div(1000).unwrap();
-        let new_pt = pt_reserves.checked_add(pt_in_after_fee).unwrap();
+        let pt_in_after_fee = pt_in.checked_mul(997).ok_or(NovaireMarketError::MathOverflow)?.checked_div(1000).ok_or(NovaireMarketError::MathOverflow)?;
+        let new_pt = pt_reserves.checked_add(pt_in_after_fee).ok_or(NovaireMarketError::MathOverflow)?;
 
         let new_underlying = get_y(a_pool, k, new_pt)?;
         let underlying_out = underlying_reserves.checked_sub(new_underlying).unwrap_or(0);
@@ -393,8 +394,8 @@ impl NovaireMarketplace {
             return Err(NovaireMarketError::BelowMinimumLiquidity);
         }
 
-        storage::set_i128(&env, DataKey::PtReserves, pt_reserves.checked_add(pt_in).unwrap());
-        storage::set_i128(&env, DataKey::UnderlyingReserves, underlying_reserves.checked_sub(underlying_out).unwrap());
+        storage::set_i128(&env, DataKey::PtReserves, pt_reserves.checked_add(pt_in).ok_or(NovaireMarketError::MathOverflow)?);
+        storage::set_i128(&env, DataKey::UnderlyingReserves, underlying_reserves.checked_sub(underlying_out).ok_or(NovaireMarketError::MathOverflow)?);
 
         let current_spot = get_spot_price(a_pool, new_pt, new_underlying)?;
         let old_twap = storage::get_i128(&env, DataKey::ImpliedRateTwap).unwrap_or(0);
@@ -446,8 +447,8 @@ impl NovaireMarketplace {
             return Err(NovaireMarketError::InsufficientLiquidity);
         }
 
-        let yt_out = underlying_in.checked_mul(1_000_000_000).unwrap().checked_div(yt_price).unwrap();
-        let actual_yt_out = yt_out.checked_mul(995).unwrap().checked_div(1000).unwrap();
+        let yt_out = underlying_in.checked_mul(1_000_000_000).ok_or(NovaireMarketError::MathOverflow)?.checked_div(yt_price).ok_or(NovaireMarketError::MathOverflow)?;
+        let actual_yt_out = yt_out.checked_mul(995).ok_or(NovaireMarketError::MathOverflow)?.checked_div(1000).ok_or(NovaireMarketError::MathOverflow)?;
 
         if actual_yt_out < min_yt_out {
             return Err(NovaireMarketError::SlippageExceeded);
@@ -458,7 +459,7 @@ impl NovaireMarketplace {
             return Err(NovaireMarketError::InsufficientLiquidity);
         }
 
-        yt_reserves = yt_reserves.checked_sub(actual_yt_out).unwrap();
+        yt_reserves = yt_reserves.checked_sub(actual_yt_out).ok_or(NovaireMarketError::MathOverflow)?;
         storage::set_i128(&env, DataKey::YtReserves, yt_reserves);
 
         let yt_token_addr = storage::get_address(&env, DataKey::YtToken)?;
@@ -503,15 +504,15 @@ impl NovaireMarketplace {
         
         let yt_price = 1_000_000_000i128.checked_sub(pt_price).unwrap_or(0);
         
-        let underlying_out = yt_in.checked_mul(yt_price).unwrap().checked_div(1_000_000_000).unwrap();
-        let actual_underlying_out = underlying_out.checked_mul(995).unwrap().checked_div(1000).unwrap();
+        let underlying_out = yt_in.checked_mul(yt_price).ok_or(NovaireMarketError::MathOverflow)?.checked_div(1_000_000_000).ok_or(NovaireMarketError::MathOverflow)?;
+        let actual_underlying_out = underlying_out.checked_mul(995).ok_or(NovaireMarketError::MathOverflow)?.checked_div(1000).ok_or(NovaireMarketError::MathOverflow)?;
 
         if actual_underlying_out < min_underlying_out {
             return Err(NovaireMarketError::SlippageExceeded);
         }
 
         let mut yt_reserves = storage::get_i128(&env, DataKey::YtReserves)?;
-        yt_reserves = yt_reserves.checked_add(yt_in).unwrap();
+        yt_reserves = yt_reserves.checked_add(yt_in).ok_or(NovaireMarketError::MathOverflow)?;
         storage::set_i128(&env, DataKey::YtReserves, yt_reserves);
 
         let yt_token_addr = storage::get_address(&env, DataKey::YtToken)?;

@@ -42,44 +42,29 @@ async function initialize() {
         }
     };
 
-    console.log('Initializing SY Wrapper...');
-    // pub fn initialize(env: Env, admin: Address, underlying_token: Address, vault: Address, exchange_rate: i128)
-    invoke(d.sy_wrapper, 'initialize', `--admin ${adminKp.publicKey()} --underlying_token ${dummyToken} --vault ${d.vault} --exchange_rate 0`);
+    console.log('Initializing Factory...');
+    invoke(d.factory, 'initialize', `--admin ${adminKp.publicKey()} --protocol_version 1`);
 
-    console.log('Initializing Vault...');
-    // pub fn initialize(env: Env, admin: Address, sy_token: Address, underlying_token: Address)
-    invoke(d.vault, 'initialize', `--admin ${adminKp.publicKey()} --sy_token ${d.sy_wrapper} --underlying_token ${dummyToken}`);
-
-    console.log('Initializing PT Token...');
-    // pub fn initialize(env: Env, admin: Address, tokenizer: Address)
-    invoke(d.pt_token, 'initialize', `--admin ${adminKp.publicKey()} --tokenizer ${d.tokenizer}`);
-
-    console.log('Initializing YT Token...');
-    // pub fn initialize(env: Env, admin: Address, tokenizer: Address, maturity_ledger: u32)
+    console.log('Deploying Epoch...');
     const maturityLedger = 1000000;
-    invoke(d.yt_token, 'initialize', `--admin ${adminKp.publicKey()} --tokenizer ${d.tokenizer} --maturity_ledger ${maturityLedger}`);
+    const params = JSON.stringify({
+        maturity_ledger: maturityLedger,
+        underlying_token: dummyToken,
+        sy_wrapper: d.sy_wrapper,
+        vault: d.vault,
+        pt_token: d.pt_token,
+        yt_token: d.yt_token,
+        tokenizer: d.tokenizer,
+        marketplace: d.marketplace,
+        intent_engine: d.intent_engine,
+        rollover_engine: d.rollover,
+        keeper: keeperKp.publicKey(),
+        grace_period_ledgers: 17280
+    });
 
-    console.log('Initializing Tokenizer...');
-    // pub fn initialize(env: Env, admin: Address, vault: Address, pt_token: Address, yt_token: Address, sy_token: Address, maturity_ledger: u32)
-    invoke(d.tokenizer, 'initialize', `--admin ${adminKp.publicKey()} --vault ${d.vault} --pt_token ${d.pt_token} --yt_token ${d.yt_token} --sy_token ${d.sy_wrapper} --maturity_ledger ${maturityLedger}`);
+    invoke(d.factory, 'deploy_epoch', `--params '${params}'`);
 
-    console.log('Initializing Marketplace...');
-    // pub fn initialize(env: Env, admin: Address, pt_token: Address, yt_token: Address, underlying_token: Address, sy_token: Address, tokenizer: Address, maturity_ledger: u32)
-    invoke(d.marketplace, 'initialize', `--admin ${adminKp.publicKey()} --pt_token ${d.pt_token} --yt_token ${d.yt_token} --underlying_token ${dummyToken} --sy_token ${d.sy_wrapper} --tokenizer ${d.tokenizer} --maturity_ledger ${maturityLedger}`);
-
-    console.log('Initializing Intent Engine...');
-    // pub fn initialize(env: Env, admin: Address, vault: Address, tokenizer: Address, marketplace: Address, sy_token: Address, underlying_token: Address, pt_token: Address, yt_token: Address)
-    invoke(d.intent_engine, 'initialize', `--admin ${adminKp.publicKey()} --vault ${d.vault} --tokenizer ${d.tokenizer} --marketplace ${d.marketplace} --sy_token ${d.sy_wrapper} --underlying_token ${dummyToken} --pt_token ${d.pt_token} --yt_token ${d.yt_token}`);
-
-    console.log('Initializing Rollover Engine...');
-    // pub fn initialize(env: Env, admin: Address, tokenizer: Address, vault: Address, marketplace: Address, intent_engine: Address, keeper: Address, pt_token: Address, underlying_token: Address, grace_period_ledgers: u32)
-    invoke(d.rollover, 'initialize', `--admin ${adminKp.publicKey()} --tokenizer ${d.tokenizer} --vault ${d.vault} --marketplace ${d.marketplace} --intent_engine ${d.intent_engine} --keeper ${keeperKp.publicKey()} --pt_token ${d.pt_token} --underlying_token ${dummyToken} --grace_period_ledgers 17280`);
-
-    console.log('Initializing Maturity Engine...');
-    // pub fn initialize(env: Env, admin: Address, tokenizer: Address, vault: Address)
-    invoke(d.maturity_engine, 'initialize', `--admin ${adminKp.publicKey()} --tokenizer ${d.tokenizer} --vault ${d.vault}`);
-
-    console.log('All contracts wired and initialized successfully!');
+    console.log('All contracts wired and initialized successfully via Factory!');
 }
 
 initialize().catch(console.error);

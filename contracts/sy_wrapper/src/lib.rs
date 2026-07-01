@@ -27,10 +27,7 @@ pub enum DataKey {
     Underlying,
     YieldSource,
     TotalShares,
-    ExchangeRate,
-    LastUpdated,
     Paused,
-    MaxRateStep,
 }
 
 const EXCHANGE_RATE_SCALAR: i128 = 1_000_000_000;
@@ -49,10 +46,6 @@ mod storage {
 
     pub fn get_underlying(env: &Env) -> Result<Address, NovaireSyError> {
         env.storage().instance().get(&DataKey::Underlying).ok_or(NovaireSyError::StorageMissing)
-    }
-
-    pub fn get_exchange_rate(env: &Env) -> Result<i128, NovaireSyError> {
-        env.storage().instance().get(&DataKey::ExchangeRate).ok_or(NovaireSyError::StorageMissing)
     }
     
     pub fn get_total_shares(env: &Env) -> i128 {
@@ -85,20 +78,17 @@ impl SyWrapper {
         admin: Address,
         underlying: Address,
         yield_source: Address,
-        max_rate_step: i128,
     ) -> Result<(), NovaireSyError> {
         if storage::is_initialized(&env) {
             return Err(NovaireSyError::AlreadyInitialized);
         }
+        admin.require_auth();
 
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::Underlying, &underlying);
         env.storage().instance().set(&DataKey::YieldSource, &yield_source);
         env.storage().instance().set(&DataKey::TotalShares, &0i128);
-        env.storage().instance().set(&DataKey::ExchangeRate, &EXCHANGE_RATE_SCALAR);
-        env.storage().instance().set(&DataKey::LastUpdated, &env.ledger().sequence());
         env.storage().instance().set(&DataKey::Paused, &false);
-        env.storage().instance().set(&DataKey::MaxRateStep, &max_rate_step);
 
         Ok(())
     }
@@ -112,7 +102,7 @@ impl SyWrapper {
         }
 
         let underlying_addr = storage::get_underlying(&env)?;
-        let rate = storage::get_exchange_rate(&env)?;
+        let rate = Self::get_exchange_rate(env.clone());
         let mut total_shares = storage::get_total_shares(&env);
 
         let shares_to_mint = amount
@@ -144,7 +134,7 @@ impl SyWrapper {
         }
 
         let underlying_addr = storage::get_underlying(&env)?;
-        let rate = storage::get_exchange_rate(&env)?;
+        let rate = Self::get_exchange_rate(env.clone());
         let mut total_shares = storage::get_total_shares(&env);
 
         if shares > total_shares {
@@ -171,31 +161,21 @@ impl SyWrapper {
         Ok(underlying_to_return)
     }
 
-    pub fn accrue_yield(env: Env, new_exchange_rate: i128) -> Result<(), NovaireSyError> {
+    pub fn harvest_yield(env: Env) -> Result<(), NovaireSyError> {
         let admin = storage::get_admin(&env)?;
         admin.require_auth();
         storage::require_not_paused(&env)?;
 
-        let current_rate = storage::get_exchange_rate(&env)?;
-
-        if new_exchange_rate < current_rate {
-            return Err(NovaireSyError::RateCannotDecrease);
-        }
-
-        let max_rate_step: i128 = env.storage().instance().get(&DataKey::MaxRateStep).ok_or(NovaireSyError::StorageMissing)?;
-        let diff = new_exchange_rate.checked_sub(current_rate).ok_or(NovaireSyError::MathUnderflow)?;
-        
-        if diff > max_rate_step {
-            return Err(NovaireSyError::RateIncreaseTooLarge);
-        }
-
-        env.storage().instance().set(&DataKey::ExchangeRate, &new_exchange_rate);
-        env.storage().instance().set(&DataKey::LastUpdated, &env.ledger().sequence());
-
+        // The yield is harvested by interacting with the yield source.
+        // For phase 1, yield is deposited directly into this contract
+        // causing the rate to passively increase. This function serves 
+        // to emit an event tracking the new rate.
+        let rate = Self::get_exchange_rate(env.clone());
         let total_shares = storage::get_total_shares(&env);
+
         env.events().publish(
-            (Symbol::new(&env, "yield_accrued"),), 
-            (current_rate, new_exchange_rate, total_shares, env.ledger().sequence())
+            (Symbol::new(&env, "yield_harvested"),), 
+            (rate, total_shares, env.ledger().sequence())
         );
 
         Ok(())
@@ -230,24 +210,25 @@ impl SyWrapper {
         Ok(())
     }
 
-    pub fn set_max_rate_step(env: Env, step: i128) -> Result<(), NovaireSyError> {
-        let admin = storage::get_admin(&env)?;
-        admin.require_auth();
-        env.storage().instance().set(&DataKey::MaxRateStep, &step);
-        Ok(())
-    }
-
     pub fn get_exchange_rate(env: Env) -> i128 {
-        storage::get_exchange_rate(&env).unwrap_or(EXCHANGE_RATE_SCALAR)
+        let total_shares = storage::get_total_shares(&env);
+        if total_shares == 0 {
+            return EXCHANGE_RATE_SCALAR;
+        }
+        let underlying_addr = storage::get_underlying(&env).unwrap();
+        let token_client = token::Client::new(&env, &underlying_addr);
+        let balance = token_client.balance(&env.current_contract_address());
+        
+        balance.checked_mul(EXCHANGE_RATE_SCALAR).unwrap_or(0).checked_div(total_shares).unwrap_or(EXCHANGE_RATE_SCALAR)
     }
 
     pub fn preview_deposit(env: Env, amount: i128) -> i128 {
-        let rate = storage::get_exchange_rate(&env).unwrap_or(EXCHANGE_RATE_SCALAR);
+        let rate = Self::get_exchange_rate(env.clone());
         amount.checked_mul(EXCHANGE_RATE_SCALAR).unwrap_or(0).checked_div(rate).unwrap_or(0)
     }
 
     pub fn preview_withdraw(env: Env, shares: i128) -> i128 {
-        let rate = storage::get_exchange_rate(&env).unwrap_or(EXCHANGE_RATE_SCALAR);
+        let rate = Self::get_exchange_rate(env.clone());
         shares.checked_mul(rate).unwrap_or(0).checked_div(EXCHANGE_RATE_SCALAR).unwrap_or(0)
     }
 

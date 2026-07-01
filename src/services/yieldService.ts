@@ -25,4 +25,34 @@ export class YieldService {
       { timestamp: new Date().toISOString(), fixedApy: 10.5, variableApy: 12.8 },
     ];
   }
+
+  static async getPerformanceHistory(timeframe: string, hasYieldPosition: boolean = true): Promise<{ date: string; underlying: number; pt: number; yt: number; }[]> {
+    // TODO: Connect this to Soroban events indexer
+    const points = timeframe === '1D' ? 24 : timeframe === '7D' ? 7 : timeframe === '30D' ? 30 : timeframe === '90D' ? 90 : 180;
+    const data = [];
+    
+    let baseUnderlying = 10000;
+    let basePt = hasYieldPosition ? 5000 : 0;
+    let baseYt = hasYieldPosition ? 5000 : 0;
+    
+    // Simulate trend
+    for (let i = points; i >= 0; i--) {
+      const date = new Date(Date.now() - i * (timeframe === '1D' ? 3600000 : 86400000));
+      
+      baseUnderlying += (Math.random() - 0.4) * 100;
+      if (hasYieldPosition) {
+        basePt += (Math.random() - 0.35) * 50; // PT steadily grows
+        baseYt += (Math.random() - 0.5) * 80;  // YT more volatile
+      }
+      
+      data.push({
+        date: date.toISOString(),
+        underlying: Math.max(0, baseUnderlying),
+        pt: hasYieldPosition ? Math.max(0, basePt) : 0,
+        yt: hasYieldPosition ? Math.max(0, baseYt) : 0
+      });
+    }
+    
+    return data;
+  }
 }
