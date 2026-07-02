@@ -1,18 +1,23 @@
 'use client';
 
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Bell, Wallet, CircleUser } from 'lucide-react';
+import { Bell, Wallet, CircleUser, Plus } from 'lucide-react';
 import { useWallet } from '../../hooks/useWallet';
+import { MintModal } from '../modals/MintModal';
+import { usePortfolio } from '../../hooks/usePortfolio';
 
 export function DashboardHeader() {
   const { isConnected, address, connect, disconnect } = useWallet();
+  const { refresh: refreshPortfolio } = usePortfolio();
+  const [isMintModalOpen, setIsMintModalOpen] = useState(false);
 
   const formattedAddress = address 
     ? `${address.slice(0, 4)}...${address.slice(-4)}`
     : '';
 
   return (
-    <div className="flex items-center justify-start gap-4">
+    <div className="flex items-center justify-between">
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
@@ -62,6 +67,26 @@ export function DashboardHeader() {
           <CircleUser className="h-4 w-4" />
         </button>
       </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: 'easeOut', delay: 0.1 }}
+      >
+        <button
+          onClick={() => setIsMintModalOpen(true)}
+          className="flex h-10 items-center gap-2 rounded-xl bg-[#3ECF8E] px-5 py-2 font-semibold text-black transition-transform hover:scale-105 active:scale-95"
+        >
+          <Plus className="h-4 w-4" />
+          Mint PT & YT
+        </button>
+      </motion.div>
+
+      <MintModal 
+        isOpen={isMintModalOpen} 
+        onClose={() => setIsMintModalOpen(false)}
+        onSuccess={refreshPortfolio}
+      />
     </div>
   );
 }

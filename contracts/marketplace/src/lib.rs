@@ -524,6 +524,10 @@ impl NovaireMarketplace {
         yt_client.transfer(&seller, &env.current_contract_address(), &yt_in);
         underlying_client.transfer(&env.current_contract_address(), &seller, &actual_underlying_out);
 
+        let mut current_underlying_reserves = storage::get_i128(&env, DataKey::UnderlyingReserves)?;
+        current_underlying_reserves = current_underlying_reserves.checked_sub(actual_underlying_out).ok_or(NovaireMarketError::MathOverflow)?;
+        storage::set_i128(&env, DataKey::UnderlyingReserves, current_underlying_reserves);
+
         env.events().publish(
             (soroban_sdk::Symbol::new(&env, "swap_yt_u"), seller),
             (yt_in, actual_underlying_out),

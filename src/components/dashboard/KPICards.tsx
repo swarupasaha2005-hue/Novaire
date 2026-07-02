@@ -64,25 +64,52 @@ const KPIS = [
 export function KPICards() {
   const { portfolio, loading, error } = usePortfolio();
 
-  const getPortfolioValue = () => {
-    if (loading) {
-      return <div className="h-8 w-32 animate-pulse rounded bg-white/10" />;
-    }
-    
-    if (error === 'Wallet not connected' || portfolio?.error === 'Wallet not connected') {
-      return 'Connect Wallet';
-    }
-
-    if (!portfolio || portfolio.totalValueUsd === 0) {
-      return '$0.00';
-    }
-
+  const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
-    }).format(portfolio.totalValueUsd);
+    }).format(value);
+  };
+
+  const getKpiValue = (id: string, fallback: string) => {
+    if (loading) return <div className="h-8 w-32 animate-pulse rounded bg-white/10" />;
+    if (error === 'Wallet not connected' || portfolio?.error === 'Wallet not connected') return 'Connect Wallet';
+    if (!portfolio) return fallback;
+
+    switch (id) {
+      case 'portfolio':
+        return formatCurrency(portfolio.totalValueUsd);
+      case 'invested':
+        return formatCurrency(portfolio.metrics.totalInvestedUsd);
+      case 'positions':
+        return portfolio.metrics.activePositions.toString();
+      case 'yield':
+        return '$0.00'; // Real calculation requires historical indexer
+      case 'claimable':
+        return '$0.00'; // Real calculation requires historical indexer
+      default:
+        return fallback;
+    }
+  };
+
+  const getKpiChange = (id: string, fallback: string) => {
+    if (loading) return '';
+    if (error === 'Wallet not connected' || portfolio?.error === 'Wallet not connected') return '';
+    if (!portfolio) return fallback;
+
+    switch (id) {
+      case 'portfolio':
+      case 'invested':
+      case 'yield':
+      case 'claimable':
+        return '0.0%';
+      case 'positions':
+        return '';
+      default:
+        return fallback;
+    }
   };
 
   return (
@@ -108,10 +135,10 @@ export function KPICards() {
           <div className="mt-2 flex items-end justify-between relative z-10">
             <div>
               <div className="font-serif text-xl text-[#F5F5F2] tracking-tight">
-                {kpi.id === 'portfolio' ? getPortfolioValue() : kpi.value}
+                {getKpiValue(kpi.id, kpi.value)}
               </div>
               <div className={`mt-0 text-[11px] font-medium ${kpi.isPositive ? 'text-[#3ECF8E]' : 'text-red-400'}`}>
-                {kpi.id === 'portfolio' && loading ? '' : kpi.change}
+                {getKpiChange(kpi.id, kpi.change)}
               </div>
             </div>
           </div>

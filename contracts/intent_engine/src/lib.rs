@@ -1,6 +1,8 @@
 #![no_std]
 
-use soroban_sdk::{contract, contractimpl, contracttype, contracterror, Address, Env};
+use soroban_sdk::{
+    contract, contracterror, contractimpl, contracttype, Address, Env, IntoVal
+};
 
 use soroban_sdk::token;
 
@@ -189,14 +191,71 @@ impl IntentEngine {
         // 2: Deposit
         let vault_addr = storage::get_address(&env, DataKey::Vault)?;
         let vault_client = VaultClient::new(&env, &vault_addr);
+        env.authorize_as_current_contract(soroban_sdk::vec![
+            &env,
+            soroban_sdk::auth::InvokerContractAuthEntry::Contract(
+                soroban_sdk::auth::SubContractInvocation {
+                    context: soroban_sdk::auth::ContractContext {
+                        contract: underlying_addr.clone(),
+                        fn_name: soroban_sdk::Symbol::new(&env, "transfer"),
+                        args: soroban_sdk::vec![
+                            &env,
+                            intent_engine_addr.clone().into_val(&env),
+                            vault_addr.clone().into_val(&env),
+                            usdc_amount.into_val(&env),
+                        ],
+                    },
+                    sub_invocations: soroban_sdk::vec![&env],
+                }
+            )
+        ]);
         let sy_shares = vault_client.deposit(&intent_engine_addr, &usdc_amount);
+
 
         // 3: Mint
         let tokenizer_addr = storage::get_address(&env, DataKey::Tokenizer)?;
         let tokenizer_client = TokenizerClient::new(&env, &tokenizer_addr);
+        
+        env.authorize_as_current_contract(soroban_sdk::vec![
+            &env,
+            soroban_sdk::auth::InvokerContractAuthEntry::Contract(
+                soroban_sdk::auth::SubContractInvocation {
+                    context: soroban_sdk::auth::ContractContext {
+                        contract: vault_addr.clone(),
+                        fn_name: soroban_sdk::Symbol::new(&env, "transfer_shares"),
+                        args: soroban_sdk::vec![
+                            &env,
+                            intent_engine_addr.clone().into_val(&env),
+                            tokenizer_addr.clone().into_val(&env),
+                            sy_shares.into_val(&env),
+                        ],
+                    },
+                    sub_invocations: soroban_sdk::vec![&env],
+                }
+            )
+        ]);
         let (pt_amount, yt_amount) = tokenizer_client.mint_pt_yt(&intent_engine_addr, &sy_shares);
 
         // 4: Swap YT
+        let yt_token_addr = storage::get_address(&env, DataKey::YtToken)?;
+        env.authorize_as_current_contract(soroban_sdk::vec![
+            &env,
+            soroban_sdk::auth::InvokerContractAuthEntry::Contract(
+                soroban_sdk::auth::SubContractInvocation {
+                    context: soroban_sdk::auth::ContractContext {
+                        contract: yt_token_addr.clone(),
+                        fn_name: soroban_sdk::Symbol::new(&env, "transfer"),
+                        args: soroban_sdk::vec![
+                            &env,
+                            intent_engine_addr.clone().into_val(&env),
+                            marketplace_addr.clone().into_val(&env),
+                            yt_amount.into_val(&env),
+                        ],
+                    },
+                    sub_invocations: soroban_sdk::vec![&env],
+                }
+            )
+        ]);
         let underlying_from_yt = marketplace_client.swap_yt_for_underlying(&intent_engine_addr, &yt_amount, &1);
 
         // 5: Transfer PT

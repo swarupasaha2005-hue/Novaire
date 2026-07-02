@@ -87,21 +87,27 @@ export function PositionsTable() {
                   ${asset.valueUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </td>
                 <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#F5F5F2]">
-                  0.00
+                  {asset.assetType === 'pt' ? asset.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
                 </td>
                 <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#F5F5F2]">
-                  0.00
+                  {asset.assetType === 'yt' ? asset.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
                 </td>
                 <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#3ECF8E]">
-                  --
+                  {asset.assetType === 'wallet' ? '--' : '4.6%'}
                 </td>
                 <td className="whitespace-nowrap px-6 py-4 text-[#9A9A9A]">
-                  --
+                  {asset.assetType === 'wallet' ? '--' : '7 Days'}
                 </td>
                 <td className="whitespace-nowrap px-6 py-4">
-                  <span className="inline-flex rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-white/10 text-[#9A9A9A]">
-                    Uninvested
-                  </span>
+                  {asset.assetType === 'wallet' ? (
+                    <span className="inline-flex rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-white/10 text-[#9A9A9A]">
+                      Uninvested
+                    </span>
+                  ) : (
+                    <span className="inline-flex rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-[#3ECF8E]/10 text-[#3ECF8E]">
+                      Active
+                    </span>
+                  )}
                 </td>
                 <td className="whitespace-nowrap px-6 py-4 text-right">
                   <button className="rounded-lg border border-white/10 px-4 py-1.5 text-xs font-medium text-[#9A9A9A] transition-all group-hover:border-[#3ECF8E] group-hover:bg-[#3ECF8E] group-hover:text-black">

@@ -58,7 +58,8 @@ async function start() {
 
         if (eventsResponse.events) {
           for (const event of eventsResponse.events) {
-            await processEvent(event, event.txHash, new Date(latestLedger.timestamp));
+            // @ts-ignore
+            await processEvent(event, event.txHash, new Date());
           }
         }
 

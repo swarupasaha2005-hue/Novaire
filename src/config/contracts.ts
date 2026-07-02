@@ -10,7 +10,7 @@ export const CONTRACTS = {
   INTENT_ENGINE: deployments.intent_engine,
   ROLLOVER: deployments.rollover,
   TOKENIZER: deployments.tokenizer,
-  MOCK_USDC: deployments.mock_usdc,
+  MOCK_USDC: deployments.underlying_token,
 };
 
 export const NETWORK = 'TESTNET';

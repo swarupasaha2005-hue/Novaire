@@ -24,6 +24,8 @@ export interface PortfolioMetrics {
   totalAssets: number;
   largestHoldingAsset: string | null;
   largestHoldingValue: number;
+  activePositions: number;
+  totalInvestedUsd: number;
 }
 
 export interface PortfolioSummary {
@@ -63,15 +65,17 @@ export class PortfolioService {
         let priceUsd = 0;
         try {
           const priceData = await PriceService.getAssetPrice(bal.assetCode);
-          if (priceData) {
+          if (priceData && typeof priceData.priceUsd === 'number' && !isNaN(priceData.priceUsd)) {
             priceUsd = priceData.priceUsd;
           }
         } catch (e) {
           console.warn(`Price API unavailable for ${bal.assetCode}, defaulting to 0`);
         }
 
-        const valueUsd = balanceFloat * priceUsd;
-        totalValueUsd += valueUsd;
+        const valueUsd = (!isNaN(balanceFloat) && !isNaN(priceUsd)) ? balanceFloat * priceUsd : 0;
+        if (!isNaN(valueUsd) && isFinite(valueUsd)) {
+          totalValueUsd += valueUsd;
+        }
 
         assets.push({
           assetCode: bal.assetCode,
@@ -85,68 +89,156 @@ export class PortfolioService {
         });
       }
 
-      // Fetch protocol positions from backend indexer
+      // Fetch protocol positions DIRECTLY from on-chain contracts (bypassing broken Indexer/DB)
       try {
-        const res = await fetch(`/api/portfolio?user=${address}`);
-        if (res.ok) {
-          const data = await res.json();
-          const positions = data.positions || [];
-          
-          for (const pos of positions) {
-            // Vault Shares
-            if (parseFloat(pos.vaultShares) > 0) {
-              const balanceFloat = parseFloat(pos.vaultShares);
-              const valueUsd = balanceFloat * 1.0; // Mock price of 1 for now or fetch underlying
-              totalValueUsd += valueUsd;
-              assets.push({
-                assetCode: `Novaire Vault (${pos.underlyingAsset})`,
-                issuer: pos.epochId,
-                balance: balanceFloat,
-                priceUsd: 1.0,
-                valueUsd,
-                allocationPercent: 0,
-                isNative: false,
-                assetType: 'vault'
-              });
-            }
+        const { Client: PtClient } = await import('../../packages/bindings/pt_token/src/index');
+        const { Client: YtClient } = await import('../../packages/bindings/yt_token/src/index');
+        const { Client: VaultClient } = await import('../../packages/bindings/vault/src/index');
+        const { Client: MarketplaceClient } = await import('../../packages/bindings/marketplace/src/index');
+        const { CONTRACTS, RPC_URL, NETWORK_PASSPHRASE } = await import('../config/contracts');
 
-            // PT Balance
-            if (parseFloat(pos.ptBalance) > 0) {
-              const balanceFloat = parseFloat(pos.ptBalance);
-              const valueUsd = balanceFloat * 0.95; // Mock implied price for PT
-              totalValueUsd += valueUsd;
-              assets.push({
-                assetCode: `PT-${pos.underlyingAsset}`,
-                issuer: pos.epochId,
-                balance: balanceFloat,
-                priceUsd: 0.95,
-                valueUsd,
-                allocationPercent: 0,
-                isNative: false,
-                assetType: 'pt'
-              });
-            }
+        const clientOptions = {
+          rpcUrl: RPC_URL,
+          networkPassphrase: NETWORK_PASSPHRASE,
+          publicKey: address,
+        };
 
-            // YT Balance
-            if (parseFloat(pos.ytBalance) > 0) {
-              const balanceFloat = parseFloat(pos.ytBalance);
-              const valueUsd = balanceFloat * 0.05; // Mock implied price for YT
-              totalValueUsd += valueUsd;
-              assets.push({
-                assetCode: `YT-${pos.underlyingAsset}`,
-                issuer: pos.epochId,
-                balance: balanceFloat,
-                priceUsd: 0.05,
-                valueUsd,
-                allocationPercent: 0,
-                isNative: false,
-                assetType: 'yt'
-              });
-            }
+        const ptClient = new PtClient({ ...clientOptions, contractId: CONTRACTS.PT_TOKEN });
+        const ytClient = new YtClient({ ...clientOptions, contractId: CONTRACTS.YT_TOKEN });
+        const vaultClient = new VaultClient({ ...clientOptions, contractId: CONTRACTS.VAULT });
+        const marketplaceClient = new MarketplaceClient({ ...clientOptions, contractId: CONTRACTS.MARKETPLACE });
+
+        const epochId = 'Epoch 17';
+        const underlyingAsset = 'XLM'; // Configured underlying for Epoch 17
+
+        // Get XLM spot price
+        let underlyingSpotUsd = 0.10;
+        try {
+          const priceData = await PriceService.getAssetPrice('XLM');
+          if (priceData && typeof priceData.priceUsd === 'number' && !isNaN(priceData.priceUsd)) {
+            underlyingSpotUsd = priceData.priceUsd;
           }
+        } catch (e) {
+          console.warn("Could not fetch XLM price, using fallback 0.10");
         }
+
+        // Get PT spot price from the Marketplace AMM
+        let ptSpotPriceUnderlying = 0.95; // default mock if call fails
+        let ytSpotPriceUnderlying = 0.05;
+        try {
+          const priceTx = await marketplaceClient.get_pt_price();
+          let rawResult: any = priceTx?.result;
+          
+          if (rawResult !== undefined) {
+             // Soroban clients sometimes return Result types as { ok: value }
+             if (typeof rawResult === 'object' && rawResult !== null) {
+               if (typeof rawResult.unwrap === 'function') rawResult = rawResult.unwrap();
+               else if ('ok' in rawResult) rawResult = rawResult.ok;
+             }
+             
+             const parsedNumber = Number(rawResult);
+             if (!isNaN(parsedNumber) && parsedNumber > 0) {
+               ptSpotPriceUnderlying = parsedNumber / 1_000_000_000;
+               ytSpotPriceUnderlying = 1.0 - ptSpotPriceUnderlying;
+             }
+          }
+        } catch (e) {
+          console.warn("Marketplace PT price fetch error", e);
+        }
+
+        const ptPriceUsd = (!isNaN(ptSpotPriceUnderlying) && !isNaN(underlyingSpotUsd)) ? (ptSpotPriceUnderlying * underlyingSpotUsd) : 0;
+        const ytPriceUsd = (!isNaN(ytSpotPriceUnderlying) && !isNaN(underlyingSpotUsd)) ? (ytSpotPriceUnderlying * underlyingSpotUsd) : 0;
+
+        // NOTE: After execute_fixed_yield_intent, the user holds PT tokens as the
+        // vault position receipt. The Vault contract LP shares are held by the protocol,
+        // not the user directly. We still attempt to read them for completeness.
+        try {
+          const vaultTx = await vaultClient.balance_of({ user: address });
+          if (vaultTx.result && vaultTx.result > 0n) {
+            const balanceFloat = Number(vaultTx.result) / 10000000;
+            let valueUsd = (!isNaN(balanceFloat) && !isNaN(underlyingSpotUsd)) ? balanceFloat * underlyingSpotUsd : 0;
+            if (isNaN(valueUsd) || !isFinite(valueUsd)) valueUsd = 0;
+            totalValueUsd += valueUsd;
+            assets.push({
+              assetCode: `Novaire Vault (${underlyingAsset})`,
+              issuer: epochId,
+              balance: balanceFloat,
+              priceUsd: underlyingSpotUsd,
+              valueUsd,
+              allocationPercent: 0,
+              isNative: false,
+              assetType: 'vault'
+            });
+          }
+        } catch (e) { console.warn("Vault LP balance fetch error (expected for intent-flow users)", e); }
+
+        // Fetch PT Balance
+        // NOTE: The PT token balance represents the user's yield position.
+        // We also synthesize a vault entry from it so VaultPositionsTable
+        // can display the user's effective vault deposit.
+        let ptBalanceFloat = 0;
+        let ptValueUsd = 0;
+        try {
+          const ptTx = await ptClient.balance({ id: address });
+          if (ptTx.result && ptTx.result > 0n) {
+            ptBalanceFloat = Number(ptTx.result) / 10000000;
+            ptValueUsd = (!isNaN(ptBalanceFloat) && !isNaN(ptPriceUsd)) ? ptBalanceFloat * ptPriceUsd : 0;
+            if (isNaN(ptValueUsd) || !isFinite(ptValueUsd)) ptValueUsd = 0;
+            totalValueUsd += ptValueUsd;
+
+            // PT position entry (for Yield Positions table)
+            assets.push({
+              assetCode: `PT-${underlyingAsset}`,
+              issuer: epochId,
+              balance: ptBalanceFloat,
+              priceUsd: ptPriceUsd,
+              valueUsd: ptValueUsd,
+              allocationPercent: 0,
+              isNative: false,
+              assetType: 'pt'
+            });
+
+            // Synthetic vault entry so VaultPositionsTable shows the deposit.
+            // The notional deposit value is the face value (balance × underlyingSpotUsd)
+            // because PT is redeemable for 1 underlying at maturity.
+            const vaultNotionalUsd = (!isNaN(ptBalanceFloat) && !isNaN(underlyingSpotUsd))
+              ? ptBalanceFloat * underlyingSpotUsd : 0;
+            assets.push({
+              assetCode: `Novaire Vault (${underlyingAsset})`,
+              issuer: epochId,
+              balance: ptBalanceFloat,          // deposit amount in underlying units
+              priceUsd: underlyingSpotUsd,
+              valueUsd: isNaN(vaultNotionalUsd) ? 0 : vaultNotionalUsd,
+              allocationPercent: 0,
+              isNative: false,
+              assetType: 'vault'
+            });
+          }
+        } catch (e) { console.warn("PT balance fetch error", e); }
+
+        // Fetch YT Balance
+        try {
+          const ytTx = await ytClient.balance({ id: address });
+          if (ytTx.result && ytTx.result > 0n) {
+            const balanceFloat = Number(ytTx.result) / 10000000;
+            let valueUsd = (!isNaN(balanceFloat) && !isNaN(ytPriceUsd)) ? balanceFloat * ytPriceUsd : 0;
+            if (isNaN(valueUsd) || !isFinite(valueUsd)) valueUsd = 0;
+            
+            totalValueUsd += valueUsd;
+            assets.push({
+              assetCode: `YT-${underlyingAsset}`,
+              issuer: epochId,
+              balance: balanceFloat,
+              priceUsd: ytPriceUsd,
+              valueUsd,
+              allocationPercent: 0,
+              isNative: false,
+              assetType: 'yt'
+            });
+          }
+        } catch (e) { console.warn("YT balance fetch error", e); }
       } catch (err) {
-        console.error('Failed to fetch protocol positions', err);
+        console.error('Failed to fetch protocol positions on-chain', err);
       }
 
       // Second pass: Calculate allocation percentages and metrics
@@ -155,8 +247,11 @@ export class PortfolioService {
       const allocation: PortfolioAllocation[] = [];
 
       for (const asset of assets) {
-        if (totalValueUsd > 0) {
-          asset.allocationPercent = (asset.valueUsd / totalValueUsd) * 100;
+        if (totalValueUsd > 0 && !isNaN(totalValueUsd) && isFinite(totalValueUsd)) {
+          const percent = (asset.valueUsd / totalValueUsd) * 100;
+          asset.allocationPercent = (!isNaN(percent) && isFinite(percent)) ? percent : 0;
+        } else {
+          asset.allocationPercent = 0;
         }
 
         allocation.push({
@@ -182,7 +277,9 @@ export class PortfolioService {
         metrics: {
           totalAssets: assets.length,
           largestHoldingAsset: largestAsset,
-          largestHoldingValue: largestValue
+          largestHoldingValue: isNaN(largestValue) ? 0 : largestValue,
+          activePositions: assets.filter(a => a.assetType !== 'wallet').length,
+          totalInvestedUsd: assets.filter(a => a.assetType !== 'wallet').reduce((sum, a) => (!isNaN(a.valueUsd) && isFinite(a.valueUsd)) ? sum + a.valueUsd : sum, 0)
         },
         error: null
       };
@@ -228,7 +325,9 @@ export class PortfolioService {
       metrics: {
         totalAssets: 0,
         largestHoldingAsset: null,
-        largestHoldingValue: 0
+        largestHoldingValue: 0,
+        activePositions: 0,
+        totalInvestedUsd: 0
       },
       error: errorMessage
     };

@@ -1,6 +1,6 @@
 #![no_std]
 
-use soroban_sdk::{contract, contracterror, contractimpl, contracttype, token, Address, Env, Symbol};
+use soroban_sdk::{contract, contracterror, contractimpl, contracttype, token, Address, Env, Symbol, IntoVal};
 
 #[soroban_sdk::contractclient(name = "SyWrapperClient")]
 pub trait SyWrapperInterface {
@@ -175,6 +175,24 @@ impl Vault {
 
         // 2. Vault deposits underlying into SY Wrapper
         let sy_client = SyWrapperClient::new(&env, &sy_wrapper_addr);
+        env.authorize_as_current_contract(soroban_sdk::vec![
+            &env,
+            soroban_sdk::auth::InvokerContractAuthEntry::Contract(
+                soroban_sdk::auth::SubContractInvocation {
+                    context: soroban_sdk::auth::ContractContext {
+                        contract: underlying_addr.clone(),
+                        fn_name: soroban_sdk::Symbol::new(&env, "transfer"),
+                        args: soroban_sdk::vec![
+                            &env,
+                            env.current_contract_address().into_val(&env),
+                            sy_wrapper_addr.clone().into_val(&env),
+                            amount.into_val(&env),
+                        ],
+                    },
+                    sub_invocations: soroban_sdk::vec![&env],
+                }
+            )
+        ]);
         let sy_shares = sy_client.deposit(&env.current_contract_address(), &amount);
 
         // 3. Update user's vault share balance

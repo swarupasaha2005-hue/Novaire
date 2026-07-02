@@ -1,10 +1,10 @@
-import { Keypair, Network, rpc, TransactionBuilder, Contract, Asset } from '@stellar/stellar-sdk';
+import { Keypair, Networks, rpc, TransactionBuilder, Contract, Asset } from '@stellar/stellar-sdk';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 
 const RPC_URL = process.env.RPC_URL || 'https://soroban-testnet.stellar.org';
-const NETWORK_PASSPHRASE = process.env.NETWORK_PASSPHRASE || Network.TESTNET;
+const NETWORK_PASSPHRASE = process.env.NETWORK_PASSPHRASE || Networks.TESTNET;
 const ADMIN_SECRET = process.env.ADMIN_SECRET;
 const KEEPER_SECRET = process.env.KEEPER_SECRET;
 

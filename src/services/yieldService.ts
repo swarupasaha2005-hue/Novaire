@@ -13,6 +13,16 @@ export class YieldService {
         variableApy: 12.8,
         capacityUsd: 5000000,
         maturityDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      },
+      {
+        id: 'vault_xlm_01',
+        asset: 'XLM',
+        protocol: 'Novaire',
+        tvlUsd: 800000,
+        fixedApy: 8.2,
+        variableApy: 10.1,
+        capacityUsd: 2000000,
+        maturityDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       }
     ];
   }
