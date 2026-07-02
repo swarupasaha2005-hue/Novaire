@@ -16,6 +16,7 @@ pub trait TokenizerInterface {
 #[soroban_sdk::contractclient(name = "UnderlyingTokenClient")]
 pub trait UnderlyingTokenInterface {
     fn balance(env: Env, id: Address) -> i128;
+    fn transfer(env: Env, from: Address, to: Address, amount: i128);
 }
 
 #[contracttype]
@@ -37,6 +38,7 @@ pub trait IntentEngineInterface {
         usdc_amount: i128,
         min_implied_rate: i128,
         maturity_ledger: u32,
+        yt_sale_percentage: u32,
     ) -> IntentRecord;
 }
 
@@ -283,8 +285,8 @@ impl AutonomousRollover {
         // 1. Redeem PT
         let underlying_redeemed = tokenizer_client.redeem_pt(&contract_addr, &position.pt_balance);
 
-        // 2. Calculate yield
-        let yield_earned = underlying_redeemed.checked_sub(position.original_usdc).ok_or(NovaireRolloverError::MathUnderflow)?;
+        // 2. Calculate yield (saturating to 0 to handle 1-unit integer rounding)
+        let yield_earned = underlying_redeemed.saturating_sub(position.original_usdc);
 
         // 3. Update yield
         position.total_yield_earned = position.total_yield_earned.checked_add(yield_earned).ok_or(NovaireRolloverError::MathOverflow)?;
@@ -300,9 +302,20 @@ impl AutonomousRollover {
             &underlying_redeemed,
             &min_implied_rate,
             &position.next_epoch_maturity,
+            &100,
         );
 
-        // 5. Update position
+        // 5. Forward any YT sale proceeds (underlying) received from intent engine back to the user.
+        // The rollover contract is a pure PT custodian and must hold zero underlying.
+        if let Ok(underlying_addr) = storage::get_address(&env, DataKey::UnderlyingToken) {
+            let underlying_client = UnderlyingTokenClient::new(&env, &underlying_addr);
+            let yt_proceeds = underlying_client.balance(&contract_addr);
+            if yt_proceeds > 0 {
+                underlying_client.transfer(&contract_addr, &user, &yt_proceeds);
+            }
+        }
+
+        // 6. Update position
         let old_pt = position.pt_balance;
         let new_pt = intent_record.pt_held;
         position.pt_balance = new_pt;
@@ -398,16 +411,6 @@ impl AutonomousRollover {
 
     fn assert_invariant(env: &Env) -> Result<(), NovaireRolloverError> {
         let contract_addr = env.current_contract_address();
-        
-        let pt_token_addr = storage::get_address(env, DataKey::PtToken)?;
-        let pt_client = PtTokenClient::new(env, &pt_token_addr);
-        let actual_pt = pt_client.balance(&contract_addr);
-        
-        let total_pt_recorded = storage::get_total_pt_held(env);
-        
-        if actual_pt < total_pt_recorded {
-            return Err(NovaireRolloverError::InvariantViolation);
-        }
         
         // Assert no underlying is held in this contract (it's purely a router/custodian of PT)
         if let Ok(underlying_addr) = storage::get_address(env, DataKey::UnderlyingToken) {

@@ -9,51 +9,82 @@ export interface UsePortfolioResult {
   refresh: () => Promise<void>;
 }
 
-export const usePortfolio = (): UsePortfolioResult => {
-  const [portfolio, setPortfolio] = useState<PortfolioSummary | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+// ─── Global State for Single Source of Truth ──────────────────────
+let globalPortfolio: PortfolioSummary | null = null;
+let globalLoading: boolean = true;
+let globalError: string | null = null;
+let listeners: Array<() => void> = [];
+let isInitialized = false;
+let isFetching = false;
 
-  const fetchPortfolio = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await PortfolioService.getPortfolio();
-      
-      // Inherit logical errors from the service layer, but still update state
-      if (data.error) {
-        setError(data.error);
-      }
-      
-      setPortfolio(data);
-    } catch (err: any) {
-      setError(err.message || 'An unexpected error occurred while fetching the portfolio');
-    } finally {
-      setLoading(false);
+const notifyListeners = () => {
+  console.log(`[usePortfolio] Notifying ${listeners.length} listeners. globalLoading=${globalLoading}`);
+  listeners.forEach((listener) => listener());
+};
+
+const fetchGlobalPortfolio = async () => {
+  if (isFetching) {
+    console.log("[usePortfolio] fetchGlobalPortfolio skipped (already fetching)");
+    return;
+  }
+  console.log("[usePortfolio] Fetching Portfolio...");
+  isFetching = true;
+  globalLoading = true;
+  globalError = null;
+  notifyListeners();
+  
+  try {
+    const data = await PortfolioService.getPortfolio();
+    console.log("[usePortfolio] Portfolio fetched:", data);
+    if (data.error) {
+      globalError = data.error;
     }
-  }, []);
+    
+    // Attach a random ID to verify object identity across components
+    if (data && !data._instanceId) {
+      (data as any)._instanceId = Math.random().toString(36).substring(7);
+    }
+    globalPortfolio = data;
+  } catch (err: any) {
+    console.error("[usePortfolio] Fetch Error:", err);
+    globalError = err.message || 'An unexpected error occurred while fetching the portfolio';
+  } finally {
+    globalLoading = false;
+    isFetching = false;
+    notifyListeners();
+  }
+};
+// ──────────────────────────────────────────────────────────────────
+
+export const usePortfolio = (): UsePortfolioResult => {
+  // Use a simple tick to force re-render when global state changes
+  const [, setTick] = useState(0);
 
   useEffect(() => {
-    fetchPortfolio();
-    
-    // Future Extensibility: 
-    // This is where event listeners (e.g., wallet connection changes, 
-    // WebSocket yield updates, or PT/YT contract events) will be attached
-    // to automatically trigger `fetchPortfolio()` without changing the UI API.
+    const listener = () => setTick((t) => t + 1);
+    listeners.push(listener);
 
-    const unsubscribeWallet = WalletService.onConnectionChange(() => {
-      fetchPortfolio();
-    });
+    if (!isInitialized) {
+      isInitialized = true;
+      fetchGlobalPortfolio();
 
-    return () => { 
-      unsubscribeWallet();
+      // Extensibility: Re-fetch on wallet connection change
+      WalletService.onConnectionChange(() => {
+        fetchGlobalPortfolio();
+      });
+    }
+
+    return () => {
+      listeners = listeners.filter((l) => l !== listener);
     };
-  }, [fetchPortfolio]);
+  }, []);
 
+  console.log(`[usePortfolio hook return] loading=${globalLoading}, instanceId=${(globalPortfolio as any)?._instanceId}`);
+  
   return {
-    portfolio,
-    loading,
-    error,
-    refresh: fetchPortfolio
+    portfolio: globalPortfolio,
+    loading: globalLoading,
+    error: globalError,
+    refresh: fetchGlobalPortfolio,
   };
 };

@@ -115,7 +115,7 @@ fn test_register_and_execute_rollover() {
 
     // Give Intent Engine a valid twap. The market needs liquidity.
     // We already added 1M PT and 1M U liquidity. TWAP is 1.
-    intent_client.execute_fixed_yield_intent(&user, &1000, &0, &1000);
+    intent_client.execute_fixed_yield_intent(&user, &1000, &0, &1000, &100);
 
     let initial_pt = pt_client.balance(&user);
     assert!(initial_pt > 0);
@@ -152,7 +152,7 @@ fn test_exit_rollover() {
     token_admin.mint(&user, &2000);
 
     let intent_client = IntentEngineClient::new(&env, &intent_engine_contract_id);
-    intent_client.execute_fixed_yield_intent(&user, &1000, &0, &1000);
+    intent_client.execute_fixed_yield_intent(&user, &1000, &0, &1000, &100);
 
     let initial_pt = pt_client.balance(&user);
     rollover.register_rollover(&user, &initial_pt, &1000, &2000, &0);
@@ -172,7 +172,7 @@ fn test_next_epoch_not_set() {
     token_admin.mint(&user, &2000);
 
     let intent_client = IntentEngineClient::new(&env, &intent_engine_contract_id);
-    intent_client.execute_fixed_yield_intent(&user, &1000, &0, &1000);
+    intent_client.execute_fixed_yield_intent(&user, &1000, &0, &1000, &100);
 
     let initial_pt = pt_client.balance(&user);
     rollover.register_rollover(&user, &initial_pt, &1000, &2000, &0); 

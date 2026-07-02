@@ -228,7 +228,12 @@ impl YtToken {
     ///
     /// # Errors
     /// Returns `MathOverflow` or `MathUnderflow` if calculation fails.
-    fn checkpoint_user(env: &Env, user: &Address) -> Result<(), NovaireYtError> {
+    pub fn checkpoint_user(env: Env, user: Address) {
+        user.require_auth();
+        Self::internal_checkpoint_user(&env, &user).unwrap();
+    }
+
+    fn internal_checkpoint_user(env: &Env, user: &Address) -> Result<(), NovaireYtError> {
         let current_index = storage::get_yield_index(env);
         let user_index = storage::get_user_yield_index(env, user);
         let balance = storage::get_balance(env, user);
@@ -263,7 +268,7 @@ impl YtToken {
         tokenizer.require_auth();
         
         // Ensure user is fully checkpointed before resetting.
-        Self::checkpoint_user(&env, &user)?;
+        Self::internal_checkpoint_user(&env, &user)?;
         storage::set_accrued_yield(&env, &user, 0i128);
         Ok(())
     }
@@ -287,7 +292,7 @@ impl YtToken {
             return Err(NovaireYtError::InvalidAmount);
         }
 
-        Self::checkpoint_user(&env, &to)?;
+        Self::internal_checkpoint_user(&env, &to)?;
 
         let mut total_supply = storage::get_total_supply(&env);
         total_supply = total_supply.checked_add(amount).ok_or(NovaireYtError::MathOverflow)?;
@@ -320,7 +325,7 @@ impl YtToken {
             return Err(NovaireYtError::InvalidAmount);
         }
 
-        Self::checkpoint_user(&env, &from)?;
+        Self::internal_checkpoint_user(&env, &from)?;
 
         let mut balance = storage::get_balance(&env, &from);
         if balance < amount {
@@ -361,8 +366,8 @@ impl YtToken {
             return Err(NovaireYtError::InvalidAmount);
         }
 
-        Self::checkpoint_user(&env, &from)?;
-        Self::checkpoint_user(&env, &to)?;
+        Self::internal_checkpoint_user(&env, &from)?;
+        Self::internal_checkpoint_user(&env, &to)?;
 
         let mut from_balance = storage::get_balance(&env, &from);
         if from_balance < amount {
@@ -401,8 +406,8 @@ impl YtToken {
             return Err(NovaireYtError::InvalidAmount);
         }
 
-        Self::checkpoint_user(&env, &from)?;
-        Self::checkpoint_user(&env, &to)?;
+        Self::internal_checkpoint_user(&env, &from)?;
+        Self::internal_checkpoint_user(&env, &to)?;
 
         let mut allowance = storage::get_allowance(&env, &from, &spender);
         if allowance < amount {
@@ -513,6 +518,10 @@ impl YtToken {
 
     pub fn allowance(env: Env, from: Address, spender: Address) -> i128 {
         storage::get_allowance(&env, &from, &spender)
+    }
+
+    fn is_initialized(env: Env) -> bool {
+        storage::is_initialized(&env)
     }
 
     pub fn is_paused(env: Env) -> bool {

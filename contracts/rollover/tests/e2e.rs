@@ -31,7 +31,9 @@ fn test_novaire_end_to_end_integration() {
 
     let sy_contract_id = env.register(SyWrapper, ());
     let sy_client = SyWrapperClient::new(&env, &sy_contract_id);
-    sy_client.initialize(&admin, &underlying_token, &Address::generate(&env), &0);
+    sy_client.initialize(&admin, &underlying_token, &Address::generate(&env));
+
+    let tokenizer_contract_id = env.register(Tokenizer, ());
 
     let pt_contract_id = env.register(PtToken, ());
     let pt_client = PtTokenClient::new(&env, &pt_contract_id);
@@ -50,8 +52,6 @@ fn test_novaire_end_to_end_integration() {
         sequence_number: 100,
         ..env.ledger().get()
     });
-
-    let tokenizer_contract_id = env.register(Tokenizer, ());
     let tokenizer_client = TokenizerClient::new(&env, &tokenizer_contract_id);
     tokenizer_client.initialize(&admin, &vault_contract_id, &pt_contract_id, &yt_contract_id, &sy_contract_id, &maturity_ledger);
 
@@ -92,7 +92,7 @@ fn test_novaire_end_to_end_integration() {
     vault_client.deposit(&lp, &5_000_000);
     let lp_sy = vault_client.balance_of(&lp);
     tokenizer_client.mint_pt_yt(&lp, &lp_sy);
-    market_client.add_liquidity(&lp, &1_000_000, &1_000_000);
+    market_client.add_liquidity(&lp, &900_000, &1_000_000);
 
     // Store total supply metrics to verify invariants at the end
     let total_usdc_minted = 10_000_000;
@@ -103,7 +103,7 @@ fn test_novaire_end_to_end_integration() {
     let alice = Address::generate(&env);
     token_admin_client.mint(&alice, &1000);
     
-    let alice_intent = intent_engine_client.execute_fixed_yield_intent(&alice, &1000, &0, &maturity_ledger);
+    let alice_intent = intent_engine_client.execute_fixed_yield_intent(&alice, &1000, &0, &maturity_ledger, &100);
     assert_eq!(alice_intent.deposited_amount, 1000);
     
     let alice_pt = pt_client.balance(&alice);
@@ -148,7 +148,12 @@ fn test_novaire_end_to_end_integration() {
     // 5. SY WRAPPER: ACCRUE 5% YIELD
     // ==========================================
     let new_rate = 1_050_000_000; // 1.05
-    sy_client.accrue_yield(&new_rate);
+    
+    // Total shares in SY = 5,000,000 (lp) + 1,000 (alice)
+    let total_sy = sy_client.total_shares();
+    let yield_to_accrue = total_sy * 5 / 100;
+    token_admin_client.mint(&sy_contract_id, &yield_to_accrue);
+
     assert_eq!(sy_client.get_exchange_rate(), new_rate);
 
     // ==========================================
@@ -161,6 +166,19 @@ fn test_novaire_end_to_end_integration() {
     std::println!("yield_claimed: {}", yield_claimed);
     assert!(yield_claimed >= 45); 
     assert!(usdc_client.balance(&bob) >= bob_usdc_before_claim + yield_claimed - 1);
+
+    // ==========================================
+    // 6.5 CAROL: REGISTER AUTONOMOUS ROLLOVER
+    // ==========================================
+    let carol = Address::generate(&env);
+    token_admin_client.mint(&carol, &2000);
+
+    intent_engine_client.execute_fixed_yield_intent(&carol, &2000, &0, &maturity_ledger, &100);
+    let carol_pt = pt_client.balance(&carol);
+    
+    let epoch_2_maturity = 2_000;
+    
+    rollover_client.register_rollover(&carol, &carol_pt, &maturity_ledger, &epoch_2_maturity, &0);
 
     // ==========================================
     // 7. ADVANCE LEDGER PAST MATURITY
@@ -179,9 +197,9 @@ fn test_novaire_end_to_end_integration() {
     let mut settled_event_found = false;
     for (contract_id, topics, _) in env.events().all().iter() {
         if contract_id == tokenizer_contract_id {
-            if let Some(topic) = topics.first() {
-                let topic_sym: Symbol = topic.into_val(&env);
-                if topic_sym == Symbol::new(&env, "epoch_settled") {
+            if topics.len() > 0 {
+                let topic_sym: soroban_sdk::Symbol = topics.get(0).unwrap().into_val(&env);
+                if topic_sym == soroban_sdk::Symbol::new(&env, "tokenizer_settled") {
                     settled_event_found = true;
                     break;
                 }
@@ -211,24 +229,6 @@ fn test_novaire_end_to_end_integration() {
     assert!(redeemed_amount >= 999);
     assert_eq!(pt_client.balance(&alice), 0);
 
-    // ==========================================
-    // 10. CAROL: REGISTER AUTONOMOUS ROLLOVER
-    // ==========================================
-    let carol = Address::generate(&env);
-    token_admin_client.mint(&carol, &2000);
-
-    // We must reset ledger back to before maturity so Carol can mint PT for Epoch 1
-    env.ledger().set(soroban_sdk::testutils::LedgerInfo {
-        sequence_number: 900,
-        ..env.ledger().get()
-    });
-
-    intent_engine_client.execute_fixed_yield_intent(&carol, &2000, &0, &maturity_ledger);
-    let carol_pt = pt_client.balance(&carol);
-    
-    let epoch_2_maturity = 2_000;
-    
-    rollover_client.register_rollover(&carol, &carol_pt, &maturity_ledger, &epoch_2_maturity, &0);
     
     // Fast forward to Epoch 1 Maturity
     env.ledger().set(soroban_sdk::testutils::LedgerInfo {

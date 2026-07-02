@@ -302,7 +302,7 @@ impl NovaireMarketplace {
         min_pt_out: i128,
     ) -> Result<i128, NovaireMarketError> {
         buyer.require_auth();
-        if underlying_in <= 0 || min_pt_out <= 0 {
+        if underlying_in <= 0 || min_pt_out < 0 {
             return Err(NovaireMarketError::ZeroInput);
         }
 
@@ -365,7 +365,7 @@ impl NovaireMarketplace {
         min_underlying_out: i128,
     ) -> Result<i128, NovaireMarketError> {
         seller.require_auth();
-        if pt_in <= 0 || min_underlying_out <= 0 {
+        if pt_in <= 0 || min_underlying_out < 0 {
             return Err(NovaireMarketError::ZeroInput);
         }
 
@@ -427,7 +427,7 @@ impl NovaireMarketplace {
         min_yt_out: i128,
     ) -> Result<i128, NovaireMarketError> {
         buyer.require_auth();
-        if underlying_in <= 0 || min_yt_out <= 0 {
+        if underlying_in <= 0 || min_yt_out < 0 {
             return Err(NovaireMarketError::ZeroInput);
         }
 
@@ -487,7 +487,7 @@ impl NovaireMarketplace {
         min_underlying_out: i128,
     ) -> Result<i128, NovaireMarketError> {
         seller.require_auth();
-        if yt_in <= 0 || min_underlying_out <= 0 {
+        if yt_in <= 0 || min_underlying_out < 0 {
             return Err(NovaireMarketError::ZeroInput);
         }
 

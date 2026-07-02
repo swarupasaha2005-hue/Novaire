@@ -34,7 +34,7 @@ if (typeof window !== "undefined") {
 export const networks = {
   testnet: {
     networkPassphrase: "Test SDF Network ; September 2015",
-    contractId: "CACDD4FOSHAXCEI2LD7BMCYZG3XVULB5PC5FPG5DRO7JPNS62VCK5DZH",
+    contractId: "CB3YHG26ICWV5SZEB5SWGDER7TBYY4QBQNXZZFBM3HVVYLZHJWUQHUSW",
   }
 } as const
 
@@ -58,7 +58,8 @@ export const NovaireIntentError = {
   5: {message:"IntentFailed"},
   6: {message:"AlreadyInitialized"},
   7: {message:"StorageMissing"},
-  8: {message:"InvariantViolated"}
+  8: {message:"InvariantViolated"},
+  9: {message:"InvalidPercentage"}
 }
 
 export interface Client {
@@ -90,7 +91,7 @@ export interface Client {
   /**
    * Construct and simulate a execute_fixed_yield_intent transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
-  execute_fixed_yield_intent: ({user, usdc_amount, min_implied_rate, _maturity_ledger}: {user: string, usdc_amount: i128, min_implied_rate: i128, _maturity_ledger: u32}, options?: MethodOptions) => Promise<AssembledTransaction<Result<IntentRecord>>>
+  execute_fixed_yield_intent: ({user, usdc_amount, min_implied_rate, _maturity_ledger, yt_sale_percentage}: {user: string, usdc_amount: i128, min_implied_rate: i128, _maturity_ledger: u32, yt_sale_percentage: u32}, options?: MethodOptions) => Promise<AssembledTransaction<Result<IntentRecord>>>
 
   /**
    * Construct and simulate a execute_yield_speculation_intent transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
@@ -121,9 +122,9 @@ export class Client extends ContractClient {
         "AAAAAAAAAAAAAAAKaW5pdGlhbGl6ZQAAAAAACAAAAAAAAAAFYWRtaW4AAAAAAAATAAAAAAAAAAV2YXVsdAAAAAAAABMAAAAAAAAACXRva2VuaXplcgAAAAAAABMAAAAAAAAAC21hcmtldHBsYWNlAAAAABMAAAAAAAAACnN5X3dyYXBwZXIAAAAAABMAAAAAAAAACnVuZGVybHlpbmcAAAAAABMAAAAAAAAACHB0X3Rva2VuAAAAEwAAAAAAAAAIeXRfdG9rZW4AAAATAAAAAQAAA+kAAAPtAAAAAAAAB9AAAAASTm92YWlyZUludGVudEVycm9yAAA=",
         "AAAAAQAAAAAAAAAAAAAADEludGVudFJlY29yZAAAAAYAAAAAAAAADmNyZWF0ZWRfbGVkZ2VyAAAAAAAEAAAAAAAAABBkZXBvc2l0ZWRfYW1vdW50AAAACwAAAAAAAAAVaW1wbGllZF9yYXRlX2F0X2VudHJ5AAAAAAAACwAAAAAAAAAPbWF0dXJpdHlfbGVkZ2VyAAAAAAQAAAAAAAAAB3B0X2hlbGQAAAAACwAAAAAAAAAHeXRfc29sZAAAAAAL",
         "AAAAAAAAAAAAAAAPZ2V0X3VzZXJfaW50ZW50AAAAAAEAAAAAAAAABHVzZXIAAAATAAAAAQAAA+kAAAfQAAAADEludGVudFJlY29yZAAAB9AAAAASTm92YWlyZUludGVudEVycm9yAAA=",
-        "AAAABAAAAAAAAAAAAAAAEk5vdmFpcmVJbnRlbnRFcnJvcgAAAAAACAAAAAAAAAAGUGF1c2VkAAAAAAABAAAAAAAAAAxVbmF1dGhvcml6ZWQAAAACAAAAAAAAAApaZXJvQW1vdW50AAAAAAADAAAAAAAAAApSYXRlVG9vTG93AAAAAAAEAAAAAAAAAAxJbnRlbnRGYWlsZWQAAAAFAAAAAAAAABJBbHJlYWR5SW5pdGlhbGl6ZWQAAAAAAAYAAAAAAAAADlN0b3JhZ2VNaXNzaW5nAAAAAAAHAAAAAAAAABFJbnZhcmlhbnRWaW9sYXRlZAAAAAAAAAg=",
+        "AAAABAAAAAAAAAAAAAAAEk5vdmFpcmVJbnRlbnRFcnJvcgAAAAAACQAAAAAAAAAGUGF1c2VkAAAAAAABAAAAAAAAAAxVbmF1dGhvcml6ZWQAAAACAAAAAAAAAApaZXJvQW1vdW50AAAAAAADAAAAAAAAAApSYXRlVG9vTG93AAAAAAAEAAAAAAAAAAxJbnRlbnRGYWlsZWQAAAAFAAAAAAAAABJBbHJlYWR5SW5pdGlhbGl6ZWQAAAAAAAYAAAAAAAAADlN0b3JhZ2VNaXNzaW5nAAAAAAAHAAAAAAAAABFJbnZhcmlhbnRWaW9sYXRlZAAAAAAAAAgAAAAAAAAAEUludmFsaWRQZXJjZW50YWdlAAAAAAAACQ==",
         "AAAAAAAAAAAAAAAVZ2V0X2N1cnJlbnRfYmVzdF9yYXRlAAAAAAAAAAAAAAEAAAPpAAAACwAAB9AAAAASTm92YWlyZUludGVudEVycm9yAAA=",
-        "AAAAAAAAAAAAAAAaZXhlY3V0ZV9maXhlZF95aWVsZF9pbnRlbnQAAAAAAAQAAAAAAAAABHVzZXIAAAATAAAAAAAAAAt1c2RjX2Ftb3VudAAAAAALAAAAAAAAABBtaW5faW1wbGllZF9yYXRlAAAACwAAAAAAAAAQX21hdHVyaXR5X2xlZGdlcgAAAAQAAAABAAAD6QAAB9AAAAAMSW50ZW50UmVjb3JkAAAH0AAAABJOb3ZhaXJlSW50ZW50RXJyb3IAAA==",
+        "AAAAAAAAAAAAAAAaZXhlY3V0ZV9maXhlZF95aWVsZF9pbnRlbnQAAAAAAAUAAAAAAAAABHVzZXIAAAATAAAAAAAAAAt1c2RjX2Ftb3VudAAAAAALAAAAAAAAABBtaW5faW1wbGllZF9yYXRlAAAACwAAAAAAAAAQX21hdHVyaXR5X2xlZGdlcgAAAAQAAAAAAAAAEnl0X3NhbGVfcGVyY2VudGFnZQAAAAAABAAAAAEAAAPpAAAH0AAAAAxJbnRlbnRSZWNvcmQAAAfQAAAAEk5vdmFpcmVJbnRlbnRFcnJvcgAA",
         "AAAAAAAAAAAAAAAgZXhlY3V0ZV95aWVsZF9zcGVjdWxhdGlvbl9pbnRlbnQAAAADAAAAAAAAAAR1c2VyAAAAEwAAAAAAAAALdXNkY19hbW91bnQAAAAACwAAAAAAAAAKbWluX3l0X291dAAAAAAACwAAAAEAAAPpAAAACwAAB9AAAAASTm92YWlyZUludGVudEVycm9yAAA=" ]),
       options
     )
