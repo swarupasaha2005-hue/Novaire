@@ -66,11 +66,47 @@ async function run() {
         throw new Error('Treasury lacks sufficient XLM to bootstrap (need at least 100 XLM).');
     }
 
+    // --- SAFEGUARD: Prevent Double Bootstrap ---
+    const forceFlag = process.argv.includes('--force');
+    console.log('Querying marketplace reserves...');
+    let initialPtReserveRaw = "0";
+    let initialUndReserveRaw = "0";
+    let spotPriceRaw = "0";
+    
+    try {
+        const reservesRaw = invoke(d.marketplace, 'get_reserves', '', adminKp.secret());
+        const reservesStr = reservesRaw.replace(/^Ok\((.+)\)$/, '$1');
+        const reservesArr = JSON.parse(reservesStr);
+        initialPtReserveRaw = reservesArr[0] || "0";
+        initialUndReserveRaw = reservesArr[1] || "0";
+        
+        const priceRaw = invoke(d.marketplace, 'get_pt_price', '', adminKp.secret());
+        spotPriceRaw = priceRaw.replace(/^Ok\((.+)\)$/, '$1').replace(/"/g, '');
+    } catch (e) {
+        console.warn("Could not fetch initial reserves, assuming empty.");
+    }
+    
+    const ptReserveVal = parseSorobanI128(initialPtReserveRaw);
+    const undReserveVal = parseSorobanI128(initialUndReserveRaw);
+    
+    if (ptReserveVal > 0n || undReserveVal > 0n) {
+        console.log(`\n🚨 MARKETPLACE NOT EMPTY 🚨`);
+        console.log(`PT Reserves: ${ptReserveVal.toString()}`);
+        console.log(`Underlying Reserves: ${undReserveVal.toString()}`);
+        console.log(`LP Supply: (unavailable/private)`);
+        console.log(`Spot Price: ${spotPriceRaw}`);
+        
+        if (!forceFlag) {
+            console.error('\nMarketplace already contains liquidity. Refusing to bootstrap twice.');
+            console.error('Run with --force to override (development only).\n');
+            process.exit(1);
+        } else {
+            console.warn('\n⚠️ --force provided. Proceeding to add liquidity over existing reserves.\n');
+        }
+    }
+    // -------------------------------------------
+    
     // Step 3 (Cleanup): Remove any existing liquidity from previous failed runs.
-    // get_lp_balance is a private fn — read TotalLpShares via the reserves query workaround.
-    // Since treasury is sole LP, query reserves[2] (total_lp) to get our balance.
-    // Actually get_reserves returns (pt, underlying, yt) not lp shares. Use SDK remove_liquidity
-    // with a large number and catch the "insufficient shares" error if clean, or use the binding.
     const { Client: MarketplaceClient } = await import('../packages/bindings/marketplace/src/index');
     const marketplaceClient = new MarketplaceClient({
         networkPassphrase: NETWORK_PASSPHRASE,
@@ -82,7 +118,7 @@ async function run() {
     // Read LP balance: try removing 1 share to simulate and get the "insufficient" error, 
     // or read ledger entry directly. Simplest: encode the DataKey::LpBalance storage key.
     // We use stellar-sdk to read the storage entry directly.
-    const { SorobanRpc: _unused, rpc: rpcModule, xdr, Address, nativeToScVal } = await import('@stellar/stellar-sdk');
+    const { rpc: rpcModule, xdr, Address, nativeToScVal } = await import('@stellar/stellar-sdk');
     const rpcClient = new rpcModule.Server(RPC_URL, { allowHttp: true });
     
     // Encode the LpBalance(admin) key
@@ -106,7 +142,9 @@ async function run() {
         const entries = await rpcClient.getLedgerEntries(ledgerKey);
         if (entries.entries.length > 0) {
             const val = entries.entries[0].val.contractData().val();
-            currentLpBalance = BigInt(val.i128().hi().toNumber() * 2**64 + val.i128().lo().toNumber());
+            const hiStr = val.i128().hi().toString();
+            const loStr = val.i128().lo().toString();
+            currentLpBalance = BigInt(hiStr) * (2n**64n) + BigInt(loStr);
         }
     } catch(e) {
         console.log('Could not read LP balance from ledger, assuming 0.');
@@ -135,16 +173,39 @@ async function run() {
     // Step 3a: Mint fresh PT/YT to provide as liquidity.
     const DEPOSIT_AMOUNT = "1000000000"; // 100 XLM
     console.log(`3a. Vault.deposit(${DEPOSIT_AMOUNT})...`);
-    invoke(d.vault, 'deposit', `--depositor ${adminAddress} --amount ${DEPOSIT_AMOUNT}`, adminKp.secret());
+    let sy_shares_str = invoke(d.vault, 'deposit', `--depositor ${adminAddress} --amount ${DEPOSIT_AMOUNT}`, adminKp.secret()).trim();
+    sy_shares_str = sy_shares_str.replace(/"/g, '');
     
-    console.log(`3b. Tokenizer.mint_pt_yt(${DEPOSIT_AMOUNT})...`);
-    invoke(d.tokenizer, 'mint_pt_yt', `--user ${adminAddress} --sy_shares ${DEPOSIT_AMOUNT}`, adminKp.secret());
+    console.log(`3b. Tokenizer.mint_pt_yt(${sy_shares_str})...`);
+    invoke(d.tokenizer, 'mint_pt_yt', `--user ${adminAddress} --sy_shares ${sy_shares_str}`, adminKp.secret());
 
-    // PT must be discounted vs Underlying so pt_price < 1.0 and yt_price > 0.
-    // Ratio: 95 PT : 100 Underlying => pt_price ≈ 0.95, yt_price ≈ 0.05 (5% implied yield).
-    const PT_AMOUNT = "950000000";
-    const UNDERLYING_AMOUNT = "1000000000"; 
-    console.log(`3c. Marketplace.add_liquidity(PT: ${PT_AMOUNT}, Underlying: ${UNDERLYING_AMOUNT})...`);
+    // --- DYNAMIC PRICING LOGIC ---
+    console.log(`3c. Computing dynamic PT price for Target APY...`);
+    const TARGET_APY = 0.10; // 10%
+    
+    const metadataRaw = invoke(d.tokenizer, 'metadata', '', adminKp.secret());
+    const jsonStr = metadataRaw.replace(/^Ok\((.+)\)$/, '$1');
+    const metadata = JSON.parse(jsonStr);
+    const maturityLedger = Number(metadata.maturity_ledger);
+    
+    const latestLedgerData = await rpcClient.getLatestLedger();
+    const currentLedger = latestLedgerData.sequence;
+    
+    const ledgersRemaining = Math.max(1, maturityLedger - currentLedger);
+    const daysRemaining = (ledgersRemaining * 5.5) / 86400;
+    
+    // PT Price = FaceValue / (1 + APY)^(days/365)
+    const ptPriceFloat = 1.0 / Math.pow(1 + TARGET_APY, daysRemaining / 365);
+    
+    console.log(`- Epoch duration remaining: ${daysRemaining.toFixed(2)} days`);
+    console.log(`- Target APY: ${(TARGET_APY * 100).toFixed(1)}%`);
+    console.log(`- Computed PT Bootstrap Price: ${ptPriceFloat.toFixed(6)}`);
+
+    const PT_AMOUNT = sy_shares_str;
+    const ptPriceMultiplier = BigInt(Math.floor(ptPriceFloat * 1e9));
+    const UNDERLYING_AMOUNT = (BigInt(PT_AMOUNT) * ptPriceMultiplier / BigInt(1e9)).toString();
+    
+    console.log(`3d. Marketplace.add_liquidity(PT: ${PT_AMOUNT}, Underlying: ${UNDERLYING_AMOUNT})...`);
     invoke(d.marketplace, 'add_liquidity', `--provider ${adminAddress} --pt_amount ${PT_AMOUNT} --underlying_amount ${UNDERLYING_AMOUNT}`, adminKp.secret());
 
     // Step 3.5: Warm-up swap to initialize the TWAP.
@@ -192,7 +253,7 @@ async function run() {
         const mintResult = invoke(
             d.intent_engine,
             'execute_fixed_yield_intent',
-            `--user ${testWallet.publicKey()} --usdc_amount ${retailDeposit} --min_implied_rate 0 --_maturity_ledger ${currentMaturityLedger}`,
+            `--user ${testWallet.publicKey()} --usdc_amount ${retailDeposit} --min_implied_rate 0 --_maturity_ledger ${currentMaturityLedger} --yt_sale_percentage 10000`,
             testWallet.secret()
         );
         console.log('Retail Transaction Success!');

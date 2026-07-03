@@ -31,6 +31,8 @@ export interface PortfolioMetrics {
   totalInvestedXlm: number;
   totalClaimableYieldUsd: number;
   totalClaimableYieldXlm: number;
+  totalWalletUsd: number;
+  totalVaultLpUsd: number;
 }
 
 export interface PortfolioSummary {
@@ -143,6 +145,8 @@ export class PortfolioService {
         };
 
         // Get PT spot price from the Marketplace AMM
+        // Contract returns (A_pool + underlying) / (A_pool + pt) scaled to 1e9
+        // This is pt-per-underlying. Invert to get underlying-per-pt.
         let ptSpotPriceUnderlying = 0.95; // default fallback if no AMM reserve exists yet on testnet
         let ytSpotPriceUnderlying = 0.05;
         try {
@@ -158,8 +162,10 @@ export class PortfolioService {
              
              const parsedNumber = Number(rawResult);
              if (!isNaN(parsedNumber) && parsedNumber > 0) {
-               ptSpotPriceUnderlying = parsedNumber / 1_000_000_000;
-               ytSpotPriceUnderlying = 1.0 - ptSpotPriceUnderlying;
+               const rawContractPrice = parsedNumber / 1_000_000_000;
+               // Contract now correctly returns underlying-per-pt directly
+               ptSpotPriceUnderlying = rawContractPrice;
+               ytSpotPriceUnderlying = Math.max(0, 1.0 - ptSpotPriceUnderlying);
              }
           }
         } catch (e) {
@@ -174,21 +180,30 @@ export class PortfolioService {
         // not the user directly. We still attempt to read them for completeness.
         try {
           const vaultTx = await vaultClient.balance_of({ user: address });
-          if (vaultTx.result && vaultTx.result > 0n) {
-            const balanceFloat = Number(vaultTx.result) / 10000000;
-            let valueUsd = (!isNaN(balanceFloat) && !isNaN(underlyingSpotUsd)) ? balanceFloat * underlyingSpotUsd : 0;
-            if (isNaN(valueUsd) || !isFinite(valueUsd)) valueUsd = 0;
-            totalValueUsd += valueUsd;
-            assets.push({
-              assetCode: `Novaire Vault (${underlyingAsset})`,
-              issuer: epochId,
-              balance: balanceFloat,
-              priceUsd: underlyingSpotUsd,
-              valueUsd,
-              allocationPercent: 0,
-              isNative: false,
-              assetType: 'vault'
-            });
+          let rawVault: any = vaultTx?.result;
+          if (rawVault !== undefined) {
+             if (typeof rawVault === 'object' && rawVault !== null) {
+               if (typeof rawVault.unwrap === 'function') rawVault = rawVault.unwrap();
+               else if ('ok' in rawVault) rawVault = rawVault.ok;
+               else if ('value' in rawVault) rawVault = rawVault.value;
+             }
+             const parsedVault = Number(rawVault);
+             if (!isNaN(parsedVault) && parsedVault > 0) {
+                const balanceFloat = parsedVault / 10000000;
+                let valueUsd = (!isNaN(balanceFloat) && !isNaN(underlyingSpotUsd)) ? balanceFloat * underlyingSpotUsd : 0;
+                if (isNaN(valueUsd) || !isFinite(valueUsd)) valueUsd = 0;
+                totalValueUsd += valueUsd;
+                assets.push({
+                  assetCode: `Novaire Vault (${underlyingAsset})`,
+                  issuer: epochId,
+                  balance: balanceFloat,
+                  priceUsd: underlyingSpotUsd,
+                  valueUsd,
+                  allocationPercent: 0,
+                  isNative: false,
+                  assetType: 'vault'
+                });
+             }
           }
         } catch (e) { console.warn("Vault LP balance fetch error (expected for intent-flow users)", e); }
 
@@ -200,23 +215,35 @@ export class PortfolioService {
         let ptValueUsd = 0;
         try {
           const ptTx = await ptClient.balance({ id: address });
-          if (ptTx.result && ptTx.result > 0n) {
-            ptBalanceFloat = Number(ptTx.result) / 10000000;
-            ptValueUsd = (!isNaN(ptBalanceFloat) && !isNaN(ptPriceUsd)) ? ptBalanceFloat * ptPriceUsd : 0;
-            if (isNaN(ptValueUsd) || !isFinite(ptValueUsd)) ptValueUsd = 0;
-            totalValueUsd += ptValueUsd;
+          let rawPt: any = ptTx?.result;
 
-            // PT position entry (for Yield Positions table)
-            assets.push({
-              assetCode: `PT-${underlyingAsset}`,
-              issuer: epochId,
-              balance: ptBalanceFloat,
-              priceUsd: ptPriceUsd,
-              valueUsd: ptValueUsd,
-              allocationPercent: 0,
-              isNative: false,
-              assetType: 'pt'
-            });
+          
+          if (rawPt !== undefined) {
+             if (typeof rawPt === 'object' && rawPt !== null) {
+               if (typeof rawPt.unwrap === 'function') rawPt = rawPt.unwrap();
+               else if ('ok' in rawPt) rawPt = rawPt.ok;
+               else if ('value' in rawPt) rawPt = rawPt.value;
+             }
+             const parsedPt = Number(rawPt);
+             
+             if (!isNaN(parsedPt) && parsedPt > 0) {
+                ptBalanceFloat = parsedPt / 10000000;
+                ptValueUsd = (!isNaN(ptBalanceFloat) && !isNaN(ptPriceUsd)) ? ptBalanceFloat * ptPriceUsd : 0;
+                if (isNaN(ptValueUsd) || !isFinite(ptValueUsd)) ptValueUsd = 0;
+                totalValueUsd += ptValueUsd;
+
+                // PT position entry (for Yield Positions table)
+                assets.push({
+                  assetCode: `PT-${underlyingAsset}`,
+                  issuer: epochId,
+                  balance: ptBalanceFloat,
+                  priceUsd: ptPriceUsd,
+                  valueUsd: ptValueUsd,
+                  allocationPercent: 0,
+                  isNative: false,
+                  assetType: 'pt'
+                });
+             }
           }
         } catch (e) { console.warn("PT balance fetch error", e); }
 
@@ -225,38 +252,58 @@ export class PortfolioService {
         let ytValueUsd = 0;
         try {
           const ytTx = await ytClient.balance({ id: address });
-          if (ytTx.result && ytTx.result > 0n) {
-            ytBalanceFloat = Number(ytTx.result) / 10000000;
-            ytValueUsd = (!isNaN(ytBalanceFloat) && !isNaN(ytPriceUsd)) ? ytBalanceFloat * ytPriceUsd : 0;
-            if (isNaN(ytValueUsd) || !isFinite(ytValueUsd)) ytValueUsd = 0;
-            
-            totalValueUsd += ytValueUsd;
-            assets.push({
-              assetCode: `YT-${underlyingAsset}`,
-              issuer: epochId,
-              balance: ytBalanceFloat,
-              priceUsd: ytPriceUsd,
-              valueUsd: ytValueUsd,
-              allocationPercent: 0,
-              isNative: false,
-              assetType: 'yt'
-            });
+          let rawYt: any = ytTx?.result;
+          if (rawYt !== undefined) {
+             if (typeof rawYt === 'object' && rawYt !== null) {
+               if (typeof rawYt.unwrap === 'function') rawYt = rawYt.unwrap();
+               else if ('ok' in rawYt) rawYt = rawYt.ok;
+               else if ('value' in rawYt) rawYt = rawYt.value;
+             }
+             const parsedYt = Number(rawYt);
+             if (!isNaN(parsedYt) && parsedYt > 0) {
+                ytBalanceFloat = parsedYt / 10000000;
+                ytValueUsd = (!isNaN(ytBalanceFloat) && !isNaN(ytPriceUsd)) ? ytBalanceFloat * ytPriceUsd : 0;
+                if (isNaN(ytValueUsd) || !isFinite(ytValueUsd)) ytValueUsd = 0;
+                
+                totalValueUsd += ytValueUsd;
+                assets.push({
+                  assetCode: `YT-${underlyingAsset}`,
+                  issuer: epochId,
+                  balance: ytBalanceFloat,
+                  priceUsd: ytPriceUsd,
+                  valueUsd: ytValueUsd,
+                  allocationPercent: 0,
+                  isNative: false,
+                  assetType: 'yt'
+                });
+             }
           }
         } catch (e) { console.warn("YT balance fetch error", e); }
 
+        // Fetch claimable yield from the YT contract
+        let claimableYieldNative = 0;
+        try {
+          const claimableTx = await ytClient.claimable_yield({ user: address });
+          if (claimableTx.result !== undefined) {
+             let rawClaimable: any = claimableTx.result;
+             if (typeof rawClaimable === 'object' && rawClaimable !== null) {
+               if (typeof rawClaimable.unwrap === 'function') rawClaimable = rawClaimable.unwrap();
+               else if ('ok' in rawClaimable) rawClaimable = rawClaimable.ok;
+               else if ('value' in rawClaimable) rawClaimable = rawClaimable.value;
+             }
+             const parsedClaimable = Number(rawClaimable);
+             if (!isNaN(parsedClaimable) && parsedClaimable > 0) {
+                 claimableYieldNative = parsedClaimable / 10000000;
+             }
+          }
+        } catch (e) {
+          console.warn("YT claimable yield fetch error", e);
+        }
+
         // Synthetic vault entry so VaultPositionsTable shows the deposit.
         // The current value of a vault position is the combined value of PT + YT.
-        // Claimable yield is derived from the balance, vault APY, and elapsed time since epoch start.
         if (ptBalanceFloat > 0 || ytBalanceFloat > 0) {
            const currentVaultValue = ptValueUsd + ytValueUsd;
-           const fixedApy = getVaultApy(underlyingAsset);
-           
-           const EPOCH_START = new Date("2026-06-25T00:00:00Z").getTime();
-           const now = Date.now();
-           const elapsedSeconds = (now - EPOCH_START) / 1000;
-           const secondsInYear = 31536000;
-
-           const claimableYieldNative = ptBalanceFloat * (fixedApy / 100) * (elapsedSeconds / secondsInYear);
            const claimableYieldUsd = (!isNaN(claimableYieldNative) && !isNaN(underlyingSpotUsd)) ? (claimableYieldNative * underlyingSpotUsd) : 0;
            
            assets.push({
@@ -329,6 +376,18 @@ export class PortfolioService {
 
       const totalInvestedUsd = assets.filter(a => a.assetType === 'vault').reduce((sum, a) => (!isNaN(a.valueUsd) && isFinite(a.valueUsd)) ? sum + a.valueUsd : sum, 0);
 
+      const totalWalletUsd = assets.filter(a => a.assetType === 'wallet').reduce((sum, a) => (!isNaN(a.valueUsd) && isFinite(a.valueUsd)) ? sum + a.valueUsd : sum, 0);
+      
+      // Actual Vault LP (exclude the synthetic one which has no claimableYield field but represents the same underlying deposit?) 
+      // Wait, the synthetic one HAS claimableYield field! "asset.claimableYield"
+      // Wait, the synthetic one has assetType === 'vault' and includes the PT/YT value.
+      // If we look at the code above, actual Vault LP is added with assetType 'vault', and then synthetic vault is ALSO added with assetType 'vault'.
+      // If we want to store Actual Vault LP separately to reconstruct the portfolio precisely without double counting:
+      // Actually, since historical reconstruction uses PT and YT, we ONLY want Actual Vault LP (meaning `asset.claimableYield === undefined` or the real vault balance).
+      // Let's filter by the issuer NOT being epochId? No, both have issuer = epochId.
+      // The synthetic vault has `claimableYield` field. The real one does not (in assets array).
+      const totalVaultLpUsd = assets.filter(a => a.assetType === 'vault' && a.claimableYield === undefined).reduce((sum, a) => (!isNaN(a.valueUsd) && isFinite(a.valueUsd)) ? sum + a.valueUsd : sum, 0);
+
       return {
         totalValueUsd,
         totalValueXlm: (xlmPriceUsd > 0) ? (totalValueUsd / xlmPriceUsd) : 0,
@@ -342,7 +401,9 @@ export class PortfolioService {
           totalInvestedUsd,
           totalInvestedXlm: totalInvestedUsd / xlmPriceUsd,
           totalClaimableYieldUsd,
-          totalClaimableYieldXlm: totalClaimableYieldUsd / xlmPriceUsd
+          totalClaimableYieldXlm: totalClaimableYieldUsd / xlmPriceUsd,
+          totalWalletUsd,
+          totalVaultLpUsd
         },
         error: null
       };
@@ -394,7 +455,9 @@ export class PortfolioService {
         totalInvestedUsd: 0,
         totalInvestedXlm: 0,
         totalClaimableYieldUsd: 0,
-        totalClaimableYieldXlm: 0
+        totalClaimableYieldXlm: 0,
+        totalWalletUsd: 0,
+        totalVaultLpUsd: 0
       },
       error: errorMessage
     };

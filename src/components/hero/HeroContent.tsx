@@ -53,10 +53,10 @@ export function HeroContent() {
         <Link href="/app" className="w-full sm:w-auto px-7 py-3 bg-transparent text-white/90 text-[15px] font-medium transition-colors duration-300 ease-out hover:text-[#3ECF8E] flex items-center justify-center gap-2">
           Launch App
         </Link>
-        <button className="w-full sm:w-auto group px-7 py-3 bg-transparent text-[#A1A1AA] text-[15px] font-medium transition-colors duration-300 ease-out hover:text-[#3ECF8E] flex items-center justify-center gap-2">
+        <a href="https://stellar.org/" target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto group px-7 py-3 bg-transparent text-[#A1A1AA] text-[15px] font-medium transition-colors duration-300 ease-out hover:text-[#3ECF8E] flex items-center justify-center gap-2">
           Explore Ecosystem
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="transition-transform duration-300 group-hover:translate-x-[4px]"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-        </button>
+        </a>
       </motion.div>
     </div>
   );

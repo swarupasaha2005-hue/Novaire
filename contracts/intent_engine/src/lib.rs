@@ -23,6 +23,7 @@ pub trait MarketplaceInterface {
     fn swap_pt_for_underlying(env: Env, seller: Address, pt_amount: i128, min_underlying_out: i128) -> i128;
     fn get_implied_rate(env: Env) -> i128;
     fn get_twap_rate(env: Env) -> i128;
+    fn get_reserves(env: Env) -> (i128, i128, i128);
 }
 
 #[soroban_sdk::contractclient(name = "YtTokenClient")]
@@ -50,6 +51,7 @@ pub enum NovaireIntentError {
     StorageMissing = 7,
     InvariantViolated = 8,
     InvalidPercentage = 9,
+    MarketplaceNotBootstrapped = 10,
 }
 
 #[contracttype]
@@ -180,6 +182,11 @@ impl IntentEngine {
 
         let marketplace_addr = storage::get_address(&env, DataKey::Marketplace)?;
         let marketplace_client = MarketplaceClient::new(&env, &marketplace_addr);
+
+        let (pt_reserves, underlying_reserves, _) = marketplace_client.get_reserves();
+        if pt_reserves == 0 || underlying_reserves == 0 {
+            return Err(NovaireIntentError::MarketplaceNotBootstrapped);
+        }
 
         let current_twap = marketplace_client.get_twap_rate();
         if current_twap < min_implied_rate {
@@ -343,6 +350,12 @@ impl IntentEngine {
 
         let marketplace_addr = storage::get_address(&env, DataKey::Marketplace)?;
         let marketplace_client = MarketplaceClient::new(&env, &marketplace_addr);
+        
+        let (pt_reserves, underlying_reserves, _) = marketplace_client.get_reserves();
+        if pt_reserves == 0 || underlying_reserves == 0 {
+            return Err(NovaireIntentError::MarketplaceNotBootstrapped);
+        }
+
         let underlying_from_pt = marketplace_client.swap_pt_for_underlying(&intent_engine_addr, &pt_amount, &1);
 
         let yt_token_addr = storage::get_address(&env, DataKey::YtToken)?;

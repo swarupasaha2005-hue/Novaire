@@ -11,11 +11,12 @@ export function Hero() {
           <HeroContent />
         </div>
 
-        <div className="col-span-7 relative overflow-visible">
+        {/* Added pointer-events-none to prevent the 1350px tall visual from intercepting clicks below it */}
+        <div className="col-span-7 relative overflow-visible pointer-events-none">
           <HeroVisual />
         </div>
 
       </div>
     </section>
   );
-} 
+}

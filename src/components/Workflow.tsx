@@ -2,7 +2,7 @@ export default function Workflow() {
   return (
     <section className="how-section" id="how-it-works">
       <div className="container">
-        <div className="how-header reveal">
+        <div className="how-header reveal justify-center text-center mx-auto flex flex-col items-center">
           <div>
             <span className="section-label">HOW IT WORKS</span>
             <h2 className="section-heading" style={{ marginBottom: 0 }}>
@@ -10,7 +10,6 @@ export default function Workflow() {
               <span className="playfair">Powerful by default.</span>
             </h2>
           </div>
-          <a href="#" className="btn-outline">View documentation ↗</a>
         </div>
         <div className="steps-container reveal">
           <div className="steps-line"></div>

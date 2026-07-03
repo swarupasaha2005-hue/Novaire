@@ -24,7 +24,7 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
   const [selectedVault, setSelectedVault] = useState<string>('');
 
   // Yield Preference state
-  const [yieldPreference, setYieldPreference] = useState<YieldPreference>('fixed');
+  const [yieldPreference, setYieldPreference] = useState<YieldPreference>('keep');
   const [customYtPct, setCustomYtPct] = useState<string>('50');
 
   const [step, setStep] = useState<'idle' | 'simulating' | 'signing' | 'broadcasting' | 'success' | 'error'>('idle');
@@ -181,28 +181,35 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
 
   if (!isOpen) return null;
 
-  const preferenceOptions: { key: YieldPreference; icon: React.ReactNode; title: string; badge?: string; description: string; bullets: string[] }[] = [
-    {
-      key: 'fixed',
-      icon: <TrendingUp className="h-4 w-4" />,
-      title: 'Fixed Yield',
-      badge: 'Recommended',
-      description: 'Automatically sell 100% of minted YT',
-      bullets: ['Receive XLM immediately from YT sale', 'Hold only PT until maturity', 'Best for predictable fixed returns'],
-    },
+  const preferenceOptions: { key: YieldPreference; icon: React.ReactNode; title: string; badge?: string; badgeActive?: boolean; description: string; bullets: string[], disabled?: boolean }[] = [
     {
       key: 'keep',
       icon: <Zap className="h-4 w-4" />,
       title: 'Keep All YT',
+      badge: 'Available',
+      badgeActive: true,
       description: 'Receive both PT and YT tokens',
       bullets: ['No automatic YT sale', 'Trade or automate YT later', 'Speculate on variable yield'],
+    },
+    {
+      key: 'fixed',
+      icon: <TrendingUp className="h-4 w-4" />,
+      title: 'Fixed Yield',
+      badge: 'Coming Soon',
+      badgeActive: false,
+      description: 'Advanced marketplace-powered fixed yield strategy. Coming in Version 2.',
+      bullets: ['Receive XLM immediately from YT sale', 'Hold only PT until maturity', 'Best for predictable fixed returns'],
+      disabled: true,
     },
     {
       key: 'custom',
       icon: <Sliders className="h-4 w-4" />,
       title: 'Custom Split',
-      description: 'Choose how much YT to sell',
+      badge: 'Coming Soon',
+      badgeActive: false,
+      description: 'Customize your PT/YT allocation with flexible strategies. Coming in Version 2.',
       bullets: ['Partial fixed + partial variable yield', 'Fine-tune your risk/reward profile'],
+      disabled: true,
     },
   ];
 
@@ -307,36 +314,41 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
                     {preferenceOptions.map((opt) => (
                       <button
                         key={opt.key}
+                        disabled={opt.disabled}
                         onClick={() => setYieldPreference(opt.key)}
-                        className={`w-full text-left rounded-xl border p-4 transition-all duration-150 ${
-                          yieldPreference === opt.key
-                            ? 'border-[#3ECF8E]/60 bg-[#3ECF8E]/8'
-                            : 'border-white/8 bg-white/3 hover:border-white/20'
+                        className={`w-full text-left rounded-xl border p-4 transition-all duration-150 relative ${
+                          opt.disabled 
+                            ? 'border-white/5 bg-white/5 opacity-60 cursor-not-allowed'
+                            : yieldPreference === opt.key
+                              ? 'border-[#3ECF8E]/60 bg-[#3ECF8E]/8'
+                              : 'border-white/8 bg-white/3 hover:border-white/20'
                         }`}
                       >
                         <div className="flex items-start gap-3">
                           {/* Radio */}
                           <div className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
-                            yieldPreference === opt.key ? 'border-[#3ECF8E]' : 'border-white/30'
+                            opt.disabled ? 'border-white/20' : yieldPreference === opt.key ? 'border-[#3ECF8E]' : 'border-white/30'
                           }`}>
-                            {yieldPreference === opt.key && (
+                            {yieldPreference === opt.key && !opt.disabled && (
                               <div className="h-2 w-2 rounded-full bg-[#3ECF8E]" />
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className={`text-sm font-medium flex items-center gap-1.5 ${yieldPreference === opt.key ? 'text-white' : 'text-white/70'}`}>
-                                <span className={yieldPreference === opt.key ? 'text-[#3ECF8E]' : 'text-white/40'}>{opt.icon}</span>
+                            <div className="flex items-center justify-between flex-wrap gap-2">
+                              <span className={`text-sm font-medium flex items-center gap-1.5 ${yieldPreference === opt.key && !opt.disabled ? 'text-white' : 'text-white/70'}`}>
+                                <span className={opt.disabled ? 'text-white/40' : yieldPreference === opt.key ? 'text-[#3ECF8E]' : 'text-white/40'}>{opt.icon}</span>
                                 {opt.title}
                               </span>
                               {opt.badge && (
-                                <span className="rounded-full bg-[#3ECF8E]/15 px-2 py-0.5 text-[10px] font-semibold text-[#3ECF8E]">
+                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                  opt.badgeActive ? 'bg-[#3ECF8E]/15 text-[#3ECF8E]' : 'bg-white/10 text-white/50'
+                                }`}>
                                   {opt.badge}
                                 </span>
                               )}
                             </div>
                             <p className="text-xs text-white/50 mt-0.5">{opt.description}</p>
-                            {yieldPreference === opt.key && (
+                            {yieldPreference === opt.key && !opt.disabled && (
                               <ul className="mt-2 space-y-1">
                                 {opt.bullets.map((b, i) => (
                                   <li key={i} className="flex items-center gap-1.5 text-xs text-white/60">
@@ -347,7 +359,7 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
                               </ul>
                             )}
                             {/* Custom split input */}
-                            {yieldPreference === 'custom' && opt.key === 'custom' && (
+                            {yieldPreference === 'custom' && opt.key === 'custom' && !opt.disabled && (
                               <div className="mt-3 flex items-center gap-2">
                                 <span className="text-xs text-white/50">Sell</span>
                                 <input

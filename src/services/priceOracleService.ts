@@ -52,7 +52,8 @@ export class PriceOracleService {
     }
 
     try {
-      const data = await this.fetchWithRetry('/api/prices');
+      const baseUrl = typeof window === 'undefined' ? 'http://localhost:3000' : '';
+      const data = await this.fetchWithRetry(`${baseUrl}/api/prices`);
       this.cachedData = data;
       this.cacheTimestamp = now;
       

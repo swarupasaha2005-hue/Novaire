@@ -70,7 +70,7 @@ export function useTrade() {
       console.log('Raw PT Price from contract:', ptPriceTx.result ? ptPriceTx.result.toString() : ptPriceTx.result);
       
       const rawContractPtPrice = Number(unwrapResult(ptPriceTx.result) || 0n) / PRICE_SCALE;
-      const ptPrice = rawContractPtPrice > 0 ? 1.0 / rawContractPtPrice : 0;
+      const ptPrice = rawContractPtPrice; // Contract now returns correct price (Underlying/PT)
       const ytPrice = Math.max(0, 1.0 - ptPrice); // derived from invariant pt + yt = underlying
 
       console.log('Scaled PT Price (displayed):', ptPrice);
@@ -79,7 +79,7 @@ export function useTrade() {
       const twapTx = await client.get_twap_rate();
       console.log('Raw TWAP from contract:', twapTx.result ? twapTx.result.toString() : twapTx.result);
       const rawContractTwap = Number(unwrapResult(twapTx.result) || 0n) / PRICE_SCALE;
-      const twap = rawContractTwap > 0 ? 1.0 / rawContractTwap : 0;
+      const twap = rawContractTwap;
       console.log('Scaled TWAP (displayed):', twap);
 
       const reservesTx = await client.get_reserves();
@@ -94,14 +94,20 @@ export function useTrade() {
         if (Array.isArray(unwrappedRes) && unwrappedRes.length === 3) {
           console.log(`Raw Reserves from contract: PT=${unwrappedRes[0].toString()}, Underlying=${unwrappedRes[1].toString()}, YT=${unwrappedRes[2].toString()}`);
           ptRes = Number(unwrappedRes[0]) / STROOP_SCALE;
-          ytRes = Number(unwrappedRes[1]) / STROOP_SCALE;
-          undRes = Number(unwrappedRes[2]) / STROOP_SCALE;
+          undRes = Number(unwrappedRes[1]) / STROOP_SCALE;
+          ytRes = Number(unwrappedRes[2]) / STROOP_SCALE;
           console.log(`Scaled Reserves (displayed): PT=${ptRes}, Underlying=${undRes}, YT=${ytRes}`);
         }
       }
 
       // Compute yields
-      const fixedApy = ptPrice > 0 ? ((1 / ptPrice) - 1) * 100 : 0;
+      const { YieldService } = await import('../services/yieldService');
+      const [maturityTimestampMs, ptFaceValueInUnderlying] = await Promise.all([
+        YieldService.getActiveMaturityTimestampMs(),
+        YieldService.getEpochStartIndex()
+      ]);
+      const { calculateMarketImpliedApy } = await import('../utils/apy');
+      const fixedApy = calculateMarketImpliedApy(ptPrice, ptFaceValueInUnderlying, maturityTimestampMs);
       const impliedYield = ptPrice > 0 ? (ytPrice / ptPrice) * 100 : 0;
       
       console.log('Computed Fixed APY:', fixedApy);
@@ -175,17 +181,19 @@ export function useTrade() {
       if (marketData) {
         if (action === 'Buy' && asset === 'PT') {
           const expectedPrice = amountIn / expectedOutput;
-          priceImpact = ((expectedPrice - marketData.ptPrice) / marketData.ptPrice) * 100;
+          // Buy: worse price is higher, so market - expected will be negative
+          priceImpact = ((marketData.ptPrice - expectedPrice) / marketData.ptPrice) * 100;
         } else if (action === 'Sell' && asset === 'PT') {
           const expectedPrice = expectedOutput / amountIn;
-          priceImpact = ((marketData.ptPrice - expectedPrice) / marketData.ptPrice) * 100;
+          // Sell: worse price is lower, so expected - market will be negative
+          priceImpact = ((expectedPrice - marketData.ptPrice) / marketData.ptPrice) * 100;
         }
       }
 
       setQuote({
         expectedOutput,
         minimumReceived,
-        priceImpact: Math.max(0, priceImpact),
+        priceImpact,
         slippage: slippagePercent
       });
     } catch (e: any) {

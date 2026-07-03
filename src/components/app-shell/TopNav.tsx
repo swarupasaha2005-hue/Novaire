@@ -13,7 +13,7 @@ const TOP_LINKS = [
   { label: 'Trade', href: '/app/trade' },
   { label: 'Automation', href: '/app/automation' },
   { label: 'Analytics', href: '/app/analytics' },
-  { label: 'Resources', href: '/app/resources' },
+  { label: 'Resources', href: '/docs' },
 ];
 
 export function TopNav() {

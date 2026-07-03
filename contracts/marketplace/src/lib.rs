@@ -552,7 +552,7 @@ impl NovaireMarketplace {
         let pt_reserves = storage::get_i128(&env, DataKey::PtReserves).unwrap_or(0);
         let underlying_reserves = storage::get_i128(&env, DataKey::UnderlyingReserves).unwrap_or(0);
         let a_pool = compute_a_pool(&env, underlying_reserves, pt_reserves)?;
-        get_spot_price(a_pool, underlying_reserves, pt_reserves)
+        get_spot_price(a_pool, pt_reserves, underlying_reserves)
     }
 
     pub fn get_twap_rate(env: Env) -> Result<i128, NovaireMarketError> {
@@ -561,7 +561,7 @@ impl NovaireMarketplace {
             let pt_reserves = storage::get_i128(&env, DataKey::PtReserves).unwrap_or(0);
             let underlying_reserves = storage::get_i128(&env, DataKey::UnderlyingReserves).unwrap_or(0);
             let a_pool = compute_a_pool(&env, pt_reserves, underlying_reserves)?;
-            return get_spot_price(a_pool, underlying_reserves, pt_reserves);
+            return get_spot_price(a_pool, pt_reserves, underlying_reserves);
         }
         Ok(stored_twap)
     }

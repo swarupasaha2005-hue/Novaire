@@ -68,6 +68,7 @@ export function PortfolioKPICards() {
       isPositive: true,
       icon: HandCoins,
       sparkline: 'M0,10 Q10,15 20,10 T30,12 T40,8 T50,5',
+      tooltip: claimableYield === 0 && !loading && error !== 'Wallet not connected' && portfolio?.error !== 'Wallet not connected' ? "Yield begins accruing once the vault exchange rate increases." : undefined,
     },
     {
       id: 'vaults',
@@ -91,6 +92,7 @@ export function PortfolioKPICards() {
           isPositive={kpi.isPositive}
           icon={kpi.icon}
           sparkline={kpi.sparkline}
+          tooltip={kpi.tooltip}
           index={i}
         />
       ))}

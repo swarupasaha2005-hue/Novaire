@@ -142,6 +142,19 @@ async function deployXlmEpoch() {
     runCmd(`stellar contract bindings typescript --id ${deployments.factory} --network testnet --output-dir ../packages/bindings/factory --overwrite`);
 
     console.log("XLM Epoch Deployment and Wiring Complete!");
+
+    console.log("\nStarting Automatic Protocol Bootstrap...");
+    try {
+        const bootstrapCmd = `npx ts-node scripts/bootstrap_liquidity.ts`;
+        console.log(`Executing: ${bootstrapCmd}`);
+        // Run from the project root instead of scripts folder, so we use ../ or change cwd
+        // Since we are in scripts, ts-node bootstrap_liquidity.ts should work
+        execSync(`npx ts-node ${path.resolve(__dirname, 'bootstrap_liquidity.ts')}`, { stdio: 'inherit' });
+        console.log("Bootstrap completed successfully!");
+    } catch (e) {
+        console.error("Bootstrap failed during deployment:", e);
+        throw e;
+    }
 }
 
 deployXlmEpoch().catch((err) => {

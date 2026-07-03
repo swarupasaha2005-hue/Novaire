@@ -46,10 +46,10 @@ export default function BuiltOnStellar() {
           </p>
 
           <div>
-            <button className="group flex items-center gap-2 text-white text-[15px] font-medium transition-colors duration-300 hover:text-[#3ECF8E] bg-transparent border-none">
+            <a href="https://developers.stellar.org/docs/learn/fundamentals" target="_blank" rel="noopener noreferrer" className="group flex items-center gap-2 text-white text-[15px] font-medium transition-colors duration-300 hover:text-[#3ECF8E] bg-transparent border-none w-fit">
               Explore Soroban
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="transition-transform duration-300 group-hover:translate-x-[4px]"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            </button>
+            </a>
           </div>
 
         </div>

@@ -13,12 +13,13 @@ export async function GET() {
 
     let startLedger = syncState.lastLedger;
 
-    // Get current ledger
+    // Get current ledger — bail out silently if RPC is unreachable
     let currentLedger: number;
     try {
       const latestLedgerResponse = await server.getLatestLedger();
       currentLedger = latestLedgerResponse.sequence;
     } catch (err) {
+      // RPC unreachable — preserve history, do not snapshot
       console.warn('[/api/history/sync] Could not reach Stellar RPC, skipping sync:', err);
       return NextResponse.json({ success: true, syncedTo: startLedger, skipped: true });
     }
@@ -47,9 +48,10 @@ export async function GET() {
           hasNewEvents = true;
         }
       } catch (e) {
-        // Event fetch failed — still snapshot the current state
-        console.warn('[/api/history/sync] Failed to fetch Soroban events, snapshotting anyway:', e);
-        hasNewEvents = true;
+        // Event fetch failed — do NOT treat this as "new events".
+        // Log the failure and retry on the next poll cycle.
+        console.warn('[/api/history/sync] Failed to fetch Soroban events — preserving existing history, will retry next poll:', e);
+        // hasNewEvents stays false — no snapshot will be written.
       }
     }
 
@@ -68,12 +70,23 @@ export async function GET() {
           isFinite(tvl) && !isNaN(tvl) &&
           isFinite(fixedApy) && !isNaN(fixedApy)
         ) {
+          // Protocol-level snapshot — wallet balances are 0 here because the server
+          // does not have access to an authenticated wallet session.
+          // Wallet state is captured separately in analyticsHistoryService.ts on the client.
           HistoryStore.addHistoryEntry({
             ptPrice,
             ytPrice,
             tvl,
             fixedApy,
             tradingVolume: 0,
+            ptBalance: 0,
+            ytBalance: 0,
+            xlmBalance: 0,
+            walletAssetsUsd: 0,
+            vaultLpUsd: 0,
+            claimableYield: 0,
+            portfolioValue: 0,
+            positionValue: 0,
             eventType: 'sync',
             txHash: null,
           });

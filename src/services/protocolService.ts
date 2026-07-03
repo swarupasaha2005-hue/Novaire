@@ -89,14 +89,18 @@ export class ProtocolService {
       if (ptPriceRes.status === 'fulfilled') {
         const rawPtPrice = Number(this.unwrapResult(ptPriceRes.value.result));
         if (!isNaN(rawPtPrice) && rawPtPrice > 0) {
-          ptPriceUnderlying = rawPtPrice / 1e9; // 9 decimals for Soroban price
+          const rawContractPtPrice = rawPtPrice / 1e9; // 9 decimals for Soroban price
+          ptPriceUnderlying = rawContractPtPrice; // Price is already correctly formatted (Underlying/PT)
           
-          // Yield = 1.0 - PT Price
-          const yieldPercent = 1.0 - ptPriceUnderlying;
+          // Import yieldService to fetch dynamic maturity timestamp and face value
+          const { YieldService } = await import('./yieldService');
+          const [maturityTimestampMs, ptFaceValueInUnderlying] = await Promise.all([
+            YieldService.getActiveMaturityTimestampMs(),
+            YieldService.getEpochStartIndex()
+          ]);
           
-          // Assuming 30 days to maturity for this mock epoch
-          const daysToMaturity = 30;
-          impliedYieldApy = (yieldPercent / ptPriceUnderlying) * (365 / daysToMaturity) * 100;
+          const { calculateMarketImpliedApy } = await import('../utils/apy');
+          impliedYieldApy = calculateMarketImpliedApy(ptPriceUnderlying, ptFaceValueInUnderlying, maturityTimestampMs);
         }
       }
 

@@ -12,6 +12,7 @@ export interface MetricCardProps {
   sparkline?: string;
   index?: number;
   delay?: number;
+  tooltip?: string;
 }
 
 export function MetricCard({ 
@@ -22,7 +23,8 @@ export function MetricCard({
   icon: Icon, 
   sparkline,
   index = 0,
-  delay = 0.2
+  delay = 0.2,
+  tooltip
 }: MetricCardProps) {
   return (
     <motion.div
@@ -36,9 +38,21 @@ export function MetricCard({
         <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg bg-white/5 text-[#9A9A9A] transition-colors duration-200 group-hover:bg-[#43D18C]/10 group-hover:text-[#43D18C]">
           <Icon className="h-3 w-3" />
         </div>
-        <span className="text-[10px] font-medium uppercase tracking-wider text-[#9A9A9A] font-sans leading-none">
-          {label}
-        </span>
+        <div className="flex items-center gap-1 group/tooltip relative">
+          <span className="text-[10px] font-medium uppercase tracking-wider text-[#9A9A9A] font-sans leading-none">
+            {label}
+          </span>
+          {tooltip && (
+            <>
+              <span className="cursor-help text-[#9A9A9A] hover:text-[#F5F5F2] transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+              </span>
+              <div className="absolute left-0 bottom-full mb-1 hidden group-hover/tooltip:block bg-[#222] border border-white/10 text-[#F5F5F2] text-[10px] normal-case tracking-normal px-2 py-1.5 rounded shadow-xl whitespace-nowrap z-50">
+                {tooltip}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Value */}

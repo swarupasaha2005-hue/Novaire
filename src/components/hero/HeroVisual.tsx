@@ -1,10 +1,8 @@
-'use client';
-
 import Image from 'next/image';
 
 export function HeroVisual() {
   return (
-    <div className="relative flex h-full w-full items-center justify-end overflow-visible -translate-y-[400px]">
+    <div className="relative flex h-full w-full items-center justify-end overflow-visible -translate-y-[400px] pointer-events-none">
 
       {/* Emerald Glow */}
       <div

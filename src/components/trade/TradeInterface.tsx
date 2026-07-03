@@ -208,7 +208,7 @@ export function TradeInterface() {
       <div className="mt-6 flex flex-col gap-3 px-2 z-10 relative">
         <div className="flex justify-between items-center text-sm">
           <span className="text-[#9A9A9A] flex items-center gap-1">Price Impact <Info className="w-3 h-3" /></span>
-          <span className={`font-medium ${quote && quote.priceImpact > 2 ? 'text-orange-400' : 'text-[#F5F5F2]'}`}>
+          <span className={`font-medium ${quote && Math.abs(quote.priceImpact) > 2 ? 'text-orange-400' : 'text-[#F5F5F2]'}`}>
             {quote ? `${quote.priceImpact.toFixed(2)}%` : '---'}
           </span>
         </div>

@@ -3,11 +3,14 @@
 import { motion } from 'framer-motion';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 import { usePortfolio } from '../../hooks/usePortfolio';
+import { useYield } from '../../hooks/useYield';
 
 const COLORS = ['#34d399', '#10b981', '#059669', '#047857'];
 
 export function YieldAnalytics() {
-  const { portfolio, loading } = usePortfolio();
+  const { portfolio, loading: portLoading } = usePortfolio();
+  const { vaults } = useYield();
+  const activeVault = vaults.find(v => v.id === 'vault_xlm_01') || vaults[0];
 
   // Calculate allocation
   const ptValue = portfolio?.assets.filter(a => a.assetType === 'pt').reduce((acc, curr) => acc + curr.valueUsd, 0) || 0;
@@ -70,7 +73,9 @@ export function YieldAnalytics() {
           <div className="p-4 rounded-xl bg-white/5 border border-white/5">
             <div className="flex justify-between items-center mb-2">
               <span className="text-sm text-gray-300">Fixed Yield (PT)</span>
-              <span className="text-sm font-medium text-emerald-400">8.2% APY</span>
+              <span className="text-sm font-medium text-emerald-400">
+                {activeVault ? `${activeVault.fixedApy.toFixed(2)}% APY` : '0.00% APY'}
+              </span>
             </div>
             <div className="w-full bg-white/5 rounded-full h-1.5">
               <div className="bg-emerald-400 h-1.5 rounded-full" style={{ width: '80%' }}></div>
