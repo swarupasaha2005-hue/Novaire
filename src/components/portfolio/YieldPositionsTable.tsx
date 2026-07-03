@@ -72,7 +72,7 @@ export function YieldPositionsTable() {
       className="flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#111111]"
     >
       <div className="border-b border-white/10 p-6 flex justify-between items-center">
-        <h3 className="font-serif text-[22px] text-[#F5F5F2] tracking-tight">Yield Positions</h3>
+        <h3 className="font-sans font-medium ">Yield Positions</h3>
       </div>
 
       <div className="overflow-x-auto">

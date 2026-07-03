@@ -1,52 +1,93 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Plus } from 'lucide-react';
+import { YieldService } from '@/services/yieldService';
+import { ProtocolService, ProtocolState } from '@/services/protocolService';
+import { Vault } from '@/types';
 import { MintModal } from '@/components/modals/MintModal';
+import { VaultGrid } from '@/components/vaults/VaultGrid';
+import { MyVaultPositions } from '@/components/vaults/MyVaultPositions';
+import { VaultStatistics } from '@/components/vaults/VaultStatistics';
+import { RecentActivity } from '@/components/dashboard/RecentActivity';
+import { PageContainer } from '@/components/ui/PageContainer';
 
 export default function VaultsPage() {
+  const [vaults, setVaults] = useState<Vault[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [protocolState, setProtocolState] = useState<ProtocolState | null>(null);
   const [isMintModalOpen, setIsMintModalOpen] = useState(false);
+  const [selectedAsset, setSelectedAsset] = useState<string>('USDC');
+
+  useEffect(() => {
+    Promise.all([
+      YieldService.getVaults(),
+      ProtocolService.getProtocolState()
+    ])
+      .then(([vaultData, pState]) => {
+        setVaults(vaultData);
+        setProtocolState(pState);
+        setLoading(false);
+      })
+      .catch((error) => {
+        console.error('Failed to load vaults page data:', error);
+        setLoading(false);
+      });
+  }, []);
+
+  const handleDepositClick = (asset: string) => {
+    setSelectedAsset(asset);
+    setIsMintModalOpen(true);
+  };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, ease: 'easeOut' }}
-      className="w-full px-6 pt-6 pb-24"
+    <PageContainer
+      title="Vaults"
+      description="Access fixed-yield vaults, tokenize positions into PT & YT, monitor maturity and manage your deposits."
     >
-      <div className="flex flex-col gap-6 pb-24">
-        <div className="flex items-center justify-between border-b border-white/10 pb-6">
-          <div>
-            <h1 className="text-2xl font-semibold text-[#F5F5F2]">Yield Vaults</h1>
-            <p className="mt-1 text-sm text-[#9A9A9A]">Manage your fixed and variable yield positions.</p>
-          </div>
-          <button
-            onClick={() => setIsMintModalOpen(true)}
-            className="flex h-10 items-center gap-2 rounded-xl bg-[#3ECF8E] px-5 py-2 font-semibold text-black transition-transform hover:scale-105 active:scale-95"
-          >
-            <Plus className="h-4 w-4" />
-            Mint PT & YT
-          </button>
-        </div>
+      {/* Protocol Statistics */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.1, ease: 'easeOut' }}
+        className="mb-12"
+      >
+        <VaultStatistics vaults={vaults} protocolState={protocolState} />
+      </motion.div>
 
-        {/* Dummy content to show a Vault page skeleton */}
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-white/10 bg-[#111111] py-24 text-center">
-          <p className="text-sm text-[#9A9A9A]">Vault details are populated via the Dashboard.</p>
-          <button
-            onClick={() => setIsMintModalOpen(true)}
-            className="mt-4 text-sm font-medium text-[#3ECF8E] hover:underline"
-          >
-            Or mint new tokens now
-          </button>
+      {/* Vault Grid */}
+      <div className="mb-12">
+        <h2 className="mb-6 text-xl font-medium text-[#F5F5F2] tracking-tight">Available Vaults</h2>
+        {loading ? (
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+            {[1, 2].map((i) => (
+              <div key={i} className="h-64 animate-pulse rounded-2xl bg-[#111111] border border-white/10" />
+            ))}
+          </div>
+        ) : (
+          <VaultGrid vaults={vaults} protocolState={protocolState} onDeposit={handleDepositClick} />
+        )}
+      </div>
+
+      {/* My Vault Positions */}
+      <div className="mb-12">
+        <MyVaultPositions vaults={vaults} />
+      </div>
+
+      {/* Recent Vault Activity */}
+      <div className="mb-12">
+        <h2 className="mb-6 text-xl font-medium text-[#F5F5F2] tracking-tight">Recent Vault Activity</h2>
+        {/* We reuse the generic RecentActivity which internally filters by the user's connected wallet */}
+        <div className="max-w-4xl">
+          <RecentActivity />
         </div>
       </div>
 
       <MintModal 
         isOpen={isMintModalOpen} 
         onClose={() => setIsMintModalOpen(false)} 
-        defaultAsset="USDC" 
+        defaultAsset={selectedAsset} 
       />
-    </motion.div>
+    </PageContainer>
   );
 }

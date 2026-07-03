@@ -4,6 +4,7 @@ import { X, Zap, Settings, Clock, ChevronDown } from 'lucide-react';
 import { YieldService } from '@/services/yieldService';
 import { usePortfolio } from '@/hooks/usePortfolio';
 import { useTrade } from '@/hooks/useTrade';
+import { useWallet } from '@/hooks/useWallet';
 
 interface AutomationBuilderModalProps {
   isOpen: boolean;
@@ -37,6 +38,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
   const [s4Operator, setS4Operator] = useState('>');
   const [s4Amount, setS4Amount] = useState('100');
   const [s5Target, setS5Target] = useState('15');
+  const [s5Operator, setS5Operator] = useState('>=');
   const [s5Amount, setS5Amount] = useState('500');
 
   const [vaults, setVaults] = useState<any[]>([]);
@@ -45,6 +47,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
   
   const { portfolio, loading } = usePortfolio();
   const { marketData } = useTrade();
+  const { isConnected, balances } = useWallet();
   
   console.log(`[AutomationBuilderModal Render] loading=${loading}, portfolio=${portfolio ? 'Exists' : 'Null'}, assets=${portfolio?.assets?.length || 0}`);
   
@@ -78,9 +81,8 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
           const match = asset.assetCode.match(/\((.*?)\)/);
           const underlying = match ? match[1] : 'Unknown';
           // Check if this vault asset matches the selected vault's underlying
-          if ((Array.isArray(selectedVault.asset) ? selectedVault.asset.includes(underlying) : selectedVault.asset === underlying) &&
-              !isNaN(asset.balance) && typeof selectedVault.fixedApy === 'number' && !isNaN(selectedVault.fixedApy)) {
-            const addedYield = asset.balance * (selectedVault.fixedApy / 100) * 0.1;
+          if ((Array.isArray(selectedVault.asset) ? selectedVault.asset.includes(underlying) : selectedVault.asset === underlying)) {
+            const addedYield = asset.claimableYield || 0;
             if (!isNaN(addedYield) && isFinite(addedYield)) yieldCalc += addedYield;
           }
         });
@@ -126,6 +128,23 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
       setIsSubmitting(false);
       return;
     }
+    if (initialTemplate?.id === 's5') {
+      const parsedAmount = parseFloat(s5Amount);
+      const parsedTarget = parseFloat(s5Target);
+      
+      let availableXlm = 0;
+      if (isConnected) {
+        const xlmBalance = balances.find((b: any) => b.assetCode === 'XLM' || b.isNative);
+        if (xlmBalance && !isNaN(parseFloat(xlmBalance.amount))) {
+          availableXlm = parseFloat(xlmBalance.amount);
+        }
+      }
+
+      if (!isConnected || isNaN(parsedAmount) || parsedAmount <= 0 || isNaN(parsedTarget) || parsedTarget <= 0 || parsedAmount > availableXlm) {
+        setIsSubmitting(false);
+        return;
+      }
+    }
     await new Promise(resolve => setTimeout(resolve, 1000));
     setIsSubmitting(false);
     
@@ -154,8 +173,10 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
       conditionDesc = `IF YT Price ${s4Operator} ${s4Target}`;
       actionDesc = `THEN Sell ${s4Amount} YT`;
     } else if (id === 's5') {
-      conditionDesc = `IF Vault APY > ${s5Target}%`;
-      actionDesc = `THEN Mint using ${s5Amount} XLM`;
+      const selectedVault = vaults.find(v => v.id === selectedVaultId);
+      const vaultName = selectedVault ? `${selectedVault.protocol} ${selectedVault.asset} Vault` : 'Selected Vault';
+      conditionDesc = `IF ${vaultName} APY ${s5Operator} ${s5Target}%`;
+      actionDesc = `THEN Deposit ${s5Amount} XLM & Mint`;
     }
 
     onSubmit({
@@ -385,21 +406,69 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
       );
     }
     if (id === 's5') {
+      const selectedVault = vaults.find(v => v.id === selectedVaultId);
+      const currentApy = selectedVault?.fixedApy || 0;
+      const parsedTarget = parseFloat(s5Target);
+      const isTargetValid = !isNaN(parsedTarget) && parsedTarget > 0;
+
       return (
-        <div className="flex items-center gap-3">
-          <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white flex-1">
-            Vault APY (%)
+        <div className="space-y-4">
+          <div className="relative">
+            <select
+              value={selectedVaultId}
+              onChange={(e) => setSelectedVaultId(e.target.value)}
+              className="w-full appearance-none rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none"
+            >
+              {vaults.map((vault) => (
+                <option key={vault.id} value={vault.id}>
+                  {vault.protocol} {vault.asset} Vault
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/50" />
           </div>
-          <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/50 w-16 text-center">
-            &gt;
+
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5">
+            <div className="mb-4">
+              <div className="mb-1 text-xs text-white/40">Current Vault APY</div>
+              <div className="text-xl font-semibold text-blue-400">
+                {currentApy.toFixed(2)}%
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 mb-4">
+              <span className="text-sm text-white/70">Execute when Vault APY</span>
+              <div className="relative">
+                <select
+                  value={s5Operator}
+                  onChange={(e) => setS5Operator(e.target.value)}
+                  className="appearance-none rounded-lg border border-white/10 bg-white/10 px-3 py-1.5 pr-8 text-sm text-white focus:border-blue-500/50 focus:outline-none"
+                >
+                  <option value=">">Greater Than (&gt;)</option>
+                  <option value=">=">Greater or Equal (&ge;)</option>
+                  <option value="<">Less Than (&lt;)</option>
+                  <option value="<=">Less or Equal (&le;)</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-white/50" />
+              </div>
+              <div className="relative flex-1 min-w-[100px]">
+                <input
+                  type="number"
+                  value={s5Target}
+                  onChange={(e) => setS5Target(e.target.value)}
+                  placeholder="15"
+                  className="w-full rounded-lg border border-white/10 bg-white/10 px-3 py-1.5 text-sm text-white focus:border-blue-500/50 focus:outline-none"
+                />
+              </div>
+              <span className="text-sm text-white/70">%</span>
+            </div>
+
+            {!isTargetValid && (
+              <div className="rounded-lg bg-red-500/10 px-4 py-3 text-xs leading-relaxed text-red-400">
+                APY threshold must be greater than zero.
+              </div>
+            )}
           </div>
-          <input
-            type="number"
-            value={s5Target}
-            onChange={(e) => setS5Target(e.target.value)}
-            placeholder="Target APY"
-            className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none flex-1"
-          />
         </div>
       );
     }
@@ -593,18 +662,59 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
       );
     }
     if (id === 's5') {
+      let availableXlm = 0;
+      if (isConnected) {
+        const xlmBalance = balances.find((b: any) => b.assetCode === 'XLM' || b.isNative);
+        if (xlmBalance && !isNaN(parseFloat(xlmBalance.amount))) {
+          availableXlm = parseFloat(xlmBalance.amount);
+        }
+      }
+
+      const parsedAmount = parseFloat(s5Amount);
+      const isAmountValid = !isNaN(parsedAmount) && parsedAmount > 0;
+      const isAmountWithinBalance = isAmountValid && parsedAmount <= availableXlm;
+
       return (
-        <div className="flex items-center gap-3">
-          <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white flex-1">
-            Mint PT & YT
+        <div className="space-y-4">
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5">
+            <div className="flex justify-between items-center mb-2">
+              <label className="block text-sm font-medium text-white/70">Deposit Amount</label>
+              <div className="text-xs text-white/50">
+                Available: <span className="text-white">{availableXlm.toFixed(4)} XLM</span>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3 mb-4">
+              <input
+                type="number"
+                value={s5Amount}
+                onChange={(e) => setS5Amount(e.target.value)}
+                placeholder="500"
+                className="w-full rounded-lg border border-white/10 bg-white/10 px-4 py-3 text-sm text-white focus:border-emerald-500/50 focus:outline-none"
+              />
+              <button
+                onClick={() => setS5Amount(availableXlm.toString())}
+                className="rounded-lg bg-emerald-500/20 px-3 py-2 text-xs font-medium text-emerald-400 hover:bg-emerald-500/30 transition-colors"
+              >
+                Max
+              </button>
+              <span className="text-sm font-medium text-white">XLM</span>
+            </div>
+            
+            {!isConnected ? (
+              <div className="mt-3 rounded-lg bg-red-500/10 px-4 py-3 text-xs leading-relaxed text-red-400">
+                Wallet disconnected. Please connect your wallet to proceed.
+              </div>
+            ) : !isAmountValid ? (
+              <div className="mt-3 rounded-lg bg-red-500/10 px-4 py-3 text-xs leading-relaxed text-red-400">
+                Deposit amount must be greater than zero.
+              </div>
+            ) : !isAmountWithinBalance ? (
+              <div className="mt-3 rounded-lg bg-red-500/10 px-4 py-3 text-xs leading-relaxed text-red-400">
+                Deposit amount cannot exceed available XLM balance.
+              </div>
+            ) : null}
           </div>
-          <input
-            type="number"
-            value={s5Amount}
-            onChange={(e) => setS5Amount(e.target.value)}
-            placeholder="Deposit Amount (XLM)"
-            className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-emerald-500/50 focus:outline-none flex-1"
-          />
         </div>
       );
     }
@@ -777,6 +887,28 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
             </div>
           )}
 
+          {/* Strategy Summary for S5 */}
+          {initialTemplate?.id === 's5' && (
+            <div className="px-6 mb-6">
+              <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-5">
+                <h3 className="mb-3 text-sm font-semibold text-blue-400">Strategy Summary</h3>
+                <div className="space-y-2 text-sm text-white/80">
+                  <p>
+                    <span className="font-mono text-blue-300">IF</span> Vault APY {s5Operator === '>=' ? '≥' : s5Operator === '<=' ? '≤' : s5Operator} {parseFloat(s5Target) || 0}%
+                  </p>
+                  <p>
+                    <span className="font-mono text-emerald-300">THEN</span> Deposit {parseFloat(s5Amount) || 0} XLM
+                  </p>
+                  <p className="pl-12">Mint PT &amp; YT</p>
+                  <div className="pt-2 mt-2 border-t border-blue-500/10">
+                    <p className="font-medium text-white/70">Status</p>
+                    <p className="text-white">Monitoring Selected Vault</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Execution Settings */}
           <div className="px-6 flex gap-4">
             {initialTemplate?.id === 's4' && (
@@ -825,6 +957,18 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
                     }
                     
                     return isNaN(parsedAmount) || parsedAmount <= 0 || isNaN(parsedTarget) || parsedTarget <= 0 || parsedAmount > availableYt;
+                  })()) ||
+                  (initialTemplate?.id === 's5' && (() => {
+                    const parsedAmount = parseFloat(s5Amount);
+                    const parsedTarget = parseFloat(s5Target);
+                    
+                    let availableXlm = 0;
+                    if (isConnected) {
+                      const xlmBalance = balances.find((b: any) => b.assetCode === 'XLM' || b.isNative);
+                      if (xlmBalance && !isNaN(parseFloat(xlmBalance.amount))) availableXlm = parseFloat(xlmBalance.amount);
+                    }
+                    
+                    return !isConnected || isNaN(parsedAmount) || parsedAmount <= 0 || isNaN(parsedTarget) || parsedTarget <= 0 || parsedAmount > availableXlm;
                   })())
                 }
                 className="flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-medium text-black transition-all hover:bg-white/90 disabled:opacity-50"

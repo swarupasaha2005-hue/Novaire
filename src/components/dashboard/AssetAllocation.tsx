@@ -11,7 +11,7 @@ export function AssetAllocation() {
   if (loading) {
     return (
       <div className="flex h-[320px] flex-col rounded-2xl border border-white/10 bg-[#111111] p-6">
-        <h3 className="font-serif text-[20px] text-[#F5F5F2] tracking-tight">Asset Allocation</h3>
+        <h3 className="font-sans font-medium ">Asset Allocation</h3>
         <div className="mt-6 flex flex-1 items-center justify-center">
           <div className="h-40 w-40 animate-pulse rounded-full border-4 border-white/10" />
         </div>
@@ -22,7 +22,7 @@ export function AssetAllocation() {
   if (error === 'Wallet not connected' || portfolio?.error === 'Wallet not connected') {
     return (
       <div className="flex h-[320px] flex-col rounded-2xl border border-white/10 bg-[#111111] p-6">
-        <h3 className="font-serif text-[20px] text-[#F5F5F2] tracking-tight">Asset Allocation</h3>
+        <h3 className="font-sans font-medium ">Asset Allocation</h3>
         <div className="mt-6 flex flex-1 items-center justify-center text-[#8E8E8E] text-sm">
           Connect Wallet
         </div>
@@ -34,7 +34,7 @@ export function AssetAllocation() {
   if (allocations.length === 0) {
     return (
       <div className="flex h-[320px] flex-col rounded-2xl border border-white/10 bg-[#111111] p-6">
-        <h3 className="font-serif text-[20px] text-[#F5F5F2] tracking-tight">Asset Allocation</h3>
+        <h3 className="font-sans font-medium ">Asset Allocation</h3>
         <div className="mt-6 flex flex-1 items-center justify-center text-[#8E8E8E] text-sm">
           No Assets
         </div>
@@ -65,7 +65,7 @@ export function AssetAllocation() {
       transition={{ duration: 0.5, delay: 0.4, ease: 'easeOut' }}
       className="flex h-[320px] flex-col rounded-2xl border border-white/10 bg-[#111111] p-6 transition-colors hover:border-[#3ECF8E]/50"
     >
-      <h3 className="font-serif text-[20px] text-[#F5F5F2] tracking-tight">Asset Allocation</h3>
+      <h3 className="font-sans font-medium ">Asset Allocation</h3>
       
       <div className="mt-6 flex flex-1 items-center justify-between">
         

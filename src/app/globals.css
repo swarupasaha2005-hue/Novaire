@@ -7,8 +7,8 @@
   --color-nova-surface: rgba(255, 255, 255, 0.04);
   --color-nova-border: rgba(255, 255, 255, 0.08);
 
-  --font-sans: var(--font-inter);
-  --font-serif: var(--font-instrument);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-antic), "Antic Didone", ui-serif, Georgia, serif;
 
   --animate-pulse-slow: pulse-slow 8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   --animate-spin-extremely-slow: spin 60s linear infinite;

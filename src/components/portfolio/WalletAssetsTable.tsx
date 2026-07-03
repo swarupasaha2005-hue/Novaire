@@ -19,7 +19,7 @@ export function WalletAssetsTable() {
       className="flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#111111]"
     >
       <div className="border-b border-white/10 p-6">
-        <h3 className="font-serif text-[22px] text-[#F5F5F2] tracking-tight">Wallet Assets</h3>
+        <h3 className="font-sans font-medium ">Wallet Assets</h3>
       </div>
 
       <div className="overflow-x-auto">

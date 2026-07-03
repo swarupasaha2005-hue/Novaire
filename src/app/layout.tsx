@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Instrument_Serif } from "next/font/google";
+import { Inter, Antic_Didone } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({
@@ -7,8 +7,8 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
-const instrument = Instrument_Serif({
-  variable: "--font-instrument",
+const anticDidone = Antic_Didone({
+  variable: "--font-antic",
   weight: "400",
   subsets: ["latin"],
 });
@@ -26,7 +26,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${instrument.variable} dark scroll-smooth`}
+      className={`${inter.variable} ${anticDidone.variable} dark scroll-smooth`}
     >
       <body className="antialiased text-nova-text bg-nova-bg w-full min-h-screen">
         {children}

@@ -34,7 +34,7 @@ export default function BuiltOnStellar() {
             BUILT ON STELLAR
           </span>
           
-          <h2 className="font-serif text-white text-[72px] leading-[0.95] tracking-tight mb-8">
+          <h2 className="font-sans font-medium text-white text-[72px] leading-[0.95] tracking-tight mb-8">
             Built on<br />
             Stellar<br />
             Soroban

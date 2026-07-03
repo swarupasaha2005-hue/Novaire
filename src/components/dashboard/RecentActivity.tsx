@@ -41,7 +41,7 @@ export function RecentActivity() {
       className="flex h-[320px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#111111]"
     >
       <div className="border-b border-white/10 p-6">
-        <h3 className="font-serif text-[20px] text-[#F5F5F2] tracking-tight">Recent Activity</h3>
+        <h3 className="font-sans font-medium ">Recent Activity</h3>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 pr-2">

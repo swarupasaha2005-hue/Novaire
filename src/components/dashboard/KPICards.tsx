@@ -1,42 +1,45 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Briefcase, TrendingUp, HandCoins, PiggyBank, Activity, ShieldCheck } from 'lucide-react';
 import { usePortfolio } from '../../hooks/usePortfolio';
+import { ProtocolService, ProtocolState } from '@/services/protocolService';
+import { MetricCard } from '../ui/MetricCard';
 
 const KPIS = [
   {
     id: 'portfolio',
     label: 'Portfolio Value',
-    value: '$124,592.80',
-    change: '+2.4%',
+    value: '0.00',
+    change: '',
     isPositive: true,
     icon: Briefcase,
-    sparkline: 'M0,15 Q5,5 10,12 T20,10 T30,18 T40,5 T50,8',
+    sparkline: 'M0,10 L50,10',
   },
   {
     id: 'yield',
     label: "Today's Yield",
-    value: '+$142.50',
-    change: '+0.8%',
+    value: '0.00',
+    change: '',
     isPositive: true,
     icon: TrendingUp,
-    sparkline: 'M0,18 Q8,10 15,15 T25,8 T35,12 T45,4 T50,2',
+    sparkline: 'M0,10 L50,10',
   },
   {
     id: 'claimable',
     label: 'Claimable Yield',
-    value: '$892.40',
-    change: 'Ready',
+    value: '0.00',
+    change: '',
     isPositive: true,
     icon: HandCoins,
-    sparkline: 'M0,10 Q10,15 20,10 T30,12 T40,8 T50,5',
+    sparkline: 'M0,10 L50,10',
   },
   {
     id: 'invested',
     label: 'Total Invested',
-    value: '$110,000.00',
-    change: '0.0%',
+    value: '0.00',
+    change: '',
     isPositive: true,
     icon: PiggyBank,
     sparkline: 'M0,10 L50,10',
@@ -44,25 +47,30 @@ const KPIS = [
   {
     id: 'positions',
     label: 'Active Positions',
-    value: '4',
-    change: '+1',
+    value: '0',
+    change: '',
     isPositive: true,
     icon: Activity,
-    sparkline: 'M0,15 Q10,5 20,12 T30,4 T40,15 T50,8',
+    sparkline: 'M0,10 L50,10',
   },
   {
     id: 'tvl',
     label: 'Protocol TVL',
-    value: '$24.8M',
-    change: '+12.4%',
+    value: '0.00',
+    change: '',
     isPositive: true,
     icon: ShieldCheck,
-    sparkline: 'M0,18 Q15,8 25,12 T40,5 T50,0',
+    sparkline: 'M0,10 L50,10',
   },
 ];
 
 export function KPICards() {
   const { portfolio, loading, error } = usePortfolio();
+  const [protocolState, setProtocolState] = useState<ProtocolState | null>(null);
+
+  useEffect(() => {
+    ProtocolService.getProtocolState().then(setProtocolState).catch(console.error);
+  }, []);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -78,17 +86,33 @@ export function KPICards() {
     if (error === 'Wallet not connected' || portfolio?.error === 'Wallet not connected') return 'Connect Wallet';
     if (!portfolio) return fallback;
 
+    const formatXlmAndUsd = (xlm: number, usd: number) => {
+      const xlmStr = new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(xlm);
+      return (
+        <div className="flex items-baseline gap-2">
+          <span>{xlmStr} XLM</span>
+          <span className="font-sans text-[20px] text-[#9A9A9A] tracking-normal">
+            ({formatCurrency(usd)})
+          </span>
+        </div>
+      );
+    };
+
     switch (id) {
       case 'portfolio':
-        return formatCurrency(portfolio.totalValueUsd);
+        return formatXlmAndUsd(portfolio.totalValueXlm, portfolio.totalValueUsd);
       case 'invested':
-        return formatCurrency(portfolio.metrics.totalInvestedUsd);
+        return formatXlmAndUsd(portfolio.metrics.totalInvestedXlm, portfolio.metrics.totalInvestedUsd);
       case 'positions':
         return portfolio.metrics.activePositions.toString();
       case 'yield':
-        return '$0.00'; // Real calculation requires historical indexer
+        return <span className="text-[20px] text-[#9A9A9A]">Unavailable on Testnet</span>;
       case 'claimable':
-        return '$0.00'; // Real calculation requires historical indexer
+        return formatXlmAndUsd(portfolio.metrics.totalClaimableYieldXlm, portfolio.metrics.totalClaimableYieldUsd);
+      case 'tvl':
+        return protocolState 
+          ? formatXlmAndUsd(protocolState.tvlXlm, protocolState.tvlUsd) 
+          : <div className="h-8 w-32 animate-pulse rounded bg-white/10" />;
       default:
         return fallback;
     }
@@ -102,9 +126,11 @@ export function KPICards() {
     switch (id) {
       case 'portfolio':
       case 'invested':
-      case 'yield':
-      case 'claimable':
         return '0.0%';
+      case 'claimable':
+        return 'Ready';
+      case 'yield':
+      case 'tvl':
       case 'positions':
         return '';
       default:
@@ -115,59 +141,16 @@ export function KPICards() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
       {KPIS.map((kpi, i) => (
-        <motion.div
+        <MetricCard
           key={kpi.id}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 + i * 0.05, ease: 'easeOut' }}
-          whileHover={{ scale: 1.01 }}
-          className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-white/10 bg-[#111111] px-4 py-3.5 transition-colors hover:border-[#3ECF8E]/50"
-        >
-          {/* Top Row: Icon & Label */}
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/5 text-[#9A9A9A] transition-colors group-hover:text-[#3ECF8E]">
-              <kpi.icon className="h-3.5 w-3.5" />
-            </div>
-            <span className="text-xs font-medium text-[#9A9A9A]">{kpi.label}</span>
-          </div>
-
-          {/* Value & Change */}
-          <div className="mt-2 flex items-end justify-between relative z-10">
-            <div>
-              <div className="font-serif text-xl text-[#F5F5F2] tracking-tight">
-                {getKpiValue(kpi.id, kpi.value)}
-              </div>
-              <div className={`mt-0 text-[11px] font-medium ${kpi.isPositive ? 'text-[#3ECF8E]' : 'text-red-400'}`}>
-                {getKpiChange(kpi.id, kpi.change)}
-              </div>
-            </div>
-          </div>
-
-          {/* Sparkline */}
-          <div className="absolute -bottom-1 left-0 right-0 h-6 opacity-30 transition-opacity group-hover:opacity-100 z-0 pointer-events-none">
-            <svg width="100%" height="100%" viewBox="0 0 50 20" preserveAspectRatio="none">
-
-              <path
-                d={kpi.sparkline}
-                fill="none"
-                stroke="#3ECF8E"
-                strokeWidth="1.5"
-                vectorEffect="non-scaling-stroke"
-              />
-              <path
-                d={`${kpi.sparkline} L50,20 L0,20 Z`}
-                fill="url(#sparkline-gradient)"
-                stroke="none"
-              />
-              <defs>
-                <linearGradient id="sparkline-gradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#3ECF8E" stopOpacity="0.2" />
-                  <stop offset="100%" stopColor="#3ECF8E" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-            </svg>
-          </div>
-        </motion.div>
+          label={kpi.label}
+          value={getKpiValue(kpi.id, kpi.value)}
+          change={getKpiChange(kpi.id, kpi.change)}
+          isPositive={kpi.isPositive}
+          icon={kpi.icon}
+          sparkline={kpi.sparkline}
+          index={i}
+        />
       ))}
     </div>
   );

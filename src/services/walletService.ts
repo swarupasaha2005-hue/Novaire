@@ -70,6 +70,7 @@ export class WalletService {
    * Useful to call on application mount.
    */
   static async init(): Promise<void> {
+    if (this.state.isConnected) return; // Prevent re-initialization on navigation
     if (this.state.loading) return; // Prevent duplicate initialization
     
     this.setState({ loading: true, error: null });
@@ -259,7 +260,8 @@ export class WalletService {
       this.setState({ balances });
     } catch (error: any) {
       console.error('Failed to fetch wallet balances:', error);
-      this.setState({ error: error.message || 'Failed to refresh balances', balances: [] });
+      // DO NOT clear balances on refresh error to prevent portfolio value collapse
+      this.setState({ error: error.message || 'Failed to refresh balances' });
     }
   }
 

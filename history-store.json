@@ -1,0 +1,53 @@
+{
+  "history": [
+    {
+      "id": "1783044806981-x20akv",
+      "timestamp": "2026-07-03T02:13:26.981Z",
+      "ptPrice": 1,
+      "ytPrice": 0,
+      "tvl": 10,
+      "fixedApy": 0,
+      "tradingVolume": 0,
+      "eventType": "sync",
+      "txHash": null
+    },
+    {
+      "id": "1783045059815-3ox21w",
+      "timestamp": "2026-07-03T02:17:39.815Z",
+      "ptPrice": 1,
+      "ytPrice": 0,
+      "tvl": 11,
+      "fixedApy": 0,
+      "tradingVolume": 0,
+      "eventType": "sync",
+      "txHash": null
+    },
+    {
+      "id": "1783046188696-fkr4pd",
+      "timestamp": "2026-07-03T02:36:28.696Z",
+      "ptPrice": 1,
+      "ytPrice": 0,
+      "tvl": 21,
+      "fixedApy": 0,
+      "tradingVolume": 0,
+      "eventType": "sync",
+      "txHash": null
+    },
+    {
+      "id": "1783046193774-ua5tn4",
+      "timestamp": "2026-07-03T02:36:33.774Z",
+      "ptPrice": 1,
+      "ytPrice": 0,
+      "tvl": 21,
+      "fixedApy": 0,
+      "tradingVolume": 0,
+      "eventType": "sync",
+      "txHash": null
+    }
+  ],
+  "syncState": {
+    "id": "singleton",
+    "lastLedger": 3406247,
+    "updatedAt": "2026-07-03T02:36:33.775Z"
+  }
+}

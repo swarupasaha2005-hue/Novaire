@@ -8,18 +8,16 @@ import { YieldPositionsTable } from '@/components/portfolio/YieldPositionsTable'
 import { VaultPositionsTable } from '@/components/portfolio/VaultPositionsTable';
 import { AssetAllocation } from '@/components/dashboard/AssetAllocation';
 import { RecentActivity } from '@/components/dashboard/RecentActivity';
+import { PageContainer } from '@/components/ui/PageContainer';
 
 export default function PortfolioPage() {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, ease: 'easeOut' }}
-      className="w-full px-6 pt-6 pb-24"
+    <PageContainer
+      title="Portfolio"
+      description="Track your assets, yield positions, and protocol performance."
+      actions={<DashboardHeader />}
     >
-      <div className="flex flex-col gap-6 pb-24">
-        {/* Header - includes Connect Wallet and Mint PT & YT button */}
-        <DashboardHeader />
+      <div className="flex flex-col gap-6">
 
         {/* SECTION 1: Portfolio Summary KPIs */}
         <PortfolioKPICards />
@@ -45,6 +43,6 @@ export default function PortfolioPage() {
           </div>
         </div>
       </div>
-    </motion.div>
+    </PageContainer>
   );
 }

@@ -16,6 +16,7 @@ let globalError: string | null = null;
 let listeners: Array<() => void> = [];
 let isInitialized = false;
 let isFetching = false;
+let isQueued = false;
 
 const notifyListeners = () => {
   console.log(`[usePortfolio] Notifying ${listeners.length} listeners. globalLoading=${globalLoading}`);
@@ -24,7 +25,8 @@ const notifyListeners = () => {
 
 const fetchGlobalPortfolio = async () => {
   if (isFetching) {
-    console.log("[usePortfolio] fetchGlobalPortfolio skipped (already fetching)");
+    console.log("[usePortfolio] fetchGlobalPortfolio skipped (already fetching). Queuing next fetch.");
+    isQueued = true;
     return;
   }
   console.log("[usePortfolio] Fetching Portfolio...");
@@ -41,7 +43,7 @@ const fetchGlobalPortfolio = async () => {
     }
     
     // Attach a random ID to verify object identity across components
-    if (data && !data._instanceId) {
+    if (data && !(data as any)._instanceId) {
       (data as any)._instanceId = Math.random().toString(36).substring(7);
     }
     globalPortfolio = data;
@@ -49,9 +51,17 @@ const fetchGlobalPortfolio = async () => {
     console.error("[usePortfolio] Fetch Error:", err);
     globalError = err.message || 'An unexpected error occurred while fetching the portfolio';
   } finally {
-    globalLoading = false;
     isFetching = false;
-    notifyListeners();
+    
+    if (isQueued) {
+      console.log("[usePortfolio] Processing queued fetch...");
+      isQueued = false;
+      // Do not set globalLoading = false yet, chain into the next fetch
+      fetchGlobalPortfolio();
+    } else {
+      globalLoading = false;
+      notifyListeners();
+    }
   }
 };
 // ──────────────────────────────────────────────────────────────────

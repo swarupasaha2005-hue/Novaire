@@ -1,15 +1,45 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Zap, Activity, TrendingUp, Calendar, Plus, CheckCircle2 } from 'lucide-react';
 import { StrategyCards } from './StrategyCards';
 import { ExecutionHistory } from './ExecutionHistory';
 import { AutomationBuilderModal } from './AutomationBuilderModal';
+import { YieldService } from '@/services/yieldService';
+import { PageContainer } from '@/components/ui/PageContainer';
+import { MetricCard } from '@/components/ui/MetricCard';
+import { Button } from '@/components/ui/Button';
 
 export function AutomationDashboard() {
   const [isBuilderOpen, setIsBuilderOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
   const [showNotification, setShowNotification] = useState(false);
   const [activeStrategies, setActiveStrategies] = useState<any[]>([]);
+  const [isClient, setIsClient] = useState(false);
+  const [vaults, setVaults] = useState<any[]>([]);
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    setIsClient(true);
+    try {
+      const saved = localStorage.getItem('novaire_automation_strategies');
+      if (saved) {
+        setActiveStrategies(JSON.parse(saved));
+      }
+    } catch (e) {
+      console.error('Failed to parse saved strategies', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    YieldService.getVaults().then(setVaults).catch(console.error);
+  }, []);
+
+  // Save to localStorage on change
+  useEffect(() => {
+    if (isClient) {
+      localStorage.setItem('novaire_automation_strategies', JSON.stringify(activeStrategies));
+    }
+  }, [activeStrategies, isClient]);
 
   const handleCreateStrategy = (template?: any) => {
     setSelectedTemplate(template || null);
@@ -34,60 +64,111 @@ export function AutomationDashboard() {
     setTimeout(() => setShowNotification(false), 5000);
   };
 
-  return (
-    <div className="mx-auto max-w-7xl px-4 pb-24 pt-8 sm:px-6 lg:px-8">
-      {/* Header & KPIs */}
-      <div className="mb-8">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-medium text-white tracking-tight">Intent Automation</h1>
-            <p className="mt-2 text-white/50">Configure conditional strategies and automate your yield execution.</p>
-          </div>
-          <button 
-            onClick={() => handleCreateStrategy()}
-            className="flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-medium text-black transition-all hover:bg-white/90 hover:shadow-[0_0_20px_rgba(255,255,255,0.3)]"
-          >
-            <Plus className="h-4 w-4" />
-            Create Strategy
-          </button>
+  const renderNextExecution = () => {
+    if (activeStrategies.length === 0) {
+      return (
+        <div className="mt-1">
+          <p className="text-[17px] font-semibold text-white">No Pending Executions</p>
         </div>
+      );
+    }
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="rounded-2xl border border-white/5 bg-white/[0.02] p-6 backdrop-blur-xl">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-3">
-                <Activity className="h-5 w-5 text-blue-400" />
-                <h3 className="text-sm font-medium text-white/50">Active Strategies</h3>
+    const autoRoll = activeStrategies.find(s => s.strategy === 'Auto Roll at Maturity');
+    
+    if (autoRoll) {
+      const vault = vaults.find(v => autoRoll.trigger.includes(v.asset) || autoRoll.trigger.includes('Selected Vault')) || vaults[0];
+      
+      if (vault) {
+        const maturity = new Date(vault.maturityDate);
+        const now = new Date();
+        const diffTime = maturity.getTime() - now.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        return (
+          <div className="mt-1">
+            <p className="text-[13px] font-medium text-blue-400 mb-0.5">{autoRoll.strategy}</p>
+            <p className="text-lg font-semibold text-white leading-tight">
+              {diffDays > 0 ? `${diffDays} Days Remaining` : `Executes on ${maturity.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`}
+            </p>
+          </div>
+        );
+      }
+      return (
+        <div className="mt-1">
+          <p className="text-[13px] font-medium text-blue-400 mb-0.5">{autoRoll.strategy}</p>
+          <p className="text-lg font-semibold text-white leading-tight">Pending Calculation</p>
+        </div>
+      );
+    }
+
+    const oldestMarket = activeStrategies[activeStrategies.length - 1];
+    
+    let metric = 'Market Data';
+    if (oldestMarket.trigger.includes('PT Price')) metric = 'PT Price';
+    else if (oldestMarket.trigger.includes('YT Price')) metric = 'YT Price';
+    else if (oldestMarket.trigger.includes('Claimable Yield')) metric = 'Claimable Yield';
+    else if (oldestMarket.trigger.includes('APY')) metric = 'Vault APY';
+    
+    let waitingFor = oldestMarket.trigger.replace('IF ', '');
+    // Clean up generic vault names from trigger for better fit
+    waitingFor = waitingFor.replace('Selected Vault ', '').replace('Novaire XLM Vault ', '');
+
+    return (
+      <div className="mt-1">
+        <p className="text-[13px] font-medium text-purple-400 mb-0.5 truncate">{oldestMarket.strategy}</p>
+        <p className="text-[11px] text-white/50 mb-0.5 uppercase tracking-wide">Monitoring {metric}</p>
+        <p className="text-[14px] font-semibold text-white truncate">Waiting for {waitingFor}</p>
+      </div>
+    );
+  };
+
+  return (
+    <PageContainer
+      title="Intent Automation"
+      description="Configure conditional strategies and automate your yield execution."
+      actions={
+        <Button onClick={() => handleCreateStrategy()}>
+          <Plus className="h-4 w-4 mr-2" />
+          Create Strategy
+        </Button>
+      }
+    >
+      <div className="mb-8">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricCard
+            label="Active Strategies"
+            value={activeStrategies.length.toString()}
+            icon={Activity}
+            index={0}
+          />
+          <MetricCard
+            label="Total Automations"
+            value={activeStrategies.length.toString()}
+            icon={Zap}
+            index={1}
+          />
+          <MetricCard
+            label="Extra Yield Earned"
+            value="$0.00"
+            icon={TrendingUp}
+            index={2}
+          />
+          <div className="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-white/10 bg-[#111111] p-4 transition-all duration-200 hover:border-[#43D18C] hover:shadow-[0_0_18px_rgba(67,209,140,0.15)] hover:-translate-y-[3px]">
+            <div className="flex items-center gap-2">
+              <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg bg-white/5 text-orange-400 transition-colors duration-200 group-hover:bg-[#43D18C]/10 group-hover:text-[#43D18C]">
+                <Calendar className="h-3 w-3" />
               </div>
+              <span className="text-[10px] font-medium uppercase tracking-wider text-[#9A9A9A] font-sans leading-none">
+                Next Execution
+              </span>
             </div>
-            <p className="text-2xl font-semibold text-white">{activeStrategies.length}</p>
-          </motion.div>
-
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="rounded-2xl border border-white/5 bg-white/[0.02] p-6 backdrop-blur-xl">
-            <div className="flex items-center gap-3 mb-2">
-              <Zap className="h-5 w-5 text-emerald-400" />
-              <h3 className="text-sm font-medium text-white/50">Total Automations</h3>
+            
+            <div className="mt-3 flex flex-col relative z-10 min-h-[28px]">
+              {renderNextExecution()}
             </div>
-            <p className="text-2xl font-semibold text-white">{activeStrategies.length}</p>
-          </motion.div>
-
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="rounded-2xl border border-white/5 bg-white/[0.02] p-6 backdrop-blur-xl">
-            <div className="flex items-center gap-3 mb-2">
-              <TrendingUp className="h-5 w-5 text-purple-400" />
-              <h3 className="text-sm font-medium text-white/50">Extra Yield Earned</h3>
-            </div>
-            <p className="text-2xl font-semibold text-white">$0.00</p>
-          </motion.div>
-
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="rounded-2xl border border-white/5 bg-white/[0.02] p-6 backdrop-blur-xl">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-3">
-                <Calendar className="h-5 w-5 text-orange-400" />
-                <h3 className="text-sm font-medium text-white/50">Next Execution</h3>
-              </div>
-            </div>
-            <p className="text-2xl font-semibold text-white">-</p>
-          </motion.div>
+            
+            <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#43D18C]/30 to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+          </div>
         </div>
       </div>
 
@@ -122,7 +203,7 @@ export function AutomationDashboard() {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </PageContainer>
   );
 }
 

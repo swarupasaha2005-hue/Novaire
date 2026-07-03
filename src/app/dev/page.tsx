@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { WalletService } from '../../services/walletService';
-import { PriceService } from '../../services/priceService';
+import { PriceOracleService } from '../../services/priceOracleService';
 import { MarketService } from '../../services/marketService';
 import { usePortfolio } from '../../hooks/usePortfolio';
 
@@ -34,13 +34,13 @@ export default function DevTestPage() {
 
   const handleGetPrices = async () => {
     try {
-      console.log("-> Dev page: Calling PriceService.getPrices()");
+      console.log("-> Dev page: Calling PriceOracleService.getPrices()");
       setPricesState({ status: 'Loading...' }); // Temporary loading state
-      const prices = await PriceService.getPrices();
-      console.log("<- Dev page: PriceService returned successfully:", prices);
+      const prices = await PriceOracleService.getPrices();
+      console.log("<- Dev page: PriceOracleService returned successfully:", prices);
       setPricesState(prices);
     } catch (e: any) {
-      console.error("<- Dev page: PriceService threw error:", e);
+      console.error("<- Dev page: PriceOracleService threw error:", e);
       setPricesState({ error: e.message || 'Unknown error occurred' });
     }
   };
@@ -105,7 +105,7 @@ export default function DevTestPage() {
         {/* Price Service Test */}
         <div className="bg-[#0A0A0A] p-6 rounded-xl border border-[#1A1A1A]">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg text-white">PriceService</h2>
+            <h2 className="text-lg text-white">PriceOracleService</h2>
             <button 
               onClick={handleGetPrices}
               className="px-3 py-1 bg-[#1A1A1A] text-white rounded hover:bg-[#2A2A2A] transition-colors border border-[#333]"

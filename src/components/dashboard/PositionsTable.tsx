@@ -2,13 +2,63 @@
 
 import { motion } from 'framer-motion';
 import { usePortfolio } from '../../hooks/usePortfolio';
+import { useYield } from '../../hooks/useYield';
 
 export function PositionsTable() {
-  const { portfolio, loading, error } = usePortfolio();
+  const { portfolio, loading: portfolioLoading, error: portfolioError } = usePortfolio();
+  const { vaults, loading: vaultsLoading } = useYield();
 
-  const isDisconnected = error === 'Wallet not connected' || portfolio?.error === 'Wallet not connected';
-  const assets = portfolio?.assets || [];
-  const isEmpty = !loading && !isDisconnected && assets.length === 0;
+  const isDisconnected = portfolioError === 'Wallet not connected' || portfolio?.error === 'Wallet not connected';
+  const loading = portfolioLoading || vaultsLoading;
+  
+  // Vault assets contain the claimable yield computation in PortfolioService
+  const vaultAssets = portfolio?.assets?.filter(a => a.assetType === 'vault') || [];
+  const ptAssets = portfolio?.assets?.filter(a => a.assetType === 'pt') || [];
+  const ytAssets = portfolio?.assets?.filter(a => a.assetType === 'yt') || [];
+  
+  const groupedPositions = vaults.map(vault => {
+    // Find the corresponding assets for this vault's underlying asset (e.g., 'XLM')
+    const vaultAsset = vaultAssets.find(a => a.assetCode.includes(vault.asset));
+    const ptAsset = ptAssets.find(a => a.assetCode === `PT-${vault.asset}` || a.assetCode.includes(vault.asset));
+    const ytAsset = ytAssets.find(a => a.assetCode === `YT-${vault.asset}` || a.assetCode.includes(vault.asset));
+    
+    const ptBalance = ptAsset ? ptAsset.balance : 0;
+    const ytBalance = ytAsset ? ytAsset.balance : 0;
+    
+    // Values
+    const ptValue = ptAsset ? ptAsset.valueUsd : 0;
+    const ytValue = ytAsset ? ytAsset.valueUsd : 0;
+    const currentValue = ptValue + ytValue;
+
+    // Claimable Yield: Extracted directly from the matching vault asset
+    const claimableYield = vaultAsset && typeof vaultAsset.claimableYield === 'number' 
+      ? vaultAsset.claimableYield 
+      : 0;
+
+    // Dates
+    const maturityDate = new Date(vault.maturityDate);
+    const daysRemaining = Math.max(0, Math.ceil((maturityDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+    
+    // Status
+    let status = 'Active';
+    if (daysRemaining === 0) status = 'Matured';
+
+    return {
+      vaultName: `${vault.asset} Core Vault`,
+      underlyingAsset: vault.asset,
+      ptBalance,
+      ytBalance,
+      currentValue,
+      claimableYield,
+      fixedApy: vault.fixedApy,
+      maturityDate: maturityDate.toLocaleDateString(),
+      daysRemaining,
+      status,
+      hasPosition: ptBalance > 0 || ytBalance > 0
+    };
+  }).filter(p => p.hasPosition);
+
+  const isEmpty = !loading && !isDisconnected && groupedPositions.length === 0;
 
   return (
     <motion.div
@@ -17,30 +67,31 @@ export function PositionsTable() {
       transition={{ duration: 0.5, delay: 0.55, ease: 'easeOut' }}
       className="flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#111111]"
     >
-      <div className="border-b border-white/10 p-6">
-        <h3 className="font-serif text-[22px] text-[#F5F5F2] tracking-tight">Your Positions</h3>
+      <div className="border-b border-white/10 p-6 flex justify-between items-center">
+        <h3 className="font-sans font-medium ">My Active Positions</h3>
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="bg-[#050505]/50 text-xs text-[#9A9A9A]">
             <tr>
+              <th className="px-6 py-4 font-medium">Vault Name</th>
               <th className="px-6 py-4 font-medium">Asset</th>
-              <th className="px-6 py-4 font-medium text-right">Balance</th>
-              <th className="px-6 py-4 font-medium text-right">Current Price</th>
-              <th className="px-6 py-4 font-medium text-right">Current Value</th>
               <th className="px-6 py-4 font-medium text-right">PT Balance</th>
               <th className="px-6 py-4 font-medium text-right">YT Balance</th>
+              <th className="px-6 py-4 font-medium text-right">Current Value</th>
+              <th className="px-6 py-4 font-medium text-right">Claimable Yield</th>
               <th className="px-6 py-4 font-medium text-right">Fixed APY</th>
-              <th className="px-6 py-4 font-medium">Maturity</th>
+              <th className="px-6 py-4 font-medium text-right">Maturity Date</th>
+              <th className="px-6 py-4 font-medium text-right">Days Remaining</th>
               <th className="px-6 py-4 font-medium">Status</th>
-              <th className="px-6 py-4 font-medium text-right">Action</th>
+              <th className="px-6 py-4 font-medium text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
             {loading && (
               <tr>
-                <td colSpan={10} className="px-6 py-8 text-center">
+                <td colSpan={11} className="px-6 py-8 text-center">
                   <div className="flex flex-col items-center justify-center space-y-4">
                     <div className="h-4 w-full max-w-2xl animate-pulse rounded bg-white/5"></div>
                     <div className="h-4 w-full max-w-xl animate-pulse rounded bg-white/5"></div>
@@ -52,7 +103,7 @@ export function PositionsTable() {
 
             {isDisconnected && (
               <tr>
-                <td colSpan={10} className="px-6 py-12 text-center text-[#8E8E8E]">
+                <td colSpan={11} className="px-6 py-12 text-center text-[#8E8E8E]">
                   Connect Wallet to view positions
                 </td>
               </tr>
@@ -60,48 +111,51 @@ export function PositionsTable() {
 
             {isEmpty && (
               <tr>
-                <td colSpan={10} className="px-6 py-12 text-center text-[#8E8E8E]">
-                  No Assets Found
+                <td colSpan={11} className="px-6 py-12 text-center text-[#8E8E8E]">
+                  No Active Positions
                 </td>
               </tr>
             )}
 
-            {!loading && !isDisconnected && !isEmpty && assets.map((asset, i) => (
+            {!loading && !isDisconnected && !isEmpty && groupedPositions.map((pos, i) => (
               <motion.tr
-                key={`${asset.assetCode}-${i}`}
+                key={`${pos.vaultName}-${i}`}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.4, delay: 0.2 + i * 0.05 }}
                 className="group transition-colors hover:bg-white/5"
               >
                 <td className="whitespace-nowrap px-6 py-4 font-medium text-[#F5F5F2]">
-                  {asset.assetCode}
+                  {pos.vaultName}
                 </td>
-                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#9A9A9A]">
-                  {asset.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
-                </td>
-                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#9A9A9A]">
-                  ${asset.priceUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                <td className="whitespace-nowrap px-6 py-4 font-medium text-[#9A9A9A]">
+                  {pos.underlyingAsset}
                 </td>
                 <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#F5F5F2]">
-                  ${asset.valueUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {pos.ptBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </td>
                 <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#F5F5F2]">
-                  {asset.assetType === 'pt' ? asset.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                  {pos.ytBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </td>
                 <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#F5F5F2]">
-                  {asset.assetType === 'yt' ? asset.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                  ${pos.currentValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </td>
                 <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#3ECF8E]">
-                  {asset.assetType === 'wallet' ? '--' : '4.6%'}
+                  {pos.claimableYield === 0 ? '--' : `+${pos.claimableYield.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`}
                 </td>
-                <td className="whitespace-nowrap px-6 py-4 text-[#9A9A9A]">
-                  {asset.assetType === 'wallet' ? '--' : '7 Days'}
+                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#3ECF8E]">
+                  {pos.fixedApy.toFixed(1)}%
+                </td>
+                <td className="whitespace-nowrap px-6 py-4 text-right text-[#9A9A9A]">
+                  {pos.maturityDate}
+                </td>
+                <td className="whitespace-nowrap px-6 py-4 text-right text-[#F5F5F2]">
+                  {pos.daysRemaining}
                 </td>
                 <td className="whitespace-nowrap px-6 py-4">
-                  {asset.assetType === 'wallet' ? (
-                    <span className="inline-flex rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-white/10 text-[#9A9A9A]">
-                      Uninvested
+                  {pos.status === 'Matured' ? (
+                    <span className="inline-flex rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-red-500/10 text-red-400">
+                      Matured
                     </span>
                   ) : (
                     <span className="inline-flex rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-[#3ECF8E]/10 text-[#3ECF8E]">
@@ -110,20 +164,22 @@ export function PositionsTable() {
                   )}
                 </td>
                 <td className="whitespace-nowrap px-6 py-4 text-right">
-                  <button className="rounded-lg border border-white/10 px-4 py-1.5 text-xs font-medium text-[#9A9A9A] transition-all group-hover:border-[#3ECF8E] group-hover:bg-[#3ECF8E] group-hover:text-black">
-                    Manage
-                  </button>
+                  <div className="flex justify-end gap-2">
+                    <button className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-[#9A9A9A] transition-all hover:bg-white/10 hover:text-white">
+                      Trade PT
+                    </button>
+                    <button className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-[#9A9A9A] transition-all hover:bg-white/10 hover:text-white">
+                      Trade YT
+                    </button>
+                    <button disabled={pos.status !== 'Matured'} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-[#9A9A9A] disabled:opacity-30 disabled:cursor-not-allowed transition-all hover:border-[#3ECF8E] hover:bg-[#3ECF8E] hover:text-black">
+                      Redeem
+                    </button>
+                  </div>
                 </td>
               </motion.tr>
             ))}
           </tbody>
         </table>
-      </div>
-
-      <div className="border-t border-white/10 p-4 text-center">
-        <button className="text-xs font-medium text-[#9A9A9A] transition-colors hover:text-[#3ECF8E]">
-          View All Positions →
-        </button>
       </div>
     </motion.div>
   );

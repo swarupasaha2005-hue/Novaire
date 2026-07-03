@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { PriceData } from '../types';
-import { PriceService } from '../services/priceService';
+import { PriceOracleService } from '../services/priceOracleService';
 
 export function usePrices() {
   const [prices, setPrices] = useState<PriceData[]>([]);
@@ -10,7 +10,7 @@ export function usePrices() {
   const fetchPrices = async () => {
     try {
       setLoading(true);
-      const data = await PriceService.getPrices();
+      const data = await PriceOracleService.getPrices();
       setPrices(data);
       setError(null);
     } catch (err) {

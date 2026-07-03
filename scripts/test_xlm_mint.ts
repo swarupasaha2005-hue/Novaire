@@ -51,7 +51,8 @@ async function testXlmMint() {
         user: testWallet.publicKey(),
         usdc_amount: BigInt(amountToMint), // The parameter is named usdc_amount in the contract, but it represents the underlying token (XLM)
         min_implied_rate: BigInt(0), // Accept any rate for testing
-        _maturity_ledger: currentMaturityLedger
+        _maturity_ledger: currentMaturityLedger,
+        yt_sale_percentage: 100
     });
 
     // The bindings return a generic AssembledTransaction. We need to sign and send.

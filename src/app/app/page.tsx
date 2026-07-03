@@ -4,7 +4,6 @@ import { motion } from 'framer-motion';
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
 import { KPICards } from '@/components/dashboard/KPICards';
 import { PerformanceChart } from '@/components/dashboard/PerformanceChart';
-import { UpcomingMaturities } from '@/components/dashboard/UpcomingMaturities';
 import { AssetAllocation } from '@/components/dashboard/AssetAllocation';
 import { YieldBreakdown } from '@/components/dashboard/YieldBreakdown';
 import { RecentActivity } from '@/components/dashboard/RecentActivity';
@@ -25,31 +24,26 @@ export default function DashboardPage() {
         {/* ROW 1: KPIs */}
         <KPICards />
 
-        {/* ROW 2: Performance & Maturities */}
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-          <div className="xl:col-span-8">
-            <PerformanceChart />
-          </div>
-          <div className="xl:col-span-4">
-            <UpcomingMaturities />
-          </div>
+        {/* ROW 2: Performance */}
+        <div className="grid grid-cols-1 gap-6">
+          <PerformanceChart />
         </div>
 
-        {/* ROW 3: Asset Allocation, Yield Breakdown, Recent Activity */}
+        {/* ROW 3: Positions */}
+        <div className="grid grid-cols-1 gap-6">
+          <PositionsTable />
+        </div>
+
+        {/* ROW 4: Asset Allocation, Yield Breakdown, Recent Activity */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <AssetAllocation />
           <YieldBreakdown />
           <RecentActivity />
         </div>
 
-        {/* ROW 4: Positions & Protocol Overview */}
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-          <div className="xl:col-span-9">
-            <PositionsTable />
-          </div>
-          <div className="xl:col-span-3">
-            <ProtocolOverview />
-          </div>
+        {/* ROW 5: Protocol Overview */}
+        <div className="grid grid-cols-1 gap-6">
+          <ProtocolOverview />
         </div>
       </div>
     </motion.div>

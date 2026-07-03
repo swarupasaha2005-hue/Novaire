@@ -1,17 +1,31 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-
-const METRICS = [
-  { label: 'Protocol TVL', value: '$24.8M' },
-  { label: '30 Day Volume', value: '$12.1M' },
-  { label: 'Active Vaults', value: '7' },
-  { label: 'Avg Fixed APY', value: '12.4%' },
-  { label: 'Utilization', value: '88.5%' },
-  { label: 'Total Users', value: '3,842' },
-];
+import { YieldService } from '../../services/yieldService';
+import { Vault } from '../../types';
 
 export function ProtocolOverview() {
+  const [vaults, setVaults] = useState<Vault[]>([]);
+
+  useEffect(() => {
+    YieldService.getVaults().then(setVaults).catch(console.error);
+  }, []);
+
+  const activeVaults = vaults.length;
+  const avgApy = activeVaults > 0 
+    ? (vaults.reduce((sum, v) => sum + v.fixedApy, 0) / activeVaults).toFixed(1) + '%'
+    : 'Coming Soon';
+
+  const METRICS = [
+    { label: 'Protocol TVL', value: 'Unavailable on Testnet' },
+    { label: '30 Day Volume', value: 'Coming Soon' },
+    { label: 'Active Vaults', value: activeVaults > 0 ? activeVaults.toString() : 'Coming Soon' },
+    { label: 'Avg Fixed APY', value: avgApy },
+    { label: 'Utilization', value: 'Coming Soon' },
+    { label: 'Total Users', value: 'Coming Soon' },
+  ];
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -19,7 +33,7 @@ export function ProtocolOverview() {
       transition={{ duration: 0.5, delay: 0.6, ease: 'easeOut' }}
       className="flex h-full flex-col rounded-2xl border border-white/10 bg-[#111111] p-6 transition-colors hover:border-[#3ECF8E]/50"
     >
-      <h3 className="font-serif text-[22px] text-[#F5F5F2] tracking-tight">Protocol Overview</h3>
+      <h3 className="font-sans font-medium ">Protocol Overview</h3>
       <p className="mt-1 text-xs text-[#9A9A9A]">Network statistics</p>
 
       <div className="mt-6 flex flex-1 flex-col gap-4">

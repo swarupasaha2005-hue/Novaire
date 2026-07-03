@@ -86,9 +86,9 @@ export function TradeInterface() {
   };
 
   return (
-    <div className="flex flex-col rounded-3xl border border-white/10 bg-[#0A0A0A] p-6 max-w-[500px] shadow-2xl relative overflow-hidden">
+    <div className="flex flex-col rounded-2xl border border-white/10 bg-[#111111] p-6 max-w-[500px] shadow-2xl relative overflow-hidden transition-all duration-200 hover:border-[#43D18C] hover:shadow-[0_0_20px_rgba(67,209,140,0.1)] hover:-translate-y-[3px]">
       {/* Decorative gradient */}
-      <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-[#3ECF8E] opacity-[0.03] blur-[100px] rounded-full translate-x-1/2 -translate-y-1/2 pointer-events-none" />
+      <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-[#43D18C] opacity-[0.03] blur-[100px] rounded-full translate-x-1/2 -translate-y-1/2 pointer-events-none" />
 
       {/* Header Tabs */}
       <div className="flex items-center justify-between mb-6 z-10 relative">

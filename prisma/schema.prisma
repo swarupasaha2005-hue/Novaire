@@ -100,3 +100,15 @@ model SyncState {
   lastLedger     Int        @default(0)
   updatedAt      DateTime   @updatedAt
 }
+
+model ProtocolHistory {
+  id             String   @id @default(uuid())
+  timestamp      DateTime @default(now())
+  ptPrice        Float
+  ytPrice        Float
+  tvl            Float
+  fixedApy       Float
+  tradingVolume  Float    @default(0)
+  eventType      String?  // e.g., "swap_u_pt", "deposit", etc.
+  txHash         String?
+}

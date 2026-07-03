@@ -488,11 +488,13 @@ impl NovaireMarketplace {
     ) -> Result<i128, NovaireMarketError> {
         seller.require_auth();
         if yt_in <= 0 || min_underlying_out < 0 {
+            env.events().publish((soroban_sdk::Symbol::new(&env, "diag"), soroban_sdk::Symbol::new(&env, "zero_input")), yt_in);
             return Err(NovaireMarketError::ZeroInput);
         }
 
         let maturity = storage::get_u32(&env, DataKey::MaturityLedger)?;
         if env.ledger().sequence() >= maturity {
+            env.events().publish((soroban_sdk::Symbol::new(&env, "diag"), soroban_sdk::Symbol::new(&env, "epoch")), maturity);
             return Err(NovaireMarketError::EpochExpired);
         }
 
@@ -503,11 +505,15 @@ impl NovaireMarketplace {
         let pt_price = get_spot_price(a_pool, underlying_reserves, pt_reserves)?;
         
         let yt_price = 1_000_000_000i128.checked_sub(pt_price).unwrap_or(0);
+        if yt_price <= 0 {
+            return Err(NovaireMarketError::InsufficientLiquidity);
+        }
         
         let underlying_out = yt_in.checked_mul(yt_price).ok_or(NovaireMarketError::MathOverflow)?.checked_div(1_000_000_000).ok_or(NovaireMarketError::MathOverflow)?;
         let actual_underlying_out = underlying_out.checked_mul(995).ok_or(NovaireMarketError::MathOverflow)?.checked_div(1000).ok_or(NovaireMarketError::MathOverflow)?;
 
         if actual_underlying_out < min_underlying_out {
+            env.events().publish((soroban_sdk::Symbol::new(&env, "diag"), soroban_sdk::Symbol::new(&env, "slip")), actual_underlying_out);
             return Err(NovaireMarketError::SlippageExceeded);
         }
 
@@ -521,19 +527,24 @@ impl NovaireMarketplace {
         let yt_client = token::Client::new(&env, &yt_token_addr);
         let underlying_client = token::Client::new(&env, &underlying_addr);
 
+        env.events().publish((soroban_sdk::Symbol::new(&env, "diag"), soroban_sdk::Symbol::new(&env, "pre_t_yt")), yt_in);
         yt_client.transfer(&seller, &env.current_contract_address(), &yt_in);
+        env.events().publish((soroban_sdk::Symbol::new(&env, "diag"), soroban_sdk::Symbol::new(&env, "pre_t_u")), actual_underlying_out);
         underlying_client.transfer(&env.current_contract_address(), &seller, &actual_underlying_out);
+        env.events().publish((soroban_sdk::Symbol::new(&env, "diag"), soroban_sdk::Symbol::new(&env, "post_t")), actual_underlying_out);
 
         let mut current_underlying_reserves = storage::get_i128(&env, DataKey::UnderlyingReserves)?;
         current_underlying_reserves = current_underlying_reserves.checked_sub(actual_underlying_out).ok_or(NovaireMarketError::MathOverflow)?;
         storage::set_i128(&env, DataKey::UnderlyingReserves, current_underlying_reserves);
 
+        env.events().publish((soroban_sdk::Symbol::new(&env, "diag"), soroban_sdk::Symbol::new(&env, "pre_inv")), 0u32);
+        Self::assert_invariant(&env)?;
+        env.events().publish((soroban_sdk::Symbol::new(&env, "diag"), soroban_sdk::Symbol::new(&env, "post_inv")), 0u32);
+
         env.events().publish(
             (soroban_sdk::Symbol::new(&env, "swap_yt_u"), seller),
             (yt_in, actual_underlying_out),
         );
-
-        Self::assert_invariant(&env)?;
         Ok(actual_underlying_out)
     }
 
@@ -545,7 +556,14 @@ impl NovaireMarketplace {
     }
 
     pub fn get_twap_rate(env: Env) -> Result<i128, NovaireMarketError> {
-        Ok(storage::get_i128(&env, DataKey::ImpliedRateTwap).unwrap_or(0))
+        let stored_twap = storage::get_i128(&env, DataKey::ImpliedRateTwap).unwrap_or(0);
+        if stored_twap == 0 {
+            let pt_reserves = storage::get_i128(&env, DataKey::PtReserves).unwrap_or(0);
+            let underlying_reserves = storage::get_i128(&env, DataKey::UnderlyingReserves).unwrap_or(0);
+            let a_pool = compute_a_pool(&env, pt_reserves, underlying_reserves)?;
+            return get_spot_price(a_pool, underlying_reserves, pt_reserves);
+        }
+        Ok(stored_twap)
     }
 
     pub fn get_reserves(env: Env) -> Result<(i128, i128, i128), NovaireMarketError> {

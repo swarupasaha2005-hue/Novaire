@@ -17,12 +17,12 @@ export function DashboardHeader() {
     : '';
 
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex items-center gap-3">
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: 'easeOut' }}
-        className="flex items-center gap-4"
+        className="flex items-center gap-3"
       >
         {/* Connected Status & Wallet */}
         {isConnected ? (
