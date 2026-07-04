@@ -203,10 +203,6 @@ impl YtToken {
         let tokenizer = storage::get_tokenizer(&env)?;
         tokenizer.require_auth();
         storage::require_not_paused(&env)?;
-        
-        if storage::is_expired(&env)? {
-            return Err(NovaireYtError::PastMaturity);
-        }
 
         let current_index = storage::get_yield_index(&env);
         if new_index < current_index {

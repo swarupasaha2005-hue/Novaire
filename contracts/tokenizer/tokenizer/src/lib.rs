@@ -249,8 +249,11 @@ impl Tokenizer {
                 live_rate
             },
             EpochState::Matured => {
-                // Post-maturity but pre-settlement: use live rate but DO NOT update global index (YT natively blocks it post-maturity)
-                sy_client.get_exchange_rate()
+                // Post-maturity but pre-settlement: use live rate and UPDATE global index.
+                // Yield generated before settlement belongs to YT holders.
+                let live_rate = sy_client.get_exchange_rate();
+                yt_client.update_yield_index(&live_rate);
+                live_rate
             },
             EpochState::Settled => {
                 // Post-settlement: use the locked settlement rate
@@ -299,6 +302,12 @@ impl Tokenizer {
         let settlement_rate = sy_client.get_exchange_rate();
         
         storage::set_settlement_rate(&env, settlement_rate);
+
+        // Update the YT index one final time with the exact settlement rate
+        // This guarantees that ANY remaining yield in the Tokenizer belongs to YT holders
+        let yt_token_addr = storage::get_address(&env, DataKey::YtToken)?;
+        let yt_client = YtTokenClient::new(&env, &yt_token_addr);
+        yt_client.update_yield_index(&settlement_rate);
 
         let epoch_id = storage::get_u32(&env, DataKey::EpochId)?;
         env.events().publish((Symbol::new(&env, "tokenizer_settled"),), (epoch_id, settlement_rate));
@@ -450,11 +459,11 @@ mod tests {
         let token_admin_client = token::StellarAssetClient::new(&env, &token_contract);
         let token_client = token::Client::new(&env, &token_contract);
 
-        token_admin_client.mint(&user, &1000);
+        token_admin_client.mint(&user, &2000);
 
         let sy_contract_id = env.register(SyWrapper, ());
         let sy_client = RealSyWrapperClient::new(&env, &sy_contract_id);
-        sy_client.initialize(&admin, &token_contract, &yield_source, &1_000_000_000i128);
+        sy_client.initialize(&admin, &token_contract, &yield_source);
 
         let vault_contract_id = env.register(Vault, ());
         let vault_client = RealVaultClient::new(&env, &vault_contract_id);
@@ -484,18 +493,18 @@ mod tests {
         );
 
         // Vault Deposit
-        vault_client.deposit(&user, &100);
+        vault_client.deposit(&user, &2000); // 1000 locked, user gets 1000 shares
 
         // STATE: OPEN
         assert_eq!(tokenizer_client.get_epoch_state(), EpochState::Open as u32);
         
         // 1. Minting Allowed in Open
-        tokenizer_client.mint_pt_yt(&user, &100);
-        assert_eq!(pt_client.balance(&user), 100);
-        assert_eq!(yt_client.balance(&user), 100);
+        tokenizer_client.mint_pt_yt(&user, &1000);
+        assert_eq!(pt_client.balance(&user), 1000);
+        assert_eq!(yt_client.balance(&user), 1000);
 
         // 2. Redemption Forbidden in Open
-        let res = tokenizer_client.try_redeem_pt(&user, &100);
+        let res = tokenizer_client.try_redeem_pt(&user, &1000);
         assert!(res.is_err());
 
         // 3. Settle Epoch Forbidden in Open
@@ -503,8 +512,14 @@ mod tests {
         assert!(res.is_err());
 
         // Yield accrual
-        sy_client.accrue_yield(&1_500_000_000); // 1.5x
-        token_admin_client.mint(&sy_contract_id, &50); 
+        // Rate starts at 1e9. Total underlying = 2000.
+        // We add 10% (200), then another 10% (220), etc.
+        token_admin_client.mint(&sy_contract_id, &200);
+        sy_client.harvest_yield();
+        token_admin_client.mint(&sy_contract_id, &220);
+        sy_client.harvest_yield();
+        token_admin_client.mint(&sy_contract_id, &242);
+        sy_client.harvest_yield();
 
         // STATE: MATURED
         env.ledger().set(soroban_sdk::testutils::LedgerInfo {
@@ -532,7 +547,7 @@ mod tests {
         assert!(res.is_err());
 
         // 8. Redemption Allowed in Settled
-        tokenizer_client.redeem_pt(&user, &100);
+        tokenizer_client.redeem_pt(&user, &1000);
         assert_eq!(pt_client.balance(&user), 0);
     }
 }

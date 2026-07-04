@@ -8,6 +8,7 @@ export interface ProtocolState {
   ytSupplyXlm: number;
   dexLiquidityXlm: number;
   impliedYieldApy: number;
+  executableApy: number;
   ptPriceUnderlying: number;
 }
 
@@ -33,6 +34,7 @@ export class ProtocolService {
       ytSupplyXlm: 0,
       dexLiquidityXlm: 0,
       impliedYieldApy: 0,
+      executableApy: 0,
       ptPriceUnderlying: 1.0,
     };
 
@@ -61,12 +63,14 @@ export class ProtocolService {
         vaultSharesRes,
         reservesRes,
         ptPriceRes,
+        twapRes
       ] = await Promise.allSettled([
         ptClient.total_supply(),
         ytClient.total_supply(),
         vaultClient.total_vault_shares(),
         marketClient.get_reserves(),
-        marketClient.get_pt_price()
+        marketClient.get_pt_price(),
+        marketClient.get_twap_rate()
       ]);
 
       // Parse Results
@@ -86,22 +90,30 @@ export class ProtocolService {
 
       let ptPriceUnderlying = 1.0;
       let impliedYieldApy = 0;
-      if (ptPriceRes.status === 'fulfilled') {
-        const rawPtPrice = Number(this.unwrapResult(ptPriceRes.value.result));
-        if (!isNaN(rawPtPrice) && rawPtPrice > 0) {
-          const rawContractPtPrice = rawPtPrice / 1e9; // 9 decimals for Soroban price
-          ptPriceUnderlying = rawContractPtPrice; // Price is already correctly formatted (Underlying/PT)
-          
-          // Import yieldService to fetch dynamic maturity timestamp and face value
-          const { YieldService } = await import('./yieldService');
-          const [maturityTimestampMs, ptFaceValueInUnderlying] = await Promise.all([
-            YieldService.getActiveMaturityTimestampMs(),
-            YieldService.getEpochStartIndex()
-          ]);
-          
-          const { calculateMarketImpliedApy } = await import('../utils/apy');
-          impliedYieldApy = calculateMarketImpliedApy(ptPriceUnderlying, ptFaceValueInUnderlying, maturityTimestampMs);
-        }
+      let executableApy = 0;
+      
+      const rawPtPrice = ptPriceRes.status === 'fulfilled' ? Number(this.unwrapResult(ptPriceRes.value.result)) : 0;
+      const rawTwap = twapRes.status === 'fulfilled' ? Number(this.unwrapResult(twapRes.value.result)) : 0;
+      
+      if (!isNaN(rawPtPrice) && rawPtPrice > 0) {
+        ptPriceUnderlying = rawPtPrice / 1e9;
+        
+        const { YieldService } = await import('./yieldService');
+        const [maturityTimestampMs, ptFaceValueInUnderlying] = await Promise.all([
+          YieldService.getActiveMaturityTimestampMs(),
+          YieldService.getEpochStartIndex()
+        ]);
+        
+        const { calculateMarketImpliedApy } = await import('../utils/apy');
+        
+        // Executable APY (Spot Price)
+        console.log(`[Novaire Price Debug - Spot] PT Price: ${ptPriceUnderlying.toFixed(6)}`);
+        executableApy = calculateMarketImpliedApy(ptPriceUnderlying, ptFaceValueInUnderlying, maturityTimestampMs);
+        
+        // Primary Implied Yield APY (TWAP, fallback to Spot if TWAP uninitialized)
+        const twapUnderlying = (!isNaN(rawTwap) && rawTwap > 0) ? rawTwap / 1e9 : ptPriceUnderlying;
+        console.log(`[Novaire Price Debug - TWAP] TWAP Price: ${twapUnderlying.toFixed(6)}`);
+        impliedYieldApy = calculateMarketImpliedApy(twapUnderlying, ptFaceValueInUnderlying, maturityTimestampMs);
       }
 
       // XLM Price for TVL calculation
@@ -126,6 +138,7 @@ export class ProtocolService {
         ytSupplyXlm,
         dexLiquidityXlm,
         impliedYieldApy,
+        executableApy,
         ptPriceUnderlying
       };
     } catch (e) {

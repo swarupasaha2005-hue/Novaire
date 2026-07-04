@@ -12,6 +12,9 @@ pub enum NovaireFactoryError {
     InvalidEpoch = 5,
     MathOverflow = 6,
     StorageMissing = 7,
+    MaturityInPast = 8,
+    DuplicateAddress = 9,
+    EpochNotLinked = 10,
 }
 
 #[contracttype]
@@ -39,6 +42,8 @@ pub enum DataKey {
     ProtocolVersion,
     EpochCount,
     Epoch(u32),
+    Maturity(u32),
+    NextEpoch(u32),
 }
 
 #[contracttype]
@@ -165,16 +170,35 @@ impl Factory {
         let admin = storage::get_admin(&env)?;
         admin.require_auth();
 
-        let current_count = storage::get_epoch_count(&env);
+        let current_ledger = env.ledger().sequence();
+        if params.maturity_ledger <= current_ledger {
+            return Err(NovaireFactoryError::MaturityInPast);
+        }
+
+        if env.storage().persistent().has(&DataKey::Maturity(params.maturity_ledger)) {
+            return Err(NovaireFactoryError::EpochAlreadyExists);
+        }
+
+        let addresses = [
+            &params.sy_wrapper,
+            &params.vault,
+            &params.pt_token,
+            &params.yt_token,
+            &params.tokenizer,
+            &params.marketplace,
+            &params.intent_engine,
+            &params.rollover_engine,
+        ];
         
-        // Prevent duplicate maturity
-        if current_count > 0 {
-            let last_epoch = storage::get_epoch(&env, current_count)?;
-            if last_epoch.maturity_ledger == params.maturity_ledger {
-                return Err(NovaireFactoryError::EpochAlreadyExists);
+        for i in 0..addresses.len() {
+            for j in (i + 1)..addresses.len() {
+                if addresses[i] == addresses[j] {
+                    return Err(NovaireFactoryError::DuplicateAddress);
+                }
             }
         }
 
+        let current_count = storage::get_epoch_count(&env);
         let new_epoch_id = current_count.checked_add(1).ok_or(NovaireFactoryError::MathOverflow)?;
 
         // Inject Dependencies (wire all contracts together)
@@ -215,15 +239,16 @@ impl Factory {
             marketplace: params.marketplace,
             intent_engine: params.intent_engine,
             rollover_engine: params.rollover_engine,
-            deployment_ledger: env.ledger().sequence(),
+            deployment_ledger: current_ledger,
             version,
             is_active: true,
         };
 
         storage::set_epoch(&env, new_epoch_id, &record);
         storage::set_epoch_count(&env, new_epoch_id);
+        env.storage().persistent().set(&DataKey::Maturity(params.maturity_ledger), &new_epoch_id);
 
-        env.events().publish((Symbol::new(&env, "epoch_deployed"),), (new_epoch_id, params.maturity_ledger));
+        env.events().publish((Symbol::new(&env, "epoch_deployed"),), record.clone());
 
         Ok(new_epoch_id)
     }
@@ -250,6 +275,32 @@ impl Factory {
 
     pub fn protocol_version(env: Env) -> u32 {
         storage::get_protocol_version(&env)
+    }
+
+    pub fn link_epochs(env: Env, current_epoch_id: u32, next_epoch_id: u32) -> Result<(), NovaireFactoryError> {
+        let admin = storage::get_admin(&env)?;
+        admin.require_auth();
+
+        let count = storage::get_epoch_count(&env);
+        if current_epoch_id > count || current_epoch_id == 0 {
+            return Err(NovaireFactoryError::InvalidEpoch);
+        }
+        if next_epoch_id > count || next_epoch_id == 0 {
+            return Err(NovaireFactoryError::InvalidEpoch);
+        }
+
+        env.storage().persistent().set(&DataKey::NextEpoch(current_epoch_id), &next_epoch_id);
+        Ok(())
+    }
+
+    pub fn get_next_epoch(env: Env, current_epoch_id: u32) -> Result<EpochRecord, NovaireFactoryError> {
+        let next_epoch_id: u32 = env.storage().persistent().get(&DataKey::NextEpoch(current_epoch_id)).ok_or(NovaireFactoryError::EpochNotLinked)?;
+        storage::get_epoch(&env, next_epoch_id)
+    }
+
+    pub fn get_epoch_by_maturity(env: Env, maturity_ledger: u32) -> Result<EpochRecord, NovaireFactoryError> {
+        let epoch_id: u32 = env.storage().persistent().get(&DataKey::Maturity(maturity_ledger)).ok_or(NovaireFactoryError::InvalidEpoch)?;
+        storage::get_epoch(&env, epoch_id)
     }
 }
 

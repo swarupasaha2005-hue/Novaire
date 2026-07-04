@@ -8,10 +8,10 @@ function unwrapResult(rawResult: any): any {
 }
 
 async function run() {
-  const { Client: MarketplaceClient } = await import('../packages/bindings/marketplace/src/index.ts');
-  const { Client: TokenizerClient } = await import('../packages/bindings/tokenizer/src/index.ts');
-  const { CONTRACTS, RPC_URL, NETWORK_PASSPHRASE } = await import('../src/config/contracts.ts');
-  const { calculateMarketImpliedApy } = await import('../src/utils/apy.ts');
+  const { Client: MarketplaceClient } = await import('../packages/bindings/marketplace/src/index');
+  const { Client: TokenizerClient } = await import('../packages/bindings/tokenizer/src/index');
+  const { CONTRACTS, RPC_URL, NETWORK_PASSPHRASE } = await import('../src/config/contracts');
+  const { calculateMarketImpliedApy } = await import('../src/utils/apy');
 
   console.log("=== Debugging APY Inputs ===");
 
@@ -39,7 +39,7 @@ async function run() {
   let maturityTimestampMs = Date.now() + 30 * 24 * 60 * 60 * 1000;
   
   if (maturityLedger > 0) {
-    const res = await fetch(RPC_URL.replace('/rpc', ''));
+    const res = await fetch('https://horizon-testnet.stellar.org/');
     if (res.ok) {
       const horizonData = await res.json();
       const currentLedger = Number(horizonData.history_latest_ledger || horizonData.core_latest_ledger);
@@ -58,7 +58,7 @@ async function run() {
   const daysRemaining = timeRemainingMs / (1000 * 60 * 60 * 24);
   const ratio = underlyingPrice / ptSpotPrice;
   const apyDecimal = Math.pow(ratio, 365 / daysRemaining) - 1;
-  const finalApy = calculateMarketImpliedApy(ptSpotPrice, maturityTimestampMs);
+  const finalApy = calculateMarketImpliedApy(ptSpotPrice, underlyingPrice, maturityTimestampMs);
 
   console.log(`\nRuntime Values:`);
   console.log(`Underlying Price: ${underlyingPrice}`);

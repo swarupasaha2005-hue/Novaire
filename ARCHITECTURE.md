@@ -118,3 +118,14 @@ Freighter wallet integration via `@stellar/freighter-api`. All transactions are 
 
 ### Testnet Deployment Flow
 Deployment is handled via `scripts/deploy.ts` which uses the `stellar-cli` to compile the Rust contracts to WASM, deploy them, initialize them in topological order, and generate the strictly-typed TypeScript SDKs inside `/packages`.
+
+### Metric Canonical Sources
+To ensure economic correctness and avoid regressions, the Novaire web terminal strictly defines the following canonical data sources for metrics:
+- **Display APY (Primary Yield):** Marketplace TWAP (Time-Weighted Average Price) -> Zero Coupon Formula
+- **Executable APY (Trading):** Marketplace Spot Price -> Zero Coupon Formula
+- **PT Price:** Marketplace Spot Price
+- **TWAP:** Marketplace EMA Oracle
+- **TVL:** Vault + SY Wrapper underlying balances
+- **Portfolio Value:** Spot prices (PT + YT + Claimable Yield)
+- **Claimable Yield:** Tokenizer / YT Contract state
+- **Protocol Yield:** Autonomous Rollover (CumulativeIntentRecord)

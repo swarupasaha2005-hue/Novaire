@@ -71,13 +71,11 @@ pub enum DataKey {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct IntentRecord {
-    pub deposited_amount: i128,
-    pub pt_held: i128,
-    pub yt_sold: i128,
-    pub implied_rate_at_entry: i128,
-    pub maturity_ledger: u32,
-    pub created_ledger: u32,
+pub struct CumulativeIntentRecord {
+    pub total_deposited_amount: i128,
+    pub total_pt_held: i128,
+    pub total_yt_sold: i128,
+    pub total_underlying_received: i128,
 }
 
 mod storage {
@@ -154,7 +152,7 @@ impl IntentEngine {
         Ok(marketplace_client.get_twap_rate())
     }
 
-    pub fn get_user_intent(env: Env, user: Address) -> Result<IntentRecord, NovaireIntentError> {
+    pub fn get_user_intent(env: Env, user: Address) -> Result<CumulativeIntentRecord, NovaireIntentError> {
         env.storage().persistent().get(&DataKey::UserIntents(user)).ok_or(NovaireIntentError::StorageMissing)
     }
 
@@ -163,9 +161,10 @@ impl IntentEngine {
         user: Address,
         usdc_amount: i128,
         min_implied_rate: i128,
+        min_underlying_out: i128,
         _maturity_ledger: u32,
         yt_sale_percentage: u32,
-    ) -> Result<IntentRecord, NovaireIntentError> {
+    ) -> Result<CumulativeIntentRecord, NovaireIntentError> {
         user.require_auth();
 
         if yt_sale_percentage > 100 {
@@ -277,7 +276,7 @@ impl IntentEngine {
                     }
                 )
             ]);
-            underlying_from_yt = marketplace_client.swap_yt_for_underlying(&intent_engine_addr, &yt_to_sell, &0);
+            underlying_from_yt = marketplace_client.swap_yt_for_underlying(&intent_engine_addr, &yt_to_sell, &min_underlying_out);
         }
         
         if yt_to_keep > 0 {
@@ -294,14 +293,17 @@ impl IntentEngine {
             underlying_client.transfer(&intent_engine_addr, &user, &underlying_from_yt);
         }
 
-        let record = IntentRecord {
-            deposited_amount: usdc_amount,
-            pt_held: pt_amount,
-            yt_sold: yt_to_sell,
-            implied_rate_at_entry: current_twap,
-            maturity_ledger: _maturity_ledger,
-            created_ledger: env.ledger().sequence(),
-        };
+        let mut record = env.storage().persistent().get::<_, CumulativeIntentRecord>(&DataKey::UserIntents(user.clone())).unwrap_or(CumulativeIntentRecord {
+            total_deposited_amount: 0,
+            total_pt_held: 0,
+            total_yt_sold: 0,
+            total_underlying_received: 0,
+        });
+
+        record.total_deposited_amount += usdc_amount;
+        record.total_pt_held += pt_amount;
+        record.total_yt_sold += yt_to_sell;
+        record.total_underlying_received += underlying_from_yt;
 
         env.storage().persistent().set(&DataKey::UserIntents(user.clone()), &record);
 
@@ -319,6 +321,7 @@ impl IntentEngine {
         user: Address,
         usdc_amount: i128,
         min_yt_out: i128,
+        min_underlying_out: i128,
     ) -> Result<i128, NovaireIntentError> {
         user.require_auth();
 
@@ -356,7 +359,7 @@ impl IntentEngine {
             return Err(NovaireIntentError::MarketplaceNotBootstrapped);
         }
 
-        let underlying_from_pt = marketplace_client.swap_pt_for_underlying(&intent_engine_addr, &pt_amount, &1);
+        let underlying_from_pt = marketplace_client.swap_pt_for_underlying(&intent_engine_addr, &pt_amount, &min_underlying_out);
 
         let yt_token_addr = storage::get_address(&env, DataKey::YtToken)?;
         let yt_client = YtTokenClient::new(&env, &yt_token_addr);
@@ -432,7 +435,7 @@ mod tests {
         let vault_contract_id = env.register(Vault, ());
         let vault_client = RealVaultClient::new(&env, &vault_contract_id);
         
-        sy_client.initialize(&admin, &underlying_token, &vault_contract_id, &1_000_000_000);
+        sy_client.initialize(&admin, &underlying_token, &vault_contract_id);
         vault_client.initialize(&admin, &sy_contract_id, &underlying_token);
 
         let pt_contract_id = env.register(PtToken, ());
@@ -461,11 +464,11 @@ mod tests {
 
         // Seed liquidity
         let lp_provider = Address::generate(&env);
-        token_admin_client.mint(&lp_provider, &3_000_000); // 3M USDC
+        token_admin_client.mint(&lp_provider, &3_100_000); // 3.1M USDC
         vault_client.deposit(&lp_provider, &2_000_000);
         let sy_bal = vault_client.balance_of(&lp_provider);
         tokenizer_client.mint_pt_yt(&lp_provider, &sy_bal);
-        market_client.add_liquidity(&lp_provider, &1_000_000, &1_000_000); // 1M PT, 1M U
+        market_client.add_liquidity(&lp_provider, &1_000_000, &1_100_000); // 1M PT, 1.1M U
 
         let intent_engine_contract_id = env.register(IntentEngine, ());
         let intent_engine_client = IntentEngineClient::new(&env, &intent_engine_contract_id);
@@ -492,10 +495,10 @@ mod tests {
 
         let current_twap = intent_engine.get_current_best_rate();
         
-        let record = intent_engine.execute_fixed_yield_intent(&user, &10_000, &current_twap, &1000, &100);
+        let record = intent_engine.execute_fixed_yield_intent(&user, &10_000, &current_twap, &0, &1000, &100);
         
-        assert_eq!(record.deposited_amount, 10_000);
-        assert_eq!(pt_client.balance(&user), record.pt_held); // Received PT
+        assert_eq!(record.total_deposited_amount, 10_000);
+        assert_eq!(pt_client.balance(&user), record.total_pt_held); // Received PT
         assert!(underlying.balance(&user) > 0); // Received U back from sold YT
         assert_eq!(underlying.balance(&intent_engine.address), 0); // Contract holds nothing
         assert_eq!(pt_client.balance(&intent_engine.address), 0);
@@ -507,7 +510,7 @@ mod tests {
         let user = Address::generate(&env);
         token_admin.mint(&user, &10_000);
 
-        let yt_received = intent_engine.execute_yield_speculation_intent(&user, &10_000, &1);
+        let yt_received = intent_engine.execute_yield_speculation_intent(&user, &10_000, &1, &0);
         
         assert!(yt_received > 0);
         assert_eq!(yt_client.balance(&user), yt_received);
@@ -524,7 +527,7 @@ mod tests {
         token_admin.mint(&user, &10_000);
 
         let imp_rate = 2_000_000_000; // Impossible rate
-        intent_engine.execute_fixed_yield_intent(&user, &10_000, &imp_rate, &1000, &100);
+        intent_engine.execute_fixed_yield_intent(&user, &10_000, &imp_rate, &0, &1000, &100);
     }
 
     #[test]
@@ -536,7 +539,7 @@ mod tests {
 
         intent_engine.pause();
 
-        intent_engine.execute_fixed_yield_intent(&user, &10_000, &1, &1000, &100);
+        intent_engine.execute_fixed_yield_intent(&user, &10_000, &1, &0, &1000, &100);
     }
 
     #[test]
@@ -544,7 +547,7 @@ mod tests {
     fn test_zero_amount() {
         let (env, _, _, intent_engine, _, _, _, _, _) = setup_env();
         let user = Address::generate(&env);
-        intent_engine.execute_fixed_yield_intent(&user, &0, &1, &1000, &100);
+        intent_engine.execute_fixed_yield_intent(&user, &0, &1, &0, &1000, &100);
     }
 
     #[test]
@@ -554,6 +557,6 @@ mod tests {
         let user = Address::generate(&env);
         token_admin.mint(&user, &10_000);
         // Ask for 1,000,000 YT which is impossible with 10k deposit
-        intent_engine.execute_yield_speculation_intent(&user, &10_000, &1_000_000);
+        intent_engine.execute_yield_speculation_intent(&user, &10_000, &1_000_000, &0);
     }
 }

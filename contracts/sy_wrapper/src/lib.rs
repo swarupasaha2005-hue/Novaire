@@ -17,6 +17,8 @@ pub enum NovaireSyError {
     Paused = 10,
     InvalidAdminTransfer = 11,
     RateIncreaseTooLarge = 12,
+    MinimumDepositNotMet = 13,
+    ZeroSharesMinted = 14,
 }
 
 #[contracttype]
@@ -27,6 +29,7 @@ pub enum DataKey {
     Underlying,
     YieldSource,
     TotalShares,
+    TotalUnderlying,
     Paused,
 }
 
@@ -62,6 +65,14 @@ mod storage {
         }
         Ok(())
     }
+
+    pub fn get_total_underlying(env: &Env) -> i128 {
+        env.storage().instance().get(&DataKey::TotalUnderlying).unwrap_or(0)
+    }
+
+    pub fn set_total_underlying(env: &Env, amount: i128) {
+        env.storage().instance().set(&DataKey::TotalUnderlying, &amount);
+    }
 }
 
 #[contract]
@@ -88,6 +99,7 @@ impl SyWrapper {
         env.storage().instance().set(&DataKey::Underlying, &underlying);
         env.storage().instance().set(&DataKey::YieldSource, &yield_source);
         env.storage().instance().set(&DataKey::TotalShares, &0i128);
+        env.storage().instance().set(&DataKey::TotalUnderlying, &0i128);
         env.storage().instance().set(&DataKey::Paused, &false);
 
         Ok(())
@@ -105,17 +117,33 @@ impl SyWrapper {
         let rate = Self::get_exchange_rate(env.clone());
         let mut total_shares = storage::get_total_shares(&env);
 
-        let shares_to_mint = amount
+        let mut shares_to_mint = amount
             .checked_mul(EXCHANGE_RATE_SCALAR)
             .ok_or(NovaireSyError::MathOverflow)?
             .checked_div(rate)
             .ok_or(NovaireSyError::MathUnderflow)?;
+
+        if total_shares == 0 {
+            if amount <= 1000 {
+                return Err(NovaireSyError::MinimumDepositNotMet);
+            }
+            shares_to_mint = amount.checked_sub(1000).ok_or(NovaireSyError::MathUnderflow)?;
+            total_shares = 1000; // Permanently locked shares to prevent inflation attack
+        }
+
+        if shares_to_mint == 0 {
+            return Err(NovaireSyError::ZeroSharesMinted);
+        }
 
         let token_client = token::Client::new(&env, &underlying_addr);
         token_client.transfer(&from, &env.current_contract_address(), &amount);
 
         total_shares = total_shares.checked_add(shares_to_mint).ok_or(NovaireSyError::MathOverflow)?;
         env.storage().instance().set(&DataKey::TotalShares, &total_shares);
+
+        let mut total_underlying = storage::get_total_underlying(&env);
+        total_underlying = total_underlying.checked_add(amount).ok_or(NovaireSyError::MathOverflow)?;
+        storage::set_total_underlying(&env, total_underlying);
 
         env.events().publish(
             (Symbol::new(&env, "sy_deposit"), from), 
@@ -150,6 +178,10 @@ impl SyWrapper {
         total_shares = total_shares.checked_sub(shares).ok_or(NovaireSyError::MathUnderflow)?;
         env.storage().instance().set(&DataKey::TotalShares, &total_shares);
 
+        let mut total_underlying = storage::get_total_underlying(&env);
+        total_underlying = total_underlying.checked_sub(underlying_to_return).ok_or(NovaireSyError::MathUnderflow)?;
+        storage::set_total_underlying(&env, total_underlying);
+
         let token_client = token::Client::new(&env, &underlying_addr);
         token_client.transfer(&env.current_contract_address(), &from, &underlying_to_return);
 
@@ -166,10 +198,34 @@ impl SyWrapper {
         admin.require_auth();
         storage::require_not_paused(&env)?;
 
-        // The yield is harvested by interacting with the yield source.
-        // For phase 1, yield is deposited directly into this contract
-        // causing the rate to passively increase. This function serves 
-        // to emit an event tracking the new rate.
+        let underlying_addr = storage::get_underlying(&env)?;
+        let token_client = token::Client::new(&env, &underlying_addr);
+        let actual_balance = token_client.balance(&env.current_contract_address());
+        
+        let total_underlying = storage::get_total_underlying(&env);
+        
+        if actual_balance > total_underlying {
+            let total_shares = storage::get_total_shares(&env);
+            if total_shares > 0 {
+                let old_rate = Self::get_exchange_rate(env.clone());
+                let new_rate = actual_balance.checked_mul(EXCHANGE_RATE_SCALAR).ok_or(NovaireSyError::MathOverflow)?
+                    .checked_div(total_shares).ok_or(NovaireSyError::MathUnderflow)?;
+                
+                if new_rate < old_rate {
+                    return Err(NovaireSyError::RateCannotDecrease);
+                }
+                
+                // Max 10% rate increase
+                let max_rate = old_rate.checked_mul(110).ok_or(NovaireSyError::MathOverflow)?
+                    .checked_div(100).ok_or(NovaireSyError::MathUnderflow)?;
+                
+                if new_rate > max_rate {
+                    return Err(NovaireSyError::RateIncreaseTooLarge);
+                }
+            }
+            storage::set_total_underlying(&env, actual_balance);
+        }
+
         let rate = Self::get_exchange_rate(env.clone());
         let total_shares = storage::get_total_shares(&env);
 
@@ -215,11 +271,8 @@ impl SyWrapper {
         if total_shares == 0 {
             return EXCHANGE_RATE_SCALAR;
         }
-        let underlying_addr = storage::get_underlying(&env).unwrap();
-        let token_client = token::Client::new(&env, &underlying_addr);
-        let balance = token_client.balance(&env.current_contract_address());
-        
-        balance.checked_mul(EXCHANGE_RATE_SCALAR).unwrap_or(0).checked_div(total_shares).unwrap_or(EXCHANGE_RATE_SCALAR)
+        let total_underlying = storage::get_total_underlying(&env);
+        total_underlying.checked_mul(EXCHANGE_RATE_SCALAR).unwrap_or(0).checked_div(total_shares).unwrap_or(EXCHANGE_RATE_SCALAR)
     }
 
     pub fn preview_deposit(env: Env, amount: i128) -> i128 {

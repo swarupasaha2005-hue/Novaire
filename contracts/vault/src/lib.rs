@@ -480,8 +480,8 @@ mod tests {
         let token_admin_client = token::StellarAssetClient::new(&env, &token_contract);
 
         // Mint initial balances
-        token_admin_client.mint(&alice, &500);
-        token_admin_client.mint(&bob, &500);
+        token_admin_client.mint(&alice, &2000);
+        token_admin_client.mint(&bob, &2000);
 
         // 3. Deploy and Initialize SY Wrapper
         let sy_contract_id = env.register(SyWrapper, ());
@@ -493,28 +493,28 @@ mod tests {
         let vault_client = VaultClient::new(&env, &vault_contract_id);
         vault_client.initialize(&admin, &sy_contract_id, &token_contract);
 
-        // 5. Alice deposits 500 USDC
-        let alice_shares = vault_client.deposit(&alice, &500);
-        assert_eq!(alice_shares, 500);
-        assert_eq!(vault_client.balance_of(&alice), 500);
-        assert_eq!(vault_client.total_vault_shares(), 500);
-        
-        // 6. Bob deposits 500 USDC
-        let bob_shares = vault_client.deposit(&bob, &500);
-        assert_eq!(bob_shares, 500);
-        assert_eq!(vault_client.balance_of(&bob), 500);
+        // 5. Alice deposits 2000 USDC
+        let alice_shares = vault_client.deposit(&alice, &2000);
+        assert_eq!(alice_shares, 1000);
+        assert_eq!(vault_client.balance_of(&alice), 1000);
         assert_eq!(vault_client.total_vault_shares(), 1000);
         
-        // 7. Accrue 10% Yield on SY Wrapper
-        token_admin_client.mint(&sy_contract_id, &100);
+        // 6. Bob deposits 2000 USDC
+        let bob_shares = vault_client.deposit(&bob, &2000);
+        assert_eq!(bob_shares, 2000);
+        assert_eq!(vault_client.balance_of(&bob), 2000);
+        assert_eq!(vault_client.total_vault_shares(), 3000);
+        
+        // 7. Accrue yield on SY Wrapper
+        token_admin_client.mint(&sy_contract_id, &400); // 10% yield on 4000
         sy_client.harvest_yield();
         
-        // 8. Bob withdraws all shares -> receives 550 underlying (500 * 1.1)
+        // 8. Bob withdraws all shares -> receives 2200 underlying (2000 * 1.1)
         let bob_returned = vault_client.withdraw(&bob, &bob_shares);
-        assert_eq!(bob_returned, 550);
+        assert_eq!(bob_returned, 2200);
         assert_eq!(vault_client.balance_of(&bob), 0);
-        assert_eq!(token_client.balance(&bob), 550);
-        assert_eq!(vault_client.total_vault_shares(), 500);
+        assert_eq!(token_client.balance(&bob), 2200);
+        assert_eq!(vault_client.total_vault_shares(), 1000);
         
         // 9. Test pause functionality
         vault_client.pause();
@@ -531,7 +531,7 @@ mod tests {
         
         // Test metadata
         let md = vault_client.metadata();
-        assert_eq!(md.total_vault_shares, 509);
+        assert_eq!(md.total_vault_shares, 1009);
         assert_eq!(md.is_paused, false);
     }
 }

@@ -21,13 +21,11 @@ pub trait UnderlyingTokenInterface {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct IntentRecord {
-    pub deposited_amount: i128,
-    pub pt_held: i128,
-    pub yt_sold: i128,
-    pub implied_rate_at_entry: i128,
-    pub maturity_ledger: u32,
-    pub created_ledger: u32,
+pub struct CumulativeIntentRecord {
+    pub total_deposited_amount: i128,
+    pub total_pt_held: i128,
+    pub total_yt_sold: i128,
+    pub total_underlying_received: i128,
 }
 
 #[soroban_sdk::contractclient(name = "IntentEngineClient")]
@@ -37,9 +35,25 @@ pub trait IntentEngineInterface {
         user: Address,
         usdc_amount: i128,
         min_implied_rate: i128,
+        min_underlying_out: i128,
         maturity_ledger: u32,
         yt_sale_percentage: u32,
-    ) -> IntentRecord;
+    ) -> CumulativeIntentRecord;
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EpochRecord {
+    pub epoch_id: u32,
+    pub maturity_ledger: u32,
+    pub created_ledger: u32,
+}
+
+#[soroban_sdk::contractclient(name = "FactoryClient")]
+pub trait FactoryInterface {
+    fn latest_epoch(env: Env) -> EpochRecord;
+    fn get_epoch_by_maturity(env: Env, maturity_ledger: u32) -> EpochRecord;
+    fn get_next_epoch(env: Env, current_epoch_id: u32) -> EpochRecord;
 }
 
 #[contracterror]
@@ -78,6 +92,7 @@ pub enum DataKey {
     Paused,
     GracePeriodLedgers,
     TotalPtHeld,
+    Factory,
 }
 
 #[contracttype]
@@ -85,13 +100,13 @@ pub enum DataKey {
 pub struct RolloverPosition {
     pub active: bool,
     pub pt_balance: i128,
-    pub original_usdc: i128,
+    pub initial_principal: i128,
     pub current_epoch_maturity: u32,
-    pub next_epoch_maturity: u32,
     pub min_rate_bps: i128,
     pub created_ledger: u32,
     pub last_rolled_ledger: u32,
-    pub total_yield_earned: i128,
+    pub protocol_yield_earned: i128,
+    pub realized_pnl: i128,
 }
 
 mod storage {
@@ -154,12 +169,13 @@ impl AutonomousRollover {
         keeper: Address,
         pt_token: Address,
         underlying_token: Address,
+        factory: Address,
         grace_period_ledgers: u32,
     ) -> Result<(), NovaireRolloverError> {
         if storage::is_initialized(&env) {
             return Err(NovaireRolloverError::AlreadyInitialized);
         }
-        admin.require_auth();
+
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::Tokenizer, &tokenizer);
         env.storage().instance().set(&DataKey::Vault, &vault);
@@ -168,6 +184,7 @@ impl AutonomousRollover {
         env.storage().instance().set(&DataKey::Keeper, &keeper);
         env.storage().instance().set(&DataKey::PtToken, &pt_token);
         env.storage().instance().set(&DataKey::UnderlyingToken, &underlying_token);
+        env.storage().instance().set(&DataKey::Factory, &factory);
         env.storage().instance().set(&DataKey::GracePeriodLedgers, &grace_period_ledgers);
         
         storage::set_paused(&env, false);
@@ -195,7 +212,6 @@ impl AutonomousRollover {
         user: Address,
         pt_amount: i128,
         current_epoch_maturity: u32,
-        next_epoch_maturity: u32,
         min_rate_bps: i128,
     ) -> Result<(), NovaireRolloverError> {
         user.require_auth();
@@ -206,9 +222,6 @@ impl AutonomousRollover {
 
         if pt_amount <= 0 {
             return Err(NovaireRolloverError::ZeroAmount);
-        }
-        if next_epoch_maturity <= current_epoch_maturity {
-            return Err(NovaireRolloverError::InvalidEpoch);
         }
 
         let pt_token_addr = storage::get_address(&env, DataKey::PtToken)?;
@@ -225,13 +238,13 @@ impl AutonomousRollover {
         let position = RolloverPosition {
             active: true,
             pt_balance: pt_amount,
-            original_usdc: pt_amount, 
+            initial_principal: pt_amount, 
             current_epoch_maturity,
-            next_epoch_maturity,
             min_rate_bps,
             created_ledger: env.ledger().sequence(),
             last_rolled_ledger: env.ledger().sequence(),
-            total_yield_earned: 0,
+            protocol_yield_earned: 0,
+            realized_pnl: 0,
         };
 
         storage::set_position(&env, &user, &position);
@@ -241,7 +254,7 @@ impl AutonomousRollover {
 
         env.events().publish(
             (soroban_sdk::Symbol::new(&env, "rollover_started"), user),
-            (pt_amount, next_epoch_maturity),
+            (pt_amount, current_epoch_maturity),
         );
 
         Self::assert_invariant(&env)?;
@@ -263,10 +276,6 @@ impl AutonomousRollover {
             return Err(NovaireRolloverError::EpochNotExpired);
         }
 
-        if position.next_epoch_maturity == 0 || position.next_epoch_maturity <= current_ledger {
-            return Err(NovaireRolloverError::NextEpochNotSet);
-        }
-
         // Keeper Fallback Grace Period
         let grace_period = storage::get_grace_period(&env);
         let grace_expiration = position.current_epoch_maturity.checked_add(grace_period).ok_or(NovaireRolloverError::MathOverflow)?;
@@ -285,43 +294,54 @@ impl AutonomousRollover {
         // 1. Redeem PT
         let underlying_redeemed = tokenizer_client.redeem_pt(&contract_addr, &position.pt_balance);
 
-        // 2. Calculate yield (saturating to 0 to handle 1-unit integer rounding)
-        let yield_earned = underlying_redeemed.saturating_sub(position.original_usdc);
+        // 2. Discover next epoch explicitly via Linked Epochs Routing
+        let factory_addr = storage::get_address(&env, DataKey::Factory)?;
+        let factory_client = FactoryClient::new(&env, &factory_addr);
+        
+        let current_epoch = factory_client.get_epoch_by_maturity(&position.current_epoch_maturity);
+        let next_epoch = factory_client.get_next_epoch(&current_epoch.epoch_id);
+        
+        if next_epoch.maturity_ledger <= current_ledger {
+            return Err(NovaireRolloverError::NextEpochNotSet);
+        }
 
-        // 3. Update yield
-        position.total_yield_earned = position.total_yield_earned.checked_add(yield_earned).ok_or(NovaireRolloverError::MathOverflow)?;
-
-        // 4. Intent Engine Fixed Yield Intent
+        // 3. Intent Engine Fixed Yield Intent
         let intent_engine_addr = storage::get_address(&env, DataKey::IntentEngine)?;
         let intent_engine_client = IntentEngineClient::new(&env, &intent_engine_addr);
         
         let min_implied_rate = position.min_rate_bps.checked_mul(100_000).ok_or(NovaireRolloverError::MathOverflow)?;
 
+        let underlying_addr = storage::get_address(&env, DataKey::UnderlyingToken)?;
+        let underlying_client = UnderlyingTokenClient::new(&env, &underlying_addr);
+        let balance_before = underlying_client.balance(&contract_addr);
+
         let intent_record = intent_engine_client.execute_fixed_yield_intent(
             &contract_addr,
             &underlying_redeemed,
             &min_implied_rate,
-            &position.next_epoch_maturity,
+            &0,
+            &next_epoch.maturity_ledger,
             &100,
         );
 
-        // 5. Forward any YT sale proceeds (underlying) received from intent engine back to the user.
-        // The rollover contract is a pure PT custodian and must hold zero underlying.
-        if let Ok(underlying_addr) = storage::get_address(&env, DataKey::UnderlyingToken) {
-            let underlying_client = UnderlyingTokenClient::new(&env, &underlying_addr);
-            let yt_proceeds = underlying_client.balance(&contract_addr);
-            if yt_proceeds > 0 {
-                underlying_client.transfer(&contract_addr, &user, &yt_proceeds);
-            }
+        let balance_after = underlying_client.balance(&contract_addr);
+        let expected_balance = core::cmp::max(0, balance_before - underlying_redeemed);
+        let yt_proceeds = core::cmp::max(0, balance_after - expected_balance);
+
+        if yt_proceeds > 0 {
+            underlying_client.transfer(&contract_addr, &user, &yt_proceeds);
         }
 
-        // 6. Update position
+        // 4. Update Independent Yield Metrics
+        position.protocol_yield_earned = position.protocol_yield_earned.checked_add(yt_proceeds).ok_or(NovaireRolloverError::MathOverflow)?;
+        let pt_growth = core::cmp::max(0, underlying_redeemed - position.initial_principal);
+        position.realized_pnl = pt_growth.checked_add(position.protocol_yield_earned).ok_or(NovaireRolloverError::MathOverflow)?;
+
+        // 5. Update position
         let old_pt = position.pt_balance;
-        let new_pt = intent_record.pt_held;
+        let new_pt = intent_record.total_pt_held;
         position.pt_balance = new_pt;
-        position.original_usdc = underlying_redeemed;
-        position.current_epoch_maturity = position.next_epoch_maturity;
-        position.next_epoch_maturity = 0;
+        position.current_epoch_maturity = next_epoch.maturity_ledger;
         position.last_rolled_ledger = current_ledger;
 
         storage::set_position(&env, &user, &position);
@@ -333,33 +353,17 @@ impl AutonomousRollover {
 
         env.events().publish(
             (soroban_sdk::Symbol::new(&env, "rollover_completed"), user),
-            (underlying_redeemed, new_pt, yield_earned),
+            (
+                position.current_epoch_maturity,
+                position.initial_principal,
+                position.protocol_yield_earned,
+                position.realized_pnl,
+                new_pt,
+                underlying_redeemed,
+            ),
         );
 
         Self::assert_invariant(&env)?;
-        Ok(())
-    }
-
-    pub fn set_next_epoch(env: Env, user: Address, next_epoch_maturity: u32) -> Result<(), NovaireRolloverError> {
-        user.require_auth();
-
-        let mut position = storage::get_position(&env, &user)?;
-        if !position.active {
-            return Err(NovaireRolloverError::PositionNotActive);
-        }
-
-        if next_epoch_maturity <= position.current_epoch_maturity {
-            return Err(NovaireRolloverError::InvalidEpoch);
-        }
-
-        position.next_epoch_maturity = next_epoch_maturity;
-        storage::set_position(&env, &user, &position);
-
-        env.events().publish(
-            (soroban_sdk::Symbol::new(&env, "next_epoch_set"), user),
-            (next_epoch_maturity,),
-        );
-
         Ok(())
     }
 
@@ -412,7 +416,6 @@ impl AutonomousRollover {
     fn assert_invariant(env: &Env) -> Result<(), NovaireRolloverError> {
         let contract_addr = env.current_contract_address();
         
-        // Assert no underlying is held in this contract (it's purely a router/custodian of PT)
         if let Ok(underlying_addr) = storage::get_address(env, DataKey::UnderlyingToken) {
             let underlying_client = UnderlyingTokenClient::new(env, &underlying_addr);
             if underlying_client.balance(&contract_addr) > 0 {

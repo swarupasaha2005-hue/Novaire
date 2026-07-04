@@ -45,6 +45,11 @@ export class YieldService {
                 const ledgersRemaining = maturityLedger - currentLedger;
                 const secondsRemaining = ledgersRemaining * 5.5;
                 maturityMs = Date.now() + secondsRemaining * 1000;
+                console.log(`[Novaire Ledger Debug] 
+  Current Ledger: ${currentLedger}
+  Maturity Ledger: ${maturityLedger}
+  Remaining Ledgers: ${ledgersRemaining}
+  Calculated Seconds Remaining: ${secondsRemaining}`);
               }
             }
           } catch (e) {

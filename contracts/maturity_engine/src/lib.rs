@@ -19,8 +19,14 @@ pub enum NovaireMaturityError {
     InvalidStateTransition = 12,
     InvariantViolated = 13,
     MathOverflow = 14,
+    InvalidMaturity = 15,
 }
 
+/// The finite-state machine (FSM) representing an epoch's lifecycle.
+/// - NO_EPOCH -> ACTIVE (via open_epoch)
+/// - ACTIVE -> MATURED (implicitly evaluated when ledger sequence >= maturity)
+/// - MATURED -> SETTLED (explicitly cranked via settle_epoch permissionlessly)
+/// - SETTLED -> ARCHIVED (explicitly cranked via archive_epoch by admin)
 #[contracttype]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum EpochState {
@@ -30,6 +36,10 @@ pub enum EpochState {
     Archived = 3,
 }
 
+/// Represents the persisted storage state of an epoch.
+/// Note: The `state` field may temporarily diverge from the protocol's true dynamic state.
+/// When the current ledger exceeds `maturity_ledger`, the true state is `Matured`, 
+/// even if the persisted storage still says `Active` (before `settle_epoch` is called).
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EpochRecord {
@@ -83,6 +93,8 @@ mod storage {
     }
 }
 
+/// The Maturity Engine is the deterministic global epoch state machine for Novaire.
+/// It orchestrates epoch boundaries and ensures lazy ledger evaluation is safely applied.
 #[contract]
 pub struct MaturityEngine;
 
@@ -92,6 +104,7 @@ impl MaturityEngine {
         if storage::is_initialized(&env) {
             return Err(NovaireMaturityError::AlreadyInitialized);
         }
+        admin.require_auth();
         env.storage().instance().set(&DataKey::Admin, &admin);
         storage::set_current_epoch_id(&env, 0);
         Ok(())
@@ -103,7 +116,7 @@ impl MaturityEngine {
 
         let current_sequence = env.ledger().sequence();
         if maturity_ledger <= current_sequence {
-            return Err(NovaireMaturityError::MaturityNotReached); // using as invalid maturity
+            return Err(NovaireMaturityError::InvalidMaturity);
         }
 
         let current_epoch_id = storage::get_current_epoch_id(&env);
@@ -125,7 +138,7 @@ impl MaturityEngine {
         };
 
         storage::set_epoch(&env, new_epoch_id, &new_epoch);
-        env.events().publish((Symbol::new(&env, "epoch_opened"),), (new_epoch_id, maturity_ledger));
+        env.events().publish((Symbol::new(&env, "epoch_opened"),), (new_epoch_id, maturity_ledger, current_sequence));
 
         Self::assert_invariant(env.clone())?;
         Ok(new_epoch_id)

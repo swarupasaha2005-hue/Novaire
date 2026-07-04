@@ -10,6 +10,50 @@ use tokenizer::{Tokenizer, TokenizerClient};
 use marketplace::{NovaireMarketplace, NovaireMarketplaceClient};
 use intent_engine::{IntentEngine, IntentEngineClient};
 use rollover::{AutonomousRollover, AutonomousRolloverClient, DataKey};
+use soroban_sdk::{contract, contractimpl, contracttype};
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EpochRecord {
+    pub epoch_id: u32,
+    pub maturity_ledger: u32,
+    pub created_ledger: u32,
+}
+
+#[contract]
+pub struct MockFactory;
+#[contractimpl]
+impl MockFactory {
+    pub fn latest_epoch(env: Env) -> EpochRecord {
+        let maturity_ledger: u32 = env.storage().instance().get(&soroban_sdk::Symbol::new(&env, "next_maturity")).unwrap_or(2000);
+        EpochRecord {
+            epoch_id: 2,
+            maturity_ledger,
+            created_ledger: 0,
+        }
+    }
+
+    pub fn get_epoch_by_maturity(_env: Env, maturity_ledger: u32) -> EpochRecord {
+        EpochRecord {
+            epoch_id: 1,
+            maturity_ledger,
+            created_ledger: 0,
+        }
+    }
+
+    pub fn get_next_epoch(env: Env, _current_epoch_id: u32) -> EpochRecord {
+        let maturity_ledger: u32 = env.storage().instance().get(&soroban_sdk::Symbol::new(&env, "next_maturity")).unwrap_or(2000);
+        EpochRecord {
+            epoch_id: 2,
+            maturity_ledger,
+            created_ledger: 0,
+        }
+    }
+    
+    pub fn set_next_maturity(env: Env, maturity_ledger: u32) {
+        env.storage().instance().set(&soroban_sdk::Symbol::new(&env, "next_maturity"), &maturity_ledger);
+    }
+}
 
 // SCF GRANT — NOVAIRE INTEGRATION TEST
 #[test]
@@ -72,6 +116,8 @@ fn test_novaire_end_to_end_integration() {
         &yt_contract_id,
     );
 
+    let factory_contract_id = env.register(MockFactory, ());
+
     let rollover_contract_id = env.register(AutonomousRollover, ());
     let rollover_client = AutonomousRolloverClient::new(&env, &rollover_contract_id);
     rollover_client.initialize(
@@ -83,6 +129,7 @@ fn test_novaire_end_to_end_integration() {
         &keeper,
         &pt_contract_id,
         &underlying_token,
+        &factory_contract_id,
         &17280
     );
 
@@ -103,8 +150,8 @@ fn test_novaire_end_to_end_integration() {
     let alice = Address::generate(&env);
     token_admin_client.mint(&alice, &1000);
     
-    let alice_intent = intent_engine_client.execute_fixed_yield_intent(&alice, &1000, &0, &maturity_ledger, &100);
-    assert_eq!(alice_intent.deposited_amount, 1000);
+    let alice_intent = intent_engine_client.execute_fixed_yield_intent(&alice, &1000, &0, &0, &maturity_ledger, &100);
+    assert_eq!(alice_intent.total_deposited_amount, 1000);
     
     let alice_pt = pt_client.balance(&alice);
     let alice_usdc = usdc_client.balance(&alice);
@@ -125,7 +172,7 @@ fn test_novaire_end_to_end_integration() {
     let bob = Address::generate(&env);
     token_admin_client.mint(&bob, &1000);
 
-    let bob_yt_bought = intent_engine_client.execute_yield_speculation_intent(&bob, &1000, &0);
+    let bob_yt_bought = intent_engine_client.execute_yield_speculation_intent(&bob, &1000, &0, &0);
     assert!(bob_yt_bought > 0);
 
     let bob_pt = pt_client.balance(&bob);
@@ -153,6 +200,7 @@ fn test_novaire_end_to_end_integration() {
     let total_sy = sy_client.total_shares();
     let yield_to_accrue = total_sy * 5 / 100;
     token_admin_client.mint(&sy_contract_id, &yield_to_accrue);
+    sy_client.harvest_yield();
 
     assert_eq!(sy_client.get_exchange_rate(), new_rate);
 
@@ -173,12 +221,12 @@ fn test_novaire_end_to_end_integration() {
     let carol = Address::generate(&env);
     token_admin_client.mint(&carol, &2000);
 
-    intent_engine_client.execute_fixed_yield_intent(&carol, &2000, &0, &maturity_ledger, &100);
+    intent_engine_client.execute_fixed_yield_intent(&carol, &2000, &0, &0, &maturity_ledger, &100);
     let carol_pt = pt_client.balance(&carol);
     
-    let epoch_2_maturity = 2_000;
+    let epoch_2_maturity: u32 = 3_000;
     
-    rollover_client.register_rollover(&carol, &carol_pt, &maturity_ledger, &epoch_2_maturity, &0);
+    rollover_client.register_rollover(&carol, &carol_pt, &maturity_ledger, &0);
 
     // ==========================================
     // 7. ADVANCE LEDGER PAST MATURITY
@@ -266,6 +314,9 @@ fn test_novaire_end_to_end_integration() {
     env.as_contract(&rollover_contract_id, || {
         env.storage().instance().set(&DataKey::IntentEngine, &intent_engine2_id);
     });
+
+    let mock_factory_client = MockFactoryClient::new(&env, &factory_contract_id);
+    mock_factory_client.set_next_maturity(&epoch_2_maturity);
 
     // Simulate Keeper executing the rollover!
     rollover_client.execute_rollover(&carol);
