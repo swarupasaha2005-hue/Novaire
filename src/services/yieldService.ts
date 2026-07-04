@@ -108,7 +108,7 @@ export class YieldService {
         protocol: 'Novaire',
         tvlUsd: tvlUsd,
         fixedApy: impliedApy,
-        variableApy: impliedApy > 0 ? impliedApy + 2.1 : 0, // Fallback variable approximation if needed
+        variableApy: 0, // Protocol is currently fixed-yield only
         capacityUsd: 2000000,
         maturityDate: maturityDate,
       }
@@ -126,7 +126,7 @@ export class YieldService {
       return history.map((h: any) => ({
         timestamp: new Date(h.timestamp).toISOString(),
         fixedApy: h.fixedApy || 0,
-        variableApy: (h.fixedApy || 0) + 2.1, // Testnet approximation for variable yield
+        variableApy: 0, // Protocol is currently fixed-yield only
       }));
     } catch (e) {
       console.warn("Failed to fetch yield history from indexer", e);

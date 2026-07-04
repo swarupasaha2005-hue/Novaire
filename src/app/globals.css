@@ -458,8 +458,6 @@ transparent 72%
 }
 .how-header {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
   margin-bottom: 80px;
 }
 .steps-container {

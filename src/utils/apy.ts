@@ -17,7 +17,10 @@ export function calculateMarketImpliedApy(ptPriceInUnderlying: number, ptFaceVal
   // If we've passed maturity, APY is technically 0 for new positions
   if (timeRemainingMs <= 0) return 0;
   
-  const daysRemaining = timeRemainingMs / (1000 * 60 * 60 * 24);
+  // Clamp daysRemaining to 1.0 minimum to prevent astronomical APY spikes 
+  // on testnet where maturity may be extremely close (e.g., 1.5 hours).
+  const rawDays = timeRemainingMs / (1000 * 60 * 60 * 24);
+  const daysRemaining = Math.max(1.0, rawDays);
   
   const ratio = ptFaceValueInUnderlying / ptPriceInUnderlying;
   

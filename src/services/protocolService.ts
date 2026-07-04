@@ -127,7 +127,8 @@ export class ProtocolService {
         console.warn("Could not fetch XLM price");
       }
 
-      const tvlXlm = totalDepositsXlm; // TVL = Total Deposits
+      // TVL = Total Deposits (Vault) + DEX Underlying Reserves
+      const tvlXlm = totalDepositsXlm + (dexLiquidityXlm / 2);
       const tvlUsd = tvlXlm * xlmPriceUsd;
 
       return {

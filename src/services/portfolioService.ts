@@ -147,8 +147,8 @@ export class PortfolioService {
         // Get PT spot price from the Marketplace AMM
         // Contract returns (A_pool + underlying) / (A_pool + pt) scaled to 1e9
         // This is pt-per-underlying. Invert to get underlying-per-pt.
-        let ptSpotPriceUnderlying = 0.95; // default fallback if no AMM reserve exists yet on testnet
-        let ytSpotPriceUnderlying = 0.05;
+        let ptSpotPriceUnderlying = 0; // strict zero default if no AMM reserve exists
+        let ytSpotPriceUnderlying = 0;
         try {
           const priceTx = await marketplaceClient.get_pt_price();
           let rawResult: any = priceTx?.result;
@@ -374,7 +374,8 @@ export class PortfolioService {
         totalValueUsd += totalClaimableYieldUsd;
       }
 
-      const totalInvestedUsd = assets.filter(a => a.assetType === 'vault').reduce((sum, a) => (!isNaN(a.valueUsd) && isFinite(a.valueUsd)) ? sum + a.valueUsd : sum, 0);
+      // Calculate invested amount based on principal balance, not current market value
+      const totalInvestedUsd = assets.filter(a => a.assetType === 'vault').reduce((sum, a) => (!isNaN(a.balance) && !isNaN(a.priceUsd)) ? sum + (a.balance * a.priceUsd) : sum, 0);
 
       const totalWalletUsd = assets.filter(a => a.assetType === 'wallet').reduce((sum, a) => (!isNaN(a.valueUsd) && isFinite(a.valueUsd)) ? sum + a.valueUsd : sum, 0);
       

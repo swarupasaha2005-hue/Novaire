@@ -2,7 +2,7 @@ export default function Workflow() {
   return (
     <section className="how-section" id="how-it-works">
       <div className="container">
-        <div className="how-header reveal justify-center text-center mx-auto flex flex-col items-center">
+        <div className="how-header reveal flex flex-col items-start">
           <div>
             <span className="section-label">HOW IT WORKS</span>
             <h2 className="section-heading" style={{ marginBottom: 0 }}>
