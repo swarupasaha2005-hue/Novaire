@@ -21,8 +21,8 @@ export function VaultStatistics({ vaults, protocolState }: VaultStatisticsProps)
     : 0;
 
   const stats = [
-    { label: 'Total TVL', value: protocolState ? `${formatNumber(protocolState.tvlXlm)} XLM` : 'Loading...', icon: Shield, color: 'text-blue-400' },
-    { label: 'Total Deposits', value: protocolState ? `${formatNumber(protocolState.totalDepositsXlm)} XLM` : 'Loading...', icon: ArrowDownToLineIcon, color: 'text-emerald-400' },
+    { label: 'Protocol TVL', value: protocolState ? `${formatNumber(protocolState.tvlXlm)} XLM` : 'Loading...', icon: Shield, color: 'text-blue-400' },
+    { label: 'Protocol Deposits', value: protocolState ? `${formatNumber(protocolState.totalDepositsXlm)} XLM` : 'Loading...', icon: ArrowDownToLineIcon, color: 'text-emerald-400' },
     { label: 'PT Supply', value: protocolState ? `${formatNumber(protocolState.ptSupplyXlm)} PT` : 'Loading...', icon: HandCoins, color: 'text-purple-400' },
     { label: 'YT Supply', value: protocolState ? `${formatNumber(protocolState.ytSupplyXlm)} YT` : 'Loading...', icon: Layers, color: 'text-orange-400' },
     { label: 'DEX Liquidity', value: protocolState ? (protocolState.dexLiquidityXlm > 0 ? `${formatNumber(protocolState.dexLiquidityXlm)} XLM` : 'No Active Liquidity Pool') : 'Loading...', icon: Zap, color: 'text-cyan-400' },

@@ -256,6 +256,63 @@ export class WalletService {
         }
       }
 
+      // Fetch PT and YT balances via Soroban RPC
+      try {
+        const { Client: PtClient } = await import('../../packages/bindings/pt_token/src/index');
+        const { Client: YtClient } = await import('../../packages/bindings/yt_token/src/index');
+        const { CONTRACTS, RPC_URL, NETWORK_PASSPHRASE } = await import('../config/contracts');
+
+        const ptClient = new PtClient({
+          contractId: CONTRACTS.PT_TOKEN,
+          rpcUrl: RPC_URL,
+          networkPassphrase: NETWORK_PASSPHRASE,
+          publicKey: address
+        });
+
+        const ytClient = new YtClient({
+          contractId: CONTRACTS.YT_TOKEN,
+          rpcUrl: RPC_URL,
+          networkPassphrase: NETWORK_PASSPHRASE,
+          publicKey: address
+        });
+
+        const ptTx = await ptClient.balance({ id: address });
+        let rawPt = ptTx.result;
+        if (rawPt && typeof rawPt === 'object') {
+          if (typeof (rawPt as any).unwrap === 'function') rawPt = (rawPt as any).unwrap();
+          else if ('ok' in rawPt) rawPt = (rawPt as any).ok;
+          else if ('value' in rawPt) rawPt = (rawPt as any).value;
+        }
+
+        if (rawPt !== undefined) {
+          balances.push({
+            assetCode: 'PT',
+            issuer: CONTRACTS.PT_TOKEN,
+            amount: (Number(rawPt) / 1e7).toString(),
+            isNative: false
+          });
+        }
+
+        const ytTx = await ytClient.balance({ id: address });
+        let rawYt = ytTx.result;
+        if (rawYt && typeof rawYt === 'object') {
+          if (typeof (rawYt as any).unwrap === 'function') rawYt = (rawYt as any).unwrap();
+          else if ('ok' in rawYt) rawYt = (rawYt as any).ok;
+          else if ('value' in rawYt) rawYt = (rawYt as any).value;
+        }
+
+        if (rawYt !== undefined) {
+          balances.push({
+            assetCode: 'YT',
+            issuer: CONTRACTS.YT_TOKEN,
+            amount: (Number(rawYt) / 1e7).toString(),
+            isNative: false
+          });
+        }
+      } catch (err) {
+        console.error("Failed to fetch PT/YT Soroban balances:", err);
+      }
+
       console.log("Parsed balances output:", balances);
       this.setState({ balances });
     } catch (error: any) {

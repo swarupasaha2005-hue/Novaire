@@ -81,9 +81,6 @@ export class PortfolioService {
         }
 
         const valueUsd = (!isNaN(balanceFloat) && !isNaN(priceUsd)) ? balanceFloat * priceUsd : 0;
-        if (!isNaN(valueUsd) && isFinite(valueUsd)) {
-          totalValueUsd += valueUsd;
-        }
 
         assets.push({
           assetCode: bal.assetCode,
@@ -329,6 +326,11 @@ export class PortfolioService {
       const allocation: PortfolioAllocation[] = [];
 
       for (const asset of assets) {
+        if (asset.assetType === 'wallet') {
+           asset.allocationPercent = 0;
+           continue; 
+        }
+
         if (totalValueUsd > 0 && !isNaN(totalValueUsd) && isFinite(totalValueUsd)) {
           const percent = (asset.valueUsd / totalValueUsd) * 100;
           asset.allocationPercent = (!isNaN(percent) && isFinite(percent)) ? percent : 0;

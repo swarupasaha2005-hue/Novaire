@@ -107,6 +107,7 @@ pub struct RolloverPosition {
     pub last_rolled_ledger: u32,
     pub protocol_yield_earned: i128,
     pub realized_pnl: i128,
+    pub min_underlying_out: i128,
 }
 
 mod storage {
@@ -213,6 +214,7 @@ impl AutonomousRollover {
         pt_amount: i128,
         current_epoch_maturity: u32,
         min_rate_bps: i128,
+        min_underlying_out: i128,
     ) -> Result<(), NovaireRolloverError> {
         user.require_auth();
         
@@ -245,6 +247,7 @@ impl AutonomousRollover {
             last_rolled_ledger: env.ledger().sequence(),
             protocol_yield_earned: 0,
             realized_pnl: 0,
+            min_underlying_out,
         };
 
         storage::set_position(&env, &user, &position);
@@ -319,7 +322,7 @@ impl AutonomousRollover {
             &contract_addr,
             &underlying_redeemed,
             &min_implied_rate,
-            &0,
+            &position.min_underlying_out,
             &next_epoch.maturity_ledger,
             &100,
         );

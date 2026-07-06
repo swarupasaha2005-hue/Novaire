@@ -3,8 +3,7 @@ export PT_TOKEN=$(jq -r '.pt_token' ./scripts/deployments.testnet.json)
 export YT_TOKEN=$(jq -r '.yt_token' ./scripts/deployments.testnet.json)
 export SY_WRAPPER=$(jq -r '.sy_wrapper' ./scripts/deployments.testnet.json)
 export UNDERLYING=$(jq -r '.underlying_token' ./scripts/deployments.testnet.json)
-export ADMIN_PUBLIC=$(jq -r '.admin_public' ./scripts/testnet_keys.json)
-export ADMIN_SECRET=$(jq -r '.admin_secret' ./scripts/testnet_keys.json)
+source .env
 export RPC="https://soroban-testnet.stellar.org"
 export NP="Test SDF Network ; September 2015"
 

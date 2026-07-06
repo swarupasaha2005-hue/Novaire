@@ -66,7 +66,7 @@ export function VaultAnalytics() {
           </span>
         </div>
         <div className="flex justify-between items-center">
-          <span className="text-sm text-gray-400">Total Deposits</span>
+          <span className="text-sm text-gray-400">Protocol Deposits</span>
           <span className="text-sm font-medium text-white">
             {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(activeVault.tvlUsd * 0.95)}
           </span>

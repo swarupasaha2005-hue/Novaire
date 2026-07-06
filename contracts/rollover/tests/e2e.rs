@@ -226,7 +226,7 @@ fn test_novaire_end_to_end_integration() {
     
     let epoch_2_maturity: u32 = 3_000;
     
-    rollover_client.register_rollover(&carol, &carol_pt, &maturity_ledger, &0);
+    rollover_client.register_rollover(&carol, &carol_pt, &maturity_ledger, &0, &0);
 
     // ==========================================
     // 7. ADVANCE LEDGER PAST MATURITY

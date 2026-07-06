@@ -160,7 +160,7 @@ fn test_register_and_execute_rollover() {
     assert!(initial_pt > 0);
 
     // 1. Register rollover
-    rollover.register_rollover(&user, &initial_pt, &1000, &0);
+    rollover.register_rollover(&user, &initial_pt, &1000, &0, &0);
     
     assert_eq!(pt_client.balance(&user), 0); // Contract took PT
 
@@ -198,7 +198,7 @@ fn test_exit_rollover() {
     intent_client.execute_fixed_yield_intent(&user, &1000, &0, &1000, &100);
 
     let initial_pt = pt_client.balance(&user);
-    rollover.register_rollover(&user, &initial_pt, &1000, &0);
+    rollover.register_rollover(&user, &initial_pt, &1000, &0, &0);
 
     rollover.exit_rollover(&user);
 
@@ -218,7 +218,7 @@ fn test_next_epoch_not_set() {
     intent_client.execute_fixed_yield_intent(&user, &1000, &0, &1000, &100);
 
     let initial_pt = pt_client.balance(&user);
-    rollover.register_rollover(&user, &initial_pt, &1000, &0); 
+    rollover.register_rollover(&user, &initial_pt, &1000, &0, &0); 
 
     let mock_factory_client = MockFactoryClient::new(&env, &factory_contract_id);
     mock_factory_client.set_next_maturity(&2000);

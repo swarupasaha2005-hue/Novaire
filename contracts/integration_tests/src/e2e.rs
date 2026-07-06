@@ -90,7 +90,7 @@ fn scenario_rollover_custody() {
 
     // Register rollover
     let rollover_amt = pt_bal / 2;
-    protocol.register_rollover(&user, rollover_amt, 100);
+    protocol.register_rollover(&user, rollover_amt, 100, 0);
 
     // INV-9: Rollover contract PT custody
     let actual_pt  = protocol.pt_token.balance(&protocol.rollover.address);
@@ -195,4 +195,30 @@ fn scenario_intent_engine_zero_balance() {
 
     InvariantEngine::assert_everything(&protocol);
     println!("  ✅ Intent Engine zero-balance guarantee holds for both intent types");
+}
+
+// ── Scenario 7: Forced Rollover Slippage Protection ───────────────────────
+#[test]
+fn scenario_forced_rollover_slippage_protection() {
+    let protocol = Protocol::new();
+
+    let user = protocol.create_user();
+    protocol.mint_mock_usdc(&user, 50_000_000);
+    protocol.deposit(&user, 50_000_000);
+    protocol.mint_pt_yt(&user, 30_000_000);
+
+    let pt_bal = protocol.pt_token.balance(&user);
+    assert!(pt_bal > 0, "User must have PT");
+
+    // Register rollover with an impossibly high min_underlying_out (5M USDC output expected from ~30M PT, which is ~3M USDC max)
+    let impossible_min_out = 5_000_000_000_000;
+    protocol.register_rollover(&user, pt_bal, 100, impossible_min_out);
+
+    // Fast forward to next epoch maturity
+    protocol.advance_ledger(1000);
+
+    // Attempt to execute rollover; this should FAIL due to slippage
+    let result = protocol.rollover.try_execute_rollover(&user);
+    assert!(result.is_err(), "Rollover should fail when minimum output requirement cannot be met");
+    println!("  ✅ Forced Rollover slippage protection scenario complete");
 }

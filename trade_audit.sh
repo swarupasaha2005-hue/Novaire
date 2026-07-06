@@ -1,6 +1,7 @@
 #!/bin/bash
 export MARKETPLACE=$(jq -r '.marketplace' ./scripts/deployments.testnet.json)
-export SRC=$(jq -r '.admin_secret' ./scripts/testnet_keys.json)
+source .env
+export SRC=$ADMIN_SECRET
 export PUB=$(jq -r '.admin_public' ./scripts/testnet_keys.json)
 export RPC="https://soroban-testnet.stellar.org"
 export NP="Test SDF Network ; September 2015"

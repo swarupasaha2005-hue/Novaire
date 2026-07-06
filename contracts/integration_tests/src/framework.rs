@@ -210,9 +210,9 @@ impl<'a> Protocol<'a> {
     }
 
     // ── Rollover ──────────────────────────────────────────────────────────────
-    pub fn register_rollover(&self, user: &Address, pt: i128, min_rate: i128) {
+    pub fn register_rollover(&self, user: &Address, pt: i128, min_rate: i128, min_out: i128) {
         let _ = self.rollover.try_register_rollover(
-            user, &pt, &self.maturity_ledger, &min_rate,
+            user, &pt, &self.maturity_ledger, &min_rate, &min_out
         );
     }
     pub fn execute_rollover(&self, user: &Address) {

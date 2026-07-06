@@ -467,6 +467,10 @@ impl NovaireMarketplace {
         yt_reserves = yt_reserves.checked_sub(actual_yt_out).ok_or(NovaireMarketError::MathOverflow)?;
         storage::set_i128(&env, DataKey::YtReserves, yt_reserves);
 
+        // C1 fix: credit underlying reserves with incoming amount
+        storage::set_i128(&env, DataKey::UnderlyingReserves,
+            underlying_reserves.checked_add(underlying_in).ok_or(NovaireMarketError::MathOverflow)?);
+
         let yt_token_addr = storage::get_address(&env, DataKey::YtToken)?;
         let underlying_addr = storage::get_address(&env, DataKey::Underlying)?;
         
@@ -1002,5 +1006,299 @@ mod tests {
         let pt_price = market_client.get_pt_price();
         assert!(pt_price > 900_000_000, "Near maturity PT price must be close to face value");
         assert!(pt_price <= SCALE, "Near maturity PT price must not exceed face value");
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // C1 REGRESSION TESTS — Reserve Accounting after YT Swaps
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /// Extended setup that also returns the YT token address.
+    fn setup_env_with_yt() -> (Env, Address, Address, Address, Address, NovaireMarketplaceClient<'static>, token::StellarAssetClient<'static>) {
+        let env = Env::default();
+        env.mock_all_auths_allowing_non_root_auth();
+
+        let admin = Address::generate(&env);
+        let token_admin = Address::generate(&env);
+        let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+        let underlying_token = token_contract.address();
+        let token_admin_client = token::StellarAssetClient::new(&env, &token_contract.address());
+
+        let sy_contract_id = env.register(SyWrapper, ());
+        let sy_client = RealSyWrapperClient::new(&env, &sy_contract_id);
+
+        let vault_contract_id = env.register(Vault, ());
+        let vault_client = RealVaultClient::new(&env, &vault_contract_id);
+
+        sy_client.initialize(&admin, &underlying_token, &vault_contract_id);
+        vault_client.initialize(&admin, &sy_contract_id, &underlying_token);
+
+        let pt_contract_id = env.register(PtToken, ());
+        let pt_client = RealPtClient::new(&env, &pt_contract_id);
+        pt_client.initialize(&admin, &Address::generate(&env));
+
+        let yt_contract_id = env.register(YtToken, ());
+        let yt_client = RealYtClient::new(&env, &yt_contract_id);
+        yt_client.initialize(&admin, &Address::generate(&env), &1_000);
+
+        let market_contract_id = env.register(NovaireMarketplace, ());
+        let market_client = NovaireMarketplaceClient::new(&env, &market_contract_id);
+
+        env.ledger().set(soroban_sdk::testutils::LedgerInfo {
+            sequence_number: CREATED_AT,
+            ..env.ledger().get()
+        });
+
+        market_client.initialize(
+            &admin,
+            &pt_contract_id,
+            &yt_contract_id,
+            &underlying_token,
+            &sy_contract_id,
+            &Address::generate(&env),
+            &MATURITY_AT,
+        );
+
+        (env, admin, underlying_token, pt_contract_id, yt_contract_id, market_client, token_admin_client)
+    }
+
+    /// Seed YT reserves by having a seller swap YT into the marketplace.
+    /// Returns the amount of YT now held in reserves.
+    fn seed_yt_reserves(
+        env: &Env,
+        market_client: &NovaireMarketplaceClient,
+        yt_token: &Address,
+        yt_amount: i128,
+    ) {
+        let yt_client = yt_token::YtTokenClient::new(env, yt_token);
+        // Mint YT directly to the marketplace contract (auth is mocked)
+        yt_client.mint(&market_client.address, &yt_amount);
+        // Manually set YtReserves in storage (internal state, no public setter)
+        env.as_contract(&market_client.address, || {
+            storage::set_i128(env, DataKey::YtReserves, yt_amount);
+        });
+    }
+
+    // ── C1-TEST 1: YT purchase updates underlying and PT reserves ────────────
+    #[test]
+    fn test_c1_yt_purchase_updates_reserves() {
+        let (env, _, underlying_token, pt_token, yt_token, market_client, token_admin_client) = setup_env_with_yt();
+        let provider = bootstrap(&env, &market_client, &token_admin_client, &pt_token, BOOTSTRAP_PT, BOOTSTRAP_UNDER);
+
+        env.ledger().set(soroban_sdk::testutils::LedgerInfo {
+            sequence_number: CREATED_AT + 1,
+            ..env.ledger().get()
+        });
+
+        // Seed YT reserves so swap_underlying_for_yt can succeed
+        seed_yt_reserves(&env, &market_client, &yt_token, 500_000_000);
+
+        let (pt_before, under_before, yt_before) = market_client.get_reserves();
+
+        // Perform a YT purchase
+        let buyer = Address::generate(&env);
+        let underlying_in = 10_000_000i128;
+        token_admin_client.mint(&buyer, &(underlying_in * 2));
+        let yt_out = market_client.swap_underlying_for_yt(&buyer, &underlying_in, &1);
+
+        let (pt_after, under_after, yt_after) = market_client.get_reserves();
+
+        // ── KEY ASSERTION: underlying reserves must increase by underlying_in ──
+        assert_eq!(
+            under_after,
+            under_before + underlying_in,
+            "C1: UnderlyingReserves must increase by underlying_in after YT purchase"
+        );
+
+        // ── KEY ASSERTION: PT reserves must increase (YT ≈ negative PT) ──
+        assert_eq!(
+            pt_after, pt_before,
+            "C1: PtReserves must NOT increase after YT purchase without flash minting (was {}, now {})",
+            pt_before, pt_after
+        );
+
+        // ── YT reserves must decrease ──
+        assert!(
+            yt_after < yt_before,
+            "C1: YtReserves must decrease after YT purchase"
+        );
+        assert_eq!(
+            yt_after,
+            yt_before - yt_out,
+            "C1: YtReserves must decrease by exactly yt_out"
+        );
+    }
+
+    // ── C1-TEST 2: LP withdrawal after YT swap recovers all underlying ───────
+    #[test]
+    fn test_c1_lp_withdrawal_after_yt_swap() {
+        let (env, _, underlying_token, pt_token, yt_token, market_client, token_admin_client) = setup_env_with_yt();
+        let provider = bootstrap(&env, &market_client, &token_admin_client, &pt_token, BOOTSTRAP_PT, BOOTSTRAP_UNDER);
+
+        env.ledger().set(soroban_sdk::testutils::LedgerInfo {
+            sequence_number: CREATED_AT + 1,
+            ..env.ledger().get()
+        });
+
+        seed_yt_reserves(&env, &market_client, &yt_token, 500_000_000);
+
+        // Perform a YT purchase to inject underlying into the marketplace
+        let buyer = Address::generate(&env);
+        let underlying_in = 50_000_000i128;
+        token_admin_client.mint(&buyer, &(underlying_in * 2));
+        market_client.swap_underlying_for_yt(&buyer, &underlying_in, &1);
+
+        // Check underlying reserves include the YT buyer's deposit
+        let (_, under_reserves, _) = market_client.get_reserves();
+        assert!(
+            under_reserves >= BOOTSTRAP_UNDER + underlying_in,
+            "C1: Underlying reserves must include YT buyer's deposit for LP withdrawal"
+        );
+
+        // LP provider's balance before withdrawal
+        let underlying_client = token::Client::new(&env, &underlying_token);
+        let lp_underlying_before = underlying_client.balance(&provider);
+
+        // Full LP withdrawal
+        let lp_balance = env.as_contract(&market_client.address, || {
+            storage::get_lp_balance(&env, &provider)
+        });
+        let (pt_out, underlying_out, yt_out_lp) = market_client.remove_liquidity(&provider, &lp_balance);
+
+        // The withdrawn underlying must reflect the YT buyer's deposit
+        assert!(
+            underlying_out > BOOTSTRAP_UNDER,
+            "C1: LP must receive more underlying than initially deposited (YT buyer added {})",
+            underlying_in
+        );
+    }
+
+    // ── C1-TEST 3: Pricing is synchronized after YT swap ─────────────────────
+    #[test]
+    fn test_c1_pricing_after_yt_swap() {
+        let (env, _, underlying_token, pt_token, yt_token, market_client, token_admin_client) = setup_env_with_yt();
+        bootstrap(&env, &market_client, &token_admin_client, &pt_token, BOOTSTRAP_PT, BOOTSTRAP_UNDER);
+
+        env.ledger().set(soroban_sdk::testutils::LedgerInfo {
+            sequence_number: CREATED_AT + 1,
+            ..env.ledger().get()
+        });
+
+        seed_yt_reserves(&env, &market_client, &yt_token, 500_000_000);
+
+        let price_before = market_client.get_pt_price();
+
+        let buyer = Address::generate(&env);
+        token_admin_client.mint(&buyer, &100_000_000);
+        market_client.swap_underlying_for_yt(&buyer, &10_000_000, &1);
+
+        let price_after = market_client.get_pt_price();
+
+        // After YT purchase: underlying increased, PT increased → price must change
+        assert_ne!(
+            price_before, price_after,
+            "C1: PT price must change after YT purchase (reserves must be synchronized)"
+        );
+
+        // Price must remain valid (positive and ≤ SCALE)
+        assert!(price_after > 0, "C1: PT price out of valid range after YT swap: {}", price_after);
+    }
+
+    // ── C1-TEST 4: Sequential PT buy + YT buy + PT sell consistency ──────────
+    #[test]
+    fn test_c1_sequential_swaps_reserve_consistency() {
+        let (env, _, underlying_token, pt_token, yt_token, market_client, token_admin_client) = setup_env_with_yt();
+        bootstrap(&env, &market_client, &token_admin_client, &pt_token, BOOTSTRAP_PT, BOOTSTRAP_UNDER);
+
+        env.ledger().set(soroban_sdk::testutils::LedgerInfo {
+            sequence_number: CREATED_AT + 1,
+            ..env.ledger().get()
+        });
+
+        seed_yt_reserves(&env, &market_client, &yt_token, 500_000_000);
+
+        let trader = Address::generate(&env);
+        token_admin_client.mint(&trader, &500_000_000);
+        let pt_client = pt_token::PtTokenClient::new(&env, &pt_token);
+        pt_client.mint(&trader, &500_000_000);
+
+        // 1) Buy PT with underlying
+        market_client.swap_underlying_for_pt(&trader, &5_000_000, &1);
+        let (pt_r1, u_r1, yt_r1) = market_client.get_reserves();
+
+        // 2) Buy YT with underlying
+        market_client.swap_underlying_for_yt(&trader, &5_000_000, &1);
+        let (pt_r2, u_r2, yt_r2) = market_client.get_reserves();
+
+        // After YT buy: underlying must have increased, PT must have increased
+        assert!(u_r2 > u_r1, "C1: Underlying reserves must increase after YT buy");
+        assert!(pt_r2 == pt_r1, "C1: PT reserves must NOT increase after YT buy without minting");
+        assert!(yt_r2 < yt_r1, "C1: YT reserves must decrease after YT buy");
+
+        // 3) Sell PT for underlying
+        env.ledger().set(soroban_sdk::testutils::LedgerInfo {
+            sequence_number: CREATED_AT + 2,
+            ..env.ledger().get()
+        });
+        market_client.swap_pt_for_underlying(&trader, &1_000_000, &1);
+        let (pt_r3, u_r3, _) = market_client.get_reserves();
+
+        // After PT sell: PT reserves increase, underlying reserves decrease
+        assert!(pt_r3 > pt_r2, "PT reserves must increase after selling PT");
+        assert!(u_r3 < u_r2, "Underlying reserves must decrease after PT sale");
+
+        // All reserves must be positive throughout
+        assert!(pt_r3 > 0 && u_r3 > 0, "Reserves must remain positive after sequential swaps");
+    }
+
+    // ── C1-TEST 5: Multiple LP providers + YT swap fairness ──────────────────
+    #[test]
+    fn test_c1_multiple_lps_yt_swap_fairness() {
+        let (env, _, underlying_token, pt_token, yt_token, market_client, token_admin_client) = setup_env_with_yt();
+
+        // LP1 adds liquidity
+        let lp1 = Address::generate(&env);
+        let pt_client = pt_token::PtTokenClient::new(&env, &pt_token);
+        token_admin_client.mint(&lp1, &2_000_000_000);
+        pt_client.mint(&lp1, &2_000_000_000);
+        market_client.add_liquidity(&lp1, &500_000_000, &499_750_000);
+
+        // LP2 adds equal liquidity
+        let lp2 = Address::generate(&env);
+        token_admin_client.mint(&lp2, &2_000_000_000);
+        pt_client.mint(&lp2, &2_000_000_000);
+        market_client.add_liquidity(&lp2, &500_000_000, &499_750_000);
+
+        env.ledger().set(soroban_sdk::testutils::LedgerInfo {
+            sequence_number: CREATED_AT + 1,
+            ..env.ledger().get()
+        });
+
+        seed_yt_reserves(&env, &market_client, &yt_token, 500_000_000);
+
+        // A YT buyer injects underlying
+        let buyer = Address::generate(&env);
+        token_admin_client.mint(&buyer, &100_000_000);
+        market_client.swap_underlying_for_yt(&buyer, &50_000_000, &1);
+
+        // Both LPs withdraw — each should get a fair share including YT buyer's underlying
+        let lp1_shares = env.as_contract(&market_client.address, || {
+            storage::get_lp_balance(&env, &lp1)
+        });
+        let lp2_shares = env.as_contract(&market_client.address, || {
+            storage::get_lp_balance(&env, &lp2)
+        });
+
+        let (_, u_out1, _) = market_client.remove_liquidity(&lp1, &lp1_shares);
+        let (_, u_out2, _) = market_client.remove_liquidity(&lp2, &lp2_shares);
+
+        // Both LPs had equal shares, so their underlying withdrawals should be equal
+        assert_eq!(u_out1, u_out2, "C1: Equal LPs must receive equal underlying");
+
+        // Each LP must get more underlying than deposited (buyer added 50M underlying)
+        assert!(
+            u_out1 > 499_750_000,
+            "C1: LP must receive more underlying than initially deposited (got {})",
+            u_out1
+        );
     }
 }

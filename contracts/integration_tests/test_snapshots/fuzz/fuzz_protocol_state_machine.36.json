@@ -120,7 +120,7 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAATYON"
                 },
                 {
-                  "u32": 100000
+                  "u32": 1000
                 }
               ]
             }
@@ -154,7 +154,7 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
                 },
                 {
-                  "u32": 100000
+                  "u32": 1000
                 }
               ]
             }
@@ -191,7 +191,7 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAATYON"
                 },
                 {
-                  "u32": 100000
+                  "u32": 1000
                 }
               ]
             }
@@ -240,49 +240,7 @@
         }
       ]
     ],
-    [
-      [
-        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-        {
-          "function": {
-            "contract_fn": {
-              "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAYRE5",
-              "function_name": "initialize",
-              "args": [
-                {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM"
-                },
-                {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAATYON"
-                },
-                {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
-                },
-                {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVAX5"
-                },
-                {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAXI7N"
-                },
-                {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
-                },
-                {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM"
-                },
-                {
-                  "address": "CCABDO7UZXYE4W6GVSEGSNNZTKSLFQGKXXQTH6OX7M7GKZ4Z6CUJNGZN"
-                },
-                {
-                  "u32": 17280
-                }
-              ]
-            }
-          },
-          "sub_invocations": []
-        }
-      ]
-    ],
+    [],
     [
       [
         "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
@@ -552,9 +510,37 @@
         }
       ]
     ],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
     [
       [
-        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA6J5N",
+        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4BV5",
         {
           "function": {
             "contract_fn": {
@@ -562,12 +548,12 @@
               "function_name": "deposit",
               "args": [
                 {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA6J5N"
+                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4BV5"
                 },
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 729149
+                    "lo": 627087
                   }
                 }
               ]
@@ -581,7 +567,7 @@
                   "function_name": "transfer",
                   "args": [
                     {
-                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA6J5N"
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4BV5"
                     },
                     {
                       "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
@@ -589,7 +575,7 @@
                     {
                       "i128": {
                         "hi": 0,
-                        "lo": 729149
+                        "lo": 627087
                       }
                     }
                   ]
@@ -627,21 +613,11 @@
     [],
     [],
     [],
-    [],
-    [],
-    [],
-    [],
-    [],
-    [],
-    [],
-    [],
-    [],
-    [],
     []
   ],
   "ledger": {
     "protocol_version": 22,
-    "sequence_number": 0,
+    "sequence_number": 10,
     "timestamp": 0,
     "network_id": "0000000000000000000000000000000000000000000000000000000000000000",
     "base_reserve": 0,
@@ -707,7 +683,7 @@
             },
             "ext": "v0"
           },
-          6311999
+          6312009
         ]
       ],
       [
@@ -740,40 +716,7 @@
             },
             "ext": "v0"
           },
-          6311999
-        ]
-      ],
-      [
-        {
-          "contract_data": {
-            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-            "key": {
-              "ledger_key_nonce": {
-                "nonce": 1194852393571756375
-              }
-            },
-            "durability": "temporary"
-          }
-        },
-        [
-          {
-            "last_modified_ledger_seq": 0,
-            "data": {
-              "contract_data": {
-                "ext": "v0",
-                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-                "key": {
-                  "ledger_key_nonce": {
-                    "nonce": 1194852393571756375
-                  }
-                },
-                "durability": "temporary",
-                "val": "void"
-              }
-            },
-            "ext": "v0"
-          },
-          6311999
+          6312009
         ]
       ],
       [
@@ -806,7 +749,7 @@
             },
             "ext": "v0"
           },
-          6311999
+          6312009
         ]
       ],
       [
@@ -839,7 +782,7 @@
             },
             "ext": "v0"
           },
-          6311999
+          6312009
         ]
       ],
       [
@@ -872,7 +815,7 @@
             },
             "ext": "v0"
           },
-          6311999
+          6312009
         ]
       ],
       [
@@ -905,7 +848,7 @@
             },
             "ext": "v0"
           },
-          6311999
+          6312009
         ]
       ],
       [
@@ -938,7 +881,7 @@
             },
             "ext": "v0"
           },
-          6311999
+          6312009
         ]
       ],
       [
@@ -971,7 +914,7 @@
             },
             "ext": "v0"
           },
-          6311999
+          6312009
         ]
       ],
       [
@@ -1004,7 +947,7 @@
             },
             "ext": "v0"
           },
-          6311999
+          6312009
         ]
       ],
       [
@@ -1037,7 +980,40 @@
             },
             "ext": "v0"
           },
-          6311999
+          6312009
+        ]
+      ],
+      [
+        {
+          "contract_data": {
+            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
+            "key": {
+              "ledger_key_nonce": {
+                "nonce": 1194852393571756375
+              }
+            },
+            "durability": "temporary"
+          }
+        },
+        [
+          {
+            "last_modified_ledger_seq": 0,
+            "data": {
+              "contract_data": {
+                "ext": "v0",
+                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
+                "key": {
+                  "ledger_key_nonce": {
+                    "nonce": 1194852393571756375
+                  }
+                },
+                "durability": "temporary",
+                "val": "void"
+              }
+            },
+            "ext": "v0"
+          },
+          6312009
         ]
       ],
       [
@@ -1070,7 +1046,7 @@
             },
             "ext": "v0"
           },
-          6311999
+          6312009
         ]
       ],
       [
@@ -1103,40 +1079,7 @@
             },
             "ext": "v0"
           },
-          6311999
-        ]
-      ],
-      [
-        {
-          "contract_data": {
-            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
-            "key": {
-              "ledger_key_nonce": {
-                "nonce": 2578412842719982537
-              }
-            },
-            "durability": "temporary"
-          }
-        },
-        [
-          {
-            "last_modified_ledger_seq": 0,
-            "data": {
-              "contract_data": {
-                "ext": "v0",
-                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
-                "key": {
-                  "ledger_key_nonce": {
-                    "nonce": 2578412842719982537
-                  }
-                },
-                "durability": "temporary",
-                "val": "void"
-              }
-            },
-            "ext": "v0"
-          },
-          6311999
+          6312009
         ]
       ],
       [
@@ -1169,7 +1112,7 @@
             },
             "ext": "v0"
           },
-          6311999
+          6312009
         ]
       ],
       [
@@ -1202,7 +1145,7 @@
             },
             "ext": "v0"
           },
-          6311999
+          6312009
         ]
       ],
       [
@@ -1235,7 +1178,7 @@
             },
             "ext": "v0"
           },
-          6311999
+          6312009
         ]
       ],
       [
@@ -1268,7 +1211,7 @@
             },
             "ext": "v0"
           },
-          6311999
+          6312009
         ]
       ],
       [
@@ -1301,7 +1244,7 @@
             },
             "ext": "v0"
           },
-          6311999
+          6312009
         ]
       ],
       [
@@ -1334,7 +1277,7 @@
             },
             "ext": "v0"
           },
-          6311999
+          6312009
         ]
       ],
       [
@@ -1347,7 +1290,7 @@
                   "symbol": "UserShares"
                 },
                 {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA6J5N"
+                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4BV5"
                 }
               ]
             },
@@ -1367,7 +1310,7 @@
                       "symbol": "UserShares"
                     },
                     {
-                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA6J5N"
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4BV5"
                     }
                   ]
                 },
@@ -1375,14 +1318,14 @@
                 "val": {
                   "i128": {
                     "hi": 0,
-                    "lo": 728149
+                    "lo": 626087
                   }
                 }
               }
             },
             "ext": "v0"
           },
-          4095
+          4105
         ]
       ],
       [
@@ -1455,7 +1398,7 @@
                         "val": {
                           "i128": {
                             "hi": 0,
-                            "lo": 728149
+                            "lo": 626087
                           }
                         }
                       },
@@ -1478,7 +1421,7 @@
             },
             "ext": "v0"
           },
-          4095
+          4105
         ]
       ],
       [
@@ -1539,7 +1482,7 @@
                         "val": {
                           "i128": {
                             "hi": 0,
-                            "lo": 729149
+                            "lo": 627087
                           }
                         }
                       },
@@ -1554,7 +1497,7 @@
                         "val": {
                           "i128": {
                             "hi": 0,
-                            "lo": 729149
+                            "lo": 627087
                           }
                         }
                       },
@@ -1589,7 +1532,7 @@
             },
             "ext": "v0"
           },
-          4095
+          4105
         ]
       ],
       [
@@ -1673,7 +1616,7 @@
             },
             "ext": "v0"
           },
-          4095
+          4105
         ]
       ],
       [
@@ -1720,7 +1663,7 @@
                           ]
                         },
                         "val": {
-                          "u32": 100000
+                          "u32": 1000
                         }
                       },
                       {
@@ -1784,7 +1727,7 @@
             },
             "ext": "v0"
           },
-          4095
+          4105
         ]
       ],
       [
@@ -1858,7 +1801,7 @@
                           ]
                         },
                         "val": {
-                          "u32": 100000
+                          "u32": 1000
                         }
                       },
                       {
@@ -1931,7 +1874,7 @@
             },
             "ext": "v0"
           },
-          4095
+          4105
         ]
       ],
       [
@@ -1978,7 +1921,7 @@
                           ]
                         },
                         "val": {
-                          "u32": 0
+                          "u32": 10
                         }
                       },
                       {
@@ -2005,7 +1948,7 @@
                           ]
                         },
                         "val": {
-                          "u32": 100000
+                          "u32": 1000
                         }
                       },
                       {
@@ -2135,7 +2078,7 @@
             },
             "ext": "v0"
           },
-          4095
+          4105
         ]
       ],
       [
@@ -2276,7 +2219,7 @@
             },
             "ext": "v0"
           },
-          4095
+          4105
         ]
       ],
       [
@@ -2307,6 +2250,18 @@
                           "vec": [
                             {
                               "symbol": "Admin"
+                            }
+                          ]
+                        },
+                        "val": {
+                          "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM"
+                        }
+                      },
+                      {
+                        "key": {
+                          "vec": [
+                            {
+                              "symbol": "Factory"
                             }
                           ]
                         },
@@ -2444,7 +2399,7 @@
             },
             "ext": "v0"
           },
-          4095
+          4105
         ]
       ],
       [
@@ -2501,13 +2456,13 @@
             },
             "ext": "v0"
           },
-          4095
+          4105
         ]
       ],
       [
         {
           "contract_data": {
-            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA6J5N",
+            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4BV5",
             "key": {
               "ledger_key_nonce": {
                 "nonce": 2140788761963629343
@@ -2522,7 +2477,7 @@
             "data": {
               "contract_data": {
                 "ext": "v0",
-                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA6J5N",
+                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4BV5",
                 "key": {
                   "ledger_key_nonce": {
                     "nonce": 2140788761963629343
@@ -2534,7 +2489,7 @@
             },
             "ext": "v0"
           },
-          6311999
+          6312009
         ]
       ],
       [
@@ -2607,7 +2562,7 @@
             },
             "ext": "v0"
           },
-          518400
+          518410
         ]
       ],
       [
@@ -2654,7 +2609,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 729149
+                          "lo": 627087
                         }
                       }
                     },
@@ -2680,7 +2635,7 @@
             },
             "ext": "v0"
           },
-          518400
+          518410
         ]
       ],
       [
@@ -2727,7 +2682,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 1000000000
+                          "lo": 999372913
                         }
                       }
                     },
@@ -2753,7 +2708,7 @@
             },
             "ext": "v0"
           },
-          518400
+          518410
         ]
       ],
       [
@@ -2800,7 +2755,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 999270851
+                          "lo": 1000000000
                         }
                       }
                     },
@@ -2826,7 +2781,7 @@
             },
             "ext": "v0"
           },
-          518400
+          518410
         ]
       ],
       [
@@ -2899,7 +2854,7 @@
             },
             "ext": "v0"
           },
-          518400
+          518410
         ]
       ],
       [
@@ -2972,7 +2927,7 @@
             },
             "ext": "v0"
           },
-          518400
+          518410
         ]
       ],
       [
@@ -3045,7 +3000,7 @@
             },
             "ext": "v0"
           },
-          518400
+          518410
         ]
       ],
       [
@@ -3118,7 +3073,7 @@
             },
             "ext": "v0"
           },
-          518400
+          518410
         ]
       ],
       [
@@ -3191,7 +3146,7 @@
             },
             "ext": "v0"
           },
-          518400
+          518410
         ]
       ],
       [
@@ -3264,7 +3219,7 @@
             },
             "ext": "v0"
           },
-          518400
+          518410
         ]
       ],
       [
@@ -3337,7 +3292,7 @@
             },
             "ext": "v0"
           },
-          518400
+          518410
         ]
       ],
       [
@@ -3410,7 +3365,7 @@
             },
             "ext": "v0"
           },
-          518400
+          518410
         ]
       ],
       [
@@ -3522,7 +3477,7 @@
             },
             "ext": "v0"
           },
-          120960
+          120970
         ]
       ],
       [
@@ -3543,7 +3498,7 @@
             },
             "ext": "v0"
           },
-          4095
+          4105
         ]
       ]
     ]

@@ -44,3 +44,4 @@ next-env.d.ts
 target/
 **/target/
 /src/generated/prisma
+*_keys.json

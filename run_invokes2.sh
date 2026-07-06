@@ -1,8 +1,10 @@
 #!/bin/bash
 export PT_TOKEN=$(jq -r '.pt_token' ./scripts/deployments.testnet.json)
 export YT_TOKEN=$(jq -r '.yt_token' ./scripts/deployments.testnet.json)
-export ISSUER_PUBLIC=$(jq -r '.issuer_public' ./scripts/testnet_keys.json)
-export ADMIN_SECRET=$(jq -r '.admin_secret' ./scripts/testnet_keys.json)
+source .env
+export ISSUER_PUBLIC=$ISSUER_PUBLIC
+source .env
+export ADMIN_SECRET=$ADMIN_SECRET
 export RPC="https://soroban-testnet.stellar.org"
 export NP="Test SDF Network ; September 2015"
 
