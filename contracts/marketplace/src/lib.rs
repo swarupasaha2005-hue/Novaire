@@ -345,11 +345,11 @@ impl NovaireMarketplace {
             return Err(NovaireMarketError::BelowMinimumLiquidity);
         }
 
+        // Fix H3: Update TWAP using the PRE-SWAP spot price for the elapsed interval
+        Self::update_twap(&env, a_pool, pt_reserves, underlying_reserves)?;
+
         storage::set_i128(&env, DataKey::PtReserves, pt_reserves.checked_sub(pt_out).ok_or(NovaireMarketError::MathOverflow)?);
         storage::set_i128(&env, DataKey::UnderlyingReserves, underlying_reserves.checked_add(underlying_in).ok_or(NovaireMarketError::MathOverflow)?);
-
-        // Update TWAP
-        Self::update_twap(&env, a_pool, new_pt, new_underlying)?;
 
         let pt_token_addr = storage::get_address(&env, DataKey::PtToken)?;
         let underlying_addr = storage::get_address(&env, DataKey::Underlying)?;
@@ -405,10 +405,11 @@ impl NovaireMarketplace {
             return Err(NovaireMarketError::BelowMinimumLiquidity);
         }
 
+        // Fix H3: Update TWAP using the PRE-SWAP spot price for the elapsed interval
+        Self::update_twap(&env, a_pool, pt_reserves, underlying_reserves)?;
+
         storage::set_i128(&env, DataKey::PtReserves, pt_reserves.checked_add(pt_in).ok_or(NovaireMarketError::MathOverflow)?);
         storage::set_i128(&env, DataKey::UnderlyingReserves, underlying_reserves.checked_sub(underlying_out).ok_or(NovaireMarketError::MathOverflow)?);
-
-        Self::update_twap(&env, a_pool, new_pt, new_underlying)?;
 
         let pt_token_addr = storage::get_address(&env, DataKey::PtToken)?;
         let underlying_addr = storage::get_address(&env, DataKey::Underlying)?;
@@ -775,17 +776,19 @@ mod tests {
             ..env.ledger().get()
         });
 
+        let spot_before = market_client.get_pt_price();
+
         // Perform a tiny swap to trigger the first TWAP write.
         let buyer = Address::generate(&env);
         token_admin_client.mint(&buyer, &10_000_000);
         market_client.swap_underlying_for_pt(&buyer, &1_000, &1);
 
-        let spot = market_client.get_pt_price();
+        let spot_after = market_client.get_pt_price();
         let twap = market_client.get_twap_rate();
 
-        // The first TWAP write initializes to current spot — they must be equal (allow ±3 for integer rounding).
-        let diff = (twap - spot).abs();
-        assert!(diff <= 3, "TWAP ({}) must equal spot price ({}) on first initialization (diff={})", twap, spot, diff);
+        // Fix H3: The TWAP now records the PRE-SWAP spot price for the elapsed interval, not the POST-SWAP spot price.
+        let diff = (twap - spot_before).abs();
+        assert!(diff <= 3, "TWAP ({}) must equal pre-swap spot price ({}) on first initialization (diff={})", twap, spot_before, diff);
     }
 
     // ── TEST 3: TWAP ≤ Face Value invariant ─────────────────────────────────
@@ -906,6 +909,60 @@ mod tests {
         assert!(twap_delta <= twap_baseline, "TWAP moved more than 100% from baseline — EMA broken");
         assert!(spot_after_attack > 0 && spot_after_attack <= SCALE);
         assert!(twap_after_attack > 0 && twap_after_attack <= SCALE);
+    }
+
+    // ── TEST 6b: H3 TWAP Temporal Ordering Regression ────────────────────────
+    // Verifies: after a long idle period, TWAP captures PRE-SWAP price, NOT POST-SWAP.
+    #[test]
+    fn test_6b_h3_twap_temporal_ordering_regression() {
+        let (env, _, _, pt_token, market_client, _, token_admin_client) = setup_env();
+        bootstrap(&env, &market_client, &token_admin_client, &pt_token, BOOTSTRAP_PT, BOOTSTRAP_UNDER);
+
+        env.ledger().set(soroban_sdk::testutils::LedgerInfo {
+            sequence_number: 100,
+            ..env.ledger().get()
+        });
+        
+        let baseline_buyer = Address::generate(&env);
+        token_admin_client.mint(&baseline_buyer, &100_000_000);
+        market_client.swap_underlying_for_pt(&baseline_buyer, &1_000, &1);
+        let twap_baseline = market_client.get_twap_rate();
+
+        // 20 ledgers later (max weight): large flash-loan-style trade.
+        env.ledger().set(soroban_sdk::testutils::LedgerInfo {
+            sequence_number: 120,
+            ..env.ledger().get()
+        });
+
+        // The pre-swap spot price at sequence 120 will be slightly different from sequence 100 
+        // because the YieldSpace A-pool depends on time to maturity. 
+        // We capture it right before the attack to verify TWAP accurately captures the PRE-swap price.
+        let spot_baseline = market_client.get_pt_price();
+
+        let attacker = Address::generate(&env);
+        let pt_client = pt_token::PtTokenClient::new(&env, &pt_token);
+        pt_client.mint(&attacker, &100_000_000);
+        token_admin_client.mint(&attacker, &100_000_000);
+        
+        // Attacker dumps massive amount of PT to crash spot price
+        market_client.swap_pt_for_underlying(&attacker, &50_000_000, &1);
+
+        let spot_after_attack = market_client.get_pt_price();
+        let twap_after_attack = market_client.get_twap_rate();
+
+        // The H3 fix ensures the TWAP captures the PRE-SWAP spot price for the elapsed 20 ledgers.
+        // Since no trades happened for 20 ledgers, the pre-swap spot price is exactly the spot_baseline!
+        // Therefore, twap_after_attack must exactly equal spot_baseline, and NOT spot_after_attack.
+        
+        // Allow tiny rounding difference (±3)
+        let diff = (twap_after_attack - spot_baseline).abs();
+        assert!(diff <= 3, "H3 FIX FAILED: TWAP ({}) did not capture pre-swap spot price ({})", twap_after_attack, spot_baseline);
+        
+        // Ensure the post-swap spot price is severely manipulated (to prove the attack happened)
+        assert!(spot_after_attack < spot_baseline - 100_000, "Spot price was not manipulated enough");
+        
+        // Ensure the TWAP did NOT collapse to the manipulated spot price
+        assert!(twap_after_attack > spot_after_attack + 100_000, "H3 VULNERABILITY: TWAP collapsed to manipulated spot price!");
     }
 
     // ── TEST 7: No reciprocal pricing regression ─────────────────────────────

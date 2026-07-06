@@ -220,10 +220,16 @@ impl SyWrapper {
                     .checked_div(100).ok_or(NovaireSyError::MathUnderflow)?;
                 
                 if new_rate > max_rate {
-                    return Err(NovaireSyError::RateIncreaseTooLarge);
+                    // Fix H5: Clamp instead of reverting to prevent donation DoS
+                    let clamped_balance = max_rate.checked_mul(total_shares).ok_or(NovaireSyError::MathOverflow)?
+                        .checked_div(EXCHANGE_RATE_SCALAR).ok_or(NovaireSyError::MathUnderflow)?;
+                    storage::set_total_underlying(&env, clamped_balance);
+                } else {
+                    storage::set_total_underlying(&env, actual_balance);
                 }
+            } else {
+                storage::set_total_underlying(&env, actual_balance);
             }
-            storage::set_total_underlying(&env, actual_balance);
         }
 
         let rate = Self::get_exchange_rate(env.clone());

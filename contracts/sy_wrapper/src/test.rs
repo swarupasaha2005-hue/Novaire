@@ -289,3 +289,38 @@ fn test_previews() {
     // 1000 shares -> 1000 * 1.1e9 / 1e9 = 1100 amount
     assert_eq!(setup.client.preview_withdraw(&1000), 1100);
 }
+
+// ==========================================
+// 6. Security & Remediation Tests
+// ==========================================
+
+#[test]
+fn test_harvest_yield_donation_clamp() {
+    let setup = setup_test();
+    setup.client.initialize(&setup.admin, &setup.token_contract, &setup.yield_source);
+
+    // Initial deposit: 2000
+    setup.token_admin_client.mint(&setup.user1, &2000);
+    setup.client.deposit(&setup.user1, &2000);
+
+    // Initial rate should be 1.0
+    assert_eq!(setup.client.get_exchange_rate(), 1_000_000_000);
+
+    // Unsolicited donation of 20% (400 tokens)
+    setup.token_admin_client.mint(&setup.contract_id, &400);
+
+    // Harvest yield. The internal actual balance is 2400 (a 20% increase).
+    // The contract should clamp it to a 10% increase instead of reverting.
+    setup.client.harvest_yield();
+
+    // The exchange rate should be exactly 1.1 (10% increase)
+    assert_eq!(setup.client.get_exchange_rate(), 1_100_000_000);
+
+    // There are still 200 unclaimed tokens.
+    // Call harvest_yield again. This time it will process up to 10% of the NEW rate.
+    // 10% of 1.1 is 1.21. We only need it to go to 1.2.
+    setup.client.harvest_yield();
+
+    // Now the rate should be 1.2 (2400 / 2000)
+    assert_eq!(setup.client.get_exchange_rate(), 1_200_000_000);
+}

@@ -159,8 +159,12 @@ impl<'a> Protocol<'a> {
 
     // ── Marketplace ───────────────────────────────────────────────────────────
     pub fn bootstrap_marketplace(&self, provider: &Address) -> i128 {
-        self.underlying_admin.mint(provider, &(BOOTSTRAP_UNDER * 2));
-        self.pt_token.mint(provider, &(BOOTSTRAP_PT * 2));
+        self.underlying_admin.mint(provider, &(BOOTSTRAP_UNDER * 2 + BOOTSTRAP_PT * 2));
+        
+        // Fix: Mint PT and YT through tokenizer to maintain invariant
+        let minted_shares = self.vault.deposit(provider, &(BOOTSTRAP_PT * 2));
+        self.tokenizer.try_mint_pt_yt(provider, &minted_shares).unwrap();
+        
         self.marketplace.add_liquidity(provider, &BOOTSTRAP_PT, &BOOTSTRAP_UNDER)
     }
 
