@@ -4,6 +4,8 @@ import * as path from 'path';
 import { execSync } from 'child_process';
 import axios from 'axios';
 
+import { saveDeployments } from './utils';
+
 const RPC_URL = process.env.RPC_URL || 'https://soroban-testnet.stellar.org';
 const NETWORK_PASSPHRASE = process.env.NETWORK_PASSPHRASE || Networks.TESTNET;
 const DEPLOYMENTS_FILE = path.resolve(__dirname, 'deployments.testnet.json');
@@ -11,10 +13,6 @@ const DEPLOYMENTS_FILE = path.resolve(__dirname, 'deployments.testnet.json');
 let deployments: Record<string, string> = {};
 if (fs.existsSync(DEPLOYMENTS_FILE)) {
     deployments = JSON.parse(fs.readFileSync(DEPLOYMENTS_FILE, 'utf-8'));
-}
-
-function saveDeployments() {
-    fs.writeFileSync(DEPLOYMENTS_FILE, JSON.stringify(deployments, null, 2));
 }
 
 async function fundAccount(publicKey: string) {
@@ -112,7 +110,7 @@ async function deploy() {
         const underlying_token = runCmd(`stellar contract asset deploy --asset USDC:${issuer.publicKey()} --source-account ${admin.secret()} --rpc-url ${RPC_URL} --network-passphrase "${NETWORK_PASSPHRASE}"`);
         console.log(`Mock Underlying Token ID: ${underlying_token}`);
         deployments['underlying_token'] = underlying_token;
-        saveDeployments();
+        saveDeployments(__dirname, deployments);
     } else {
         console.log(`Mock Token already deployed: ${deployments['underlying_token']}`);
     }
@@ -131,7 +129,7 @@ async function deploy() {
             const wasmPath = path.resolve(__dirname, `../contracts/target/wasm32v1-none/release/${name}.wasm`);
             const wasmId = runCmd(`stellar contract upload --wasm ${wasmPath} --source ${admin.secret()} --rpc-url ${RPC_URL} --network-passphrase "${NETWORK_PASSPHRASE}"`);
             deployments[`${name}_wasm`] = wasmId;
-            saveDeployments();
+            saveDeployments(__dirname, deployments);
             console.log(`Uploaded ${name} Wasm: ${wasmId}`);
         } else {
             console.log(`${name} WASM already uploaded: ${deployments[`${name}_wasm`]}`);
@@ -142,7 +140,7 @@ async function deploy() {
             const wasmId = deployments[`${name}_wasm`];
             const contractId = runCmd(`stellar contract deploy --wasm-hash ${wasmId} --source ${admin.secret()} --rpc-url ${RPC_URL} --network-passphrase "${NETWORK_PASSPHRASE}"`);
             deployments[name] = contractId;
-            saveDeployments();
+            saveDeployments(__dirname, deployments);
             console.log(`${name} deployed -> ${contractId}`);
         } else {
             console.log(`${name} already deployed: ${deployments[name]}`);
@@ -155,7 +153,7 @@ async function deploy() {
         if (out.includes("AlreadyInitialized") || !out.includes("error")) {
             console.log("Factory initialized successfully (or already was).");
             deployments['factory_initialized'] = "true";
-            saveDeployments();
+            saveDeployments(__dirname, deployments);
         } else {
             console.warn(`Factory init issue: ${out}`);
         }
@@ -199,13 +197,17 @@ async function deploy() {
         if (out.includes("AlreadyInitialized")) {
             console.log("Epoch already deployed.");
             deployments['epoch_deployed'] = "true";
-            saveDeployments();
-        } else if (!out.includes("error") && out.trim() !== '') {
+            saveDeployments(__dirname, deployments);
+        } else if (out.includes("error")) {
+            console.error(`Epoch deploy failed:\n${out}`);
+            process.exit(1);
+        } else if (out.trim() !== '') {
             console.log(`Epoch Deployed! Epoch ID: ${out.trim()}`);
             deployments['epoch_deployed'] = "true";
-            saveDeployments();
+            saveDeployments(__dirname, deployments);
         } else {
-            console.warn(`Epoch deploy failed: ${out}`);
+            console.error(`Epoch deploy failed with empty output.`);
+            process.exit(1);
         }
     } else {
         console.log("Epoch already deployed.");
@@ -216,7 +218,7 @@ async function deploy() {
         if (!deployments[`${name}_bindings`]) {
             runCmd(`stellar contract bindings typescript --id ${deployments[name]} --network testnet --output-dir ../packages/bindings/${name}`);
             deployments[`${name}_bindings`] = "true";
-            saveDeployments();
+            saveDeployments(__dirname, deployments);
         }
     }
     console.log("Deployment and Wiring Complete!");

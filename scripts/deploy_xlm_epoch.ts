@@ -3,6 +3,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 
+import { saveDeployments } from './utils';
+
 const RPC_URL = process.env.RPC_URL || 'https://soroban-testnet.stellar.org';
 const NETWORK_PASSPHRASE = process.env.NETWORK_PASSPHRASE || Networks.TESTNET;
 const DEPLOYMENTS_FILE = path.resolve(__dirname, 'deployments.testnet.json');
@@ -14,10 +16,6 @@ if (fs.existsSync(DEPLOYMENTS_FILE)) {
     deployments = JSON.parse(fs.readFileSync(DEPLOYMENTS_FILE, 'utf-8'));
 } else {
     throw new Error('deployments.testnet.json not found! Must have initial deployment and WASM hashes.');
-}
-
-function saveDeployments() {
-    fs.writeFileSync(DEPLOYMENTS_FILE, JSON.stringify(deployments, null, 2));
 }
 
 function runCmd(cmd: string, retries: number = 5): string {
@@ -66,7 +64,7 @@ async function deployXlmEpoch() {
 
     console.log(`Setting underlying token to Native XLM SAC: ${XLM_NATIVE_SAC}`);
     deployments['underlying_token'] = XLM_NATIVE_SAC;
-    saveDeployments();
+    saveDeployments(__dirname, deployments);
 
     const contractsToDeploy = [
         'sy_wrapper', 'vault', 'tokenizer', 'pt_token', 'yt_token', 
@@ -90,7 +88,7 @@ async function deployXlmEpoch() {
         }
         const contractId = deployWasm(name, wasmId);
         deployments[name] = contractId;
-        saveDeployments();
+        saveDeployments(__dirname, deployments);
     }
 
     console.log("Invoking Factory.deploy_epoch()...");
@@ -127,11 +125,17 @@ async function deployXlmEpoch() {
     const out = runCmdNoFail(`stellar contract invoke ${invokeArgs}`);
     if (out.includes("AlreadyInitialized")) {
         console.log("Epoch already deployed.");
-    } else if (!out.includes("error") && out.trim() !== '') {
+    } else if (out.includes("error")) {
+        console.error(`Epoch deploy failed:
+${out}`);
+        process.exit(1);
+    } else if (out.trim() !== '') {
         console.log(`Epoch Deployed! Epoch ID: ${out.trim()}`);
     } else {
-        console.warn(`Epoch deploy failed: ${out}`);
+        console.error(`Epoch deploy failed with empty output.`);
+        process.exit(1);
     }
+
 
     console.log("Generating TypeScript Bindings for new XLM Epoch...");
     for (const name of contractsToDeploy) {
@@ -141,7 +145,40 @@ async function deployXlmEpoch() {
     // Also regenerate factory just in case
     runCmd(`stellar contract bindings typescript --id ${deployments.factory} --network testnet --output-dir ../packages/bindings/factory --overwrite`);
 
+    console.log("Verifying Deployment...");
+    const epochCountOut = runCmdNoFail(`stellar contract invoke --id ${deployments.factory} --network-passphrase "${NETWORK_PASSPHRASE}" --rpc-url ${RPC_URL} -- epoch_count`);
+    if (epochCountOut.includes("error") || !epochCountOut) {
+        console.error("Verification failed: Cannot retrieve epoch_count.");
+        process.exit(1);
+    }
+    const epochCount = parseInt(epochCountOut.replace(/[^0-9]/g, ''));
+    
+    const epochOut = runCmdNoFail(`stellar contract invoke --id ${deployments.factory} --network-passphrase "${NETWORK_PASSPHRASE}" --rpc-url ${RPC_URL} -- get_epoch --epoch_id ${epochCount}`);
+    if (epochOut.includes("error") || !epochOut.includes(deployments.tokenizer)) {
+        console.error("Verification failed: Factory newest epoch does not return the newest Tokenizer.");
+        process.exit(1);
+    }
+
+    const initOut = runCmdNoFail(`stellar contract invoke --id ${deployments.tokenizer} --network-passphrase "${NETWORK_PASSPHRASE}" --rpc-url ${RPC_URL} -- initialized`);
+    if (initOut.includes("error") || !initOut.includes("true")) {
+        console.error("Verification failed: Newest Tokenizer is not initialized.");
+        process.exit(1);
+    }
+
+    const maturityOut = runCmdNoFail(`stellar contract invoke --id ${deployments.tokenizer} --network-passphrase "${NETWORK_PASSPHRASE}" --rpc-url ${RPC_URL} -- maturity_ledger`);
+    if (maturityOut.includes("error")) {
+        console.error("Verification failed: Cannot retrieve maturity ledger.");
+        process.exit(1);
+    }
+    const verifiedMaturity = parseInt(maturityOut.replace(/[^0-9]/g, ''));
+    if (verifiedMaturity <= ledger.sequence) {
+        console.error("Verification failed: Tokenizer maturity is in the past.");
+        process.exit(1);
+    }
+
+    console.log(`Verification Succeeded! Epoch ${epochCount} is active and initialized.`);
     console.log("XLM Epoch Deployment and Wiring Complete!");
+
 
     console.log("\nStarting Automatic Protocol Bootstrap...");
     try {
