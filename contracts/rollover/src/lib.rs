@@ -176,6 +176,7 @@ impl AutonomousRollover {
         if storage::is_initialized(&env) {
             return Err(NovaireRolloverError::AlreadyInitialized);
         }
+        admin.require_auth();
 
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::Tokenizer, &tokenizer);
