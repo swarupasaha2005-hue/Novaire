@@ -5,7 +5,7 @@ use soroban_sdk::{testutils::{Address as _, Ledger}, token, Address, Env};
 
 use pt_token::{PtToken, PtTokenClient};
 use marketplace::{NovaireMarketplace, NovaireMarketplaceClient};
-use intent_engine::{IntentEngine, IntentEngineClient};
+use intent_engine::{IntentEngine, IntentEngineClient, CumulativeIntentRecord};
 
 use soroban_sdk::{contract, contractimpl};
 
@@ -18,20 +18,19 @@ impl MockIntentEngine {
         user: Address,
         usdc_amount: i128,
         min_implied_rate: i128,
-        maturity_ledger: u32,
-        yt_sale_percentage: u32,
-    ) -> IntentRecord {
+        _min_underlying_out: i128,
+        _maturity_ledger: u32,
+        _yt_sale_percentage: u32,
+    ) -> CumulativeIntentRecord {
         let pt_token_addr: Address = env.storage().instance().get(&soroban_sdk::Symbol::new(&env, "pt_token")).unwrap();
         let pt_client = PtTokenClient::new(&env, &pt_token_addr);
         pt_client.mint(&user, &usdc_amount); // Mint PT to user
 
-        IntentRecord {
-            deposited_amount: usdc_amount,
-            pt_held: usdc_amount,
-            yt_sold: usdc_amount,
-            implied_rate_at_entry: min_implied_rate,
-            maturity_ledger,
-            created_ledger: env.ledger().sequence(),
+        CumulativeIntentRecord {
+            total_deposited_amount: usdc_amount,
+            total_pt_held: usdc_amount,
+            total_yt_sold: usdc_amount,
+            total_underlying_received: 0,
         }
     }
     
@@ -154,7 +153,7 @@ fn test_register_and_execute_rollover() {
 
     // Give Intent Engine a valid twap. The market needs liquidity.
     // We already added 1M PT and 1M U liquidity. TWAP is 1.
-    intent_client.execute_fixed_yield_intent(&user, &1000, &0, &1000, &100);
+    intent_client.execute_fixed_yield_intent(&user, &1000, &0, &1000, &100, &0);
 
     let initial_pt = pt_client.balance(&user);
     assert!(initial_pt > 0);
@@ -195,7 +194,7 @@ fn test_exit_rollover() {
     token_admin.mint(&user, &2000);
 
     let intent_client = IntentEngineClient::new(&env, &intent_engine_contract_id);
-    intent_client.execute_fixed_yield_intent(&user, &1000, &0, &1000, &100);
+    intent_client.execute_fixed_yield_intent(&user, &1000, &0, &1000, &100, &0);
 
     let initial_pt = pt_client.balance(&user);
     rollover.register_rollover(&user, &initial_pt, &1000, &0, &0);
@@ -215,7 +214,7 @@ fn test_next_epoch_not_set() {
     token_admin.mint(&user, &2000);
 
     let intent_client = IntentEngineClient::new(&env, &intent_engine_contract_id);
-    intent_client.execute_fixed_yield_intent(&user, &1000, &0, &1000, &100);
+    intent_client.execute_fixed_yield_intent(&user, &1000, &0, &1000, &100, &0);
 
     let initial_pt = pt_client.balance(&user);
     rollover.register_rollover(&user, &initial_pt, &1000, &0, &0); 

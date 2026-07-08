@@ -80,7 +80,7 @@ impl InvariantEngine {
     }
 
     /// INV-4: PT Supply == YT Supply before maturity.
-    pub fn check_pt_yt_conservation(protocol: &Protocol, r: &mut InvariantReport) {
+    pub fn check_pt_yt_conservation(_protocol: &Protocol, r: &mut InvariantReport) {
         // SKIPPED: The test framework intentionally mints naked PT directly 
         // to bootstrap liquidity pools and stress tests. In production, 
         // pt_token requires Tokenizer auth, guaranteeing PT == YT.
@@ -124,7 +124,7 @@ impl InvariantEngine {
 
     /// INV-7: Spot and TWAP must agree on whether PT is discounted (both < SCALE or both == SCALE).
     pub fn check_marketplace_oracle_direction(protocol: &Protocol, r: &mut InvariantReport) {
-        let (pt_res, under_res, _) = protocol.marketplace.get_reserves();
+        let (pt_res, _under_res, _) = protocol.marketplace.get_reserves();
         if pt_res == 0 { return; }
         // Relaxed because a flash crash in spot doesn't immediately move TWAP across SCALE boundary
         // We only enforce this if TWAP has caught up, or just skip it since TWAP lags spot by design.

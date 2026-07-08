@@ -29,7 +29,7 @@ pub mod mock_pt {
 pub mod mock_yt {
     use super::*;
     #[contract] pub struct MockYtToken;
-    #[contractimpl] impl MockYtToken { pub fn initialize(_env: Env, _admin: Address, _tokenizer: Address, _maturity_ledger: u32) {} }
+    #[contractimpl] impl MockYtToken { pub fn initialize(_env: Env, _admin: Address, _tokenizer: Address, _maturity_ledger: u32, _sy_wrapper: Address) {} }
 }
 pub mod mock_tokenizer {
     use super::*;
@@ -49,7 +49,7 @@ pub mod mock_intent {
 pub mod mock_rollover {
     use super::*;
     #[contract] pub struct MockRolloverEngine;
-    #[contractimpl] impl MockRolloverEngine { pub fn initialize(_env: Env, _admin: Address, _tokenizer: Address, _vault: Address, _marketplace: Address, _intent_engine: Address, _keeper: Address, _pt_token: Address, _underlying_token: Address, _grace_period_ledgers: u32) {} }
+    #[contractimpl] impl MockRolloverEngine { pub fn initialize(_env: Env, _admin: Address, _tokenizer: Address, _vault: Address, _marketplace: Address, _intent_engine: Address, _keeper: Address, _pt_token: Address, _underlying_token: Address, _factory: Address, _grace_period_ledgers: u32) {} }
 }
 
 // ==========================================
@@ -91,14 +91,14 @@ fn deploy_mock_epoch(s: &Setup, maturity: u32) -> Result<u32, NovaireFactoryErro
         maturity_ledger: maturity,
         underlying_token: underlying,
         sy_wrapper: sy,
-        vault: vault,
+        vault,
         pt_token: pt,
         yt_token: yt,
-        tokenizer: tokenizer,
-        marketplace: marketplace,
+        tokenizer,
+        marketplace,
         intent_engine: intent,
         rollover_engine: rollover,
-        keeper: keeper,
+        keeper,
         grace_period_ledgers: 17280,
     };
 

@@ -34,11 +34,11 @@ if (typeof window !== "undefined") {
 export const networks = {
   testnet: {
     networkPassphrase: "Test SDF Network ; September 2015",
-    contractId: "CCQB7V35EXBJGXIHVCCBO3WRRV5FFVRFMY2NIY6IJHG4G5DLBIAJKVUJ",
+    contractId: "CAF6WU7YUCI2PQ2SDVAPZMJOPSIN6JMORVV4QNNC4KCKDTRXOSQ3E2LH",
   }
 } as const
 
-export type DataKey = {tag: "Admin", values: void} | {tag: "ProtocolVersion", values: void} | {tag: "EpochCount", values: void} | {tag: "Epoch", values: readonly [u32]};
+export type DataKey = {tag: "Admin", values: void} | {tag: "ProtocolVersion", values: void} | {tag: "EpochCount", values: void} | {tag: "Epoch", values: readonly [u32]} | {tag: "Maturity", values: readonly [u32]} | {tag: "NextEpoch", values: readonly [u32]};
 
 
 export interface EpochRecord {
@@ -80,7 +80,10 @@ export const NovaireFactoryError = {
   4: {message:"EpochAlreadyExists"},
   5: {message:"InvalidEpoch"},
   6: {message:"MathOverflow"},
-  7: {message:"StorageMissing"}
+  7: {message:"StorageMissing"},
+  8: {message:"MaturityInPast"},
+  9: {message:"DuplicateAddress"},
+  10: {message:"EpochNotLinked"}
 }
 
 export interface Client {
@@ -100,6 +103,11 @@ export interface Client {
   epoch_count: (options?: MethodOptions) => Promise<AssembledTransaction<u32>>
 
   /**
+   * Construct and simulate a link_epochs transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  link_epochs: ({current_epoch_id, next_epoch_id}: {current_epoch_id: u32, next_epoch_id: u32}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
+
+  /**
    * Construct and simulate a deploy_epoch transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
   deploy_epoch: ({params}: {params: DeployEpochParams}, options?: MethodOptions) => Promise<AssembledTransaction<Result<u32>>>
@@ -110,9 +118,19 @@ export interface Client {
   latest_epoch: (options?: MethodOptions) => Promise<AssembledTransaction<Result<EpochRecord>>>
 
   /**
+   * Construct and simulate a get_next_epoch transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  get_next_epoch: ({current_epoch_id}: {current_epoch_id: u32}, options?: MethodOptions) => Promise<AssembledTransaction<Result<EpochRecord>>>
+
+  /**
    * Construct and simulate a protocol_version transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
   protocol_version: (options?: MethodOptions) => Promise<AssembledTransaction<u32>>
+
+  /**
+   * Construct and simulate a get_epoch_by_maturity transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  get_epoch_by_maturity: ({maturity_ledger}: {maturity_ledger: u32}, options?: MethodOptions) => Promise<AssembledTransaction<Result<EpochRecord>>>
 
 }
 export class Client extends ContractClient {
@@ -133,15 +151,18 @@ export class Client extends ContractClient {
   constructor(public readonly options: ContractClientOptions) {
     super(
       new ContractSpec([ "AAAAAAAAAAAAAAAJZ2V0X2Vwb2NoAAAAAAAAAQAAAAAAAAAIZXBvY2hfaWQAAAAEAAAAAQAAA+kAAAfQAAAAC0Vwb2NoUmVjb3JkAAAAB9AAAAATTm92YWlyZUZhY3RvcnlFcnJvcgA=",
-        "AAAAAgAAAAAAAAAAAAAAB0RhdGFLZXkAAAAABAAAAAAAAAAAAAAABUFkbWluAAAAAAAAAAAAAAAAAAAPUHJvdG9jb2xWZXJzaW9uAAAAAAAAAAAAAAAACkVwb2NoQ291bnQAAAAAAAEAAAAAAAAABUVwb2NoAAAAAAAAAQAAAAQ=",
+        "AAAAAgAAAAAAAAAAAAAAB0RhdGFLZXkAAAAABgAAAAAAAAAAAAAABUFkbWluAAAAAAAAAAAAAAAAAAAPUHJvdG9jb2xWZXJzaW9uAAAAAAAAAAAAAAAACkVwb2NoQ291bnQAAAAAAAEAAAAAAAAABUVwb2NoAAAAAAAAAQAAAAQAAAABAAAAAAAAAAhNYXR1cml0eQAAAAEAAAAEAAAAAQAAAAAAAAAJTmV4dEVwb2NoAAAAAAAAAQAAAAQ=",
         "AAAAAAAAAAAAAAAKaW5pdGlhbGl6ZQAAAAAAAgAAAAAAAAAFYWRtaW4AAAAAAAATAAAAAAAAABBwcm90b2NvbF92ZXJzaW9uAAAABAAAAAEAAAPpAAAD7QAAAAAAAAfQAAAAE05vdmFpcmVGYWN0b3J5RXJyb3IA",
         "AAAAAAAAAAAAAAALZXBvY2hfY291bnQAAAAAAAAAAAEAAAAE",
+        "AAAAAAAAAAAAAAALbGlua19lcG9jaHMAAAAAAgAAAAAAAAAQY3VycmVudF9lcG9jaF9pZAAAAAQAAAAAAAAADW5leHRfZXBvY2hfaWQAAAAAAAAEAAAAAQAAA+kAAAPtAAAAAAAAB9AAAAATTm92YWlyZUZhY3RvcnlFcnJvcgA=",
         "AAAAAAAAAAAAAAAMZGVwbG95X2Vwb2NoAAAAAQAAAAAAAAAGcGFyYW1zAAAAAAfQAAAAEURlcGxveUVwb2NoUGFyYW1zAAAAAAAAAQAAA+kAAAAEAAAH0AAAABNOb3ZhaXJlRmFjdG9yeUVycm9yAA==",
         "AAAAAAAAAAAAAAAMbGF0ZXN0X2Vwb2NoAAAAAAAAAAEAAAPpAAAH0AAAAAtFcG9jaFJlY29yZAAAAAfQAAAAE05vdmFpcmVGYWN0b3J5RXJyb3IA",
         "AAAAAQAAAAAAAAAAAAAAC0Vwb2NoUmVjb3JkAAAAAA0AAAAAAAAAEWRlcGxveW1lbnRfbGVkZ2VyAAAAAAAABAAAAAAAAAAIZXBvY2hfaWQAAAAEAAAAAAAAAA1pbnRlbnRfZW5naW5lAAAAAAAAEwAAAAAAAAAJaXNfYWN0aXZlAAAAAAAAAQAAAAAAAAALbWFya2V0cGxhY2UAAAAAEwAAAAAAAAAPbWF0dXJpdHlfbGVkZ2VyAAAAAAQAAAAAAAAACHB0X3Rva2VuAAAAEwAAAAAAAAAPcm9sbG92ZXJfZW5naW5lAAAAABMAAAAAAAAACnN5X3dyYXBwZXIAAAAAABMAAAAAAAAACXRva2VuaXplcgAAAAAAABMAAAAAAAAABXZhdWx0AAAAAAAAEwAAAAAAAAAHdmVyc2lvbgAAAAAEAAAAAAAAAAh5dF90b2tlbgAAABM=",
+        "AAAAAAAAAAAAAAAOZ2V0X25leHRfZXBvY2gAAAAAAAEAAAAAAAAAEGN1cnJlbnRfZXBvY2hfaWQAAAAEAAAAAQAAA+kAAAfQAAAAC0Vwb2NoUmVjb3JkAAAAB9AAAAATTm92YWlyZUZhY3RvcnlFcnJvcgA=",
         "AAAAAAAAAAAAAAAQcHJvdG9jb2xfdmVyc2lvbgAAAAAAAAABAAAABA==",
         "AAAAAQAAAAAAAAAAAAAAEURlcGxveUVwb2NoUGFyYW1zAAAAAAAADAAAAAAAAAAUZ3JhY2VfcGVyaW9kX2xlZGdlcnMAAAAEAAAAAAAAAA1pbnRlbnRfZW5naW5lAAAAAAAAEwAAAAAAAAAGa2VlcGVyAAAAAAATAAAAAAAAAAttYXJrZXRwbGFjZQAAAAATAAAAAAAAAA9tYXR1cml0eV9sZWRnZXIAAAAABAAAAAAAAAAIcHRfdG9rZW4AAAATAAAAAAAAAA9yb2xsb3Zlcl9lbmdpbmUAAAAAEwAAAAAAAAAKc3lfd3JhcHBlcgAAAAAAEwAAAAAAAAAJdG9rZW5pemVyAAAAAAAAEwAAAAAAAAAQdW5kZXJseWluZ190b2tlbgAAABMAAAAAAAAABXZhdWx0AAAAAAAAEwAAAAAAAAAIeXRfdG9rZW4AAAAT",
-        "AAAABAAAAAAAAAAAAAAAE05vdmFpcmVGYWN0b3J5RXJyb3IAAAAABwAAAAAAAAASQWxyZWFkeUluaXRpYWxpemVkAAAAAAABAAAAAAAAAA5Ob3RJbml0aWFsaXplZAAAAAAAAgAAAAAAAAAMVW5hdXRob3JpemVkAAAAAwAAAAAAAAASRXBvY2hBbHJlYWR5RXhpc3RzAAAAAAAEAAAAAAAAAAxJbnZhbGlkRXBvY2gAAAAFAAAAAAAAAAxNYXRoT3ZlcmZsb3cAAAAGAAAAAAAAAA5TdG9yYWdlTWlzc2luZwAAAAAABw==" ]),
+        "AAAAAAAAAAAAAAAVZ2V0X2Vwb2NoX2J5X21hdHVyaXR5AAAAAAAAAQAAAAAAAAAPbWF0dXJpdHlfbGVkZ2VyAAAAAAQAAAABAAAD6QAAB9AAAAALRXBvY2hSZWNvcmQAAAAH0AAAABNOb3ZhaXJlRmFjdG9yeUVycm9yAA==",
+        "AAAABAAAAAAAAAAAAAAAE05vdmFpcmVGYWN0b3J5RXJyb3IAAAAACgAAAAAAAAASQWxyZWFkeUluaXRpYWxpemVkAAAAAAABAAAAAAAAAA5Ob3RJbml0aWFsaXplZAAAAAAAAgAAAAAAAAAMVW5hdXRob3JpemVkAAAAAwAAAAAAAAASRXBvY2hBbHJlYWR5RXhpc3RzAAAAAAAEAAAAAAAAAAxJbnZhbGlkRXBvY2gAAAAFAAAAAAAAAAxNYXRoT3ZlcmZsb3cAAAAGAAAAAAAAAA5TdG9yYWdlTWlzc2luZwAAAAAABwAAAAAAAAAOTWF0dXJpdHlJblBhc3QAAAAAAAgAAAAAAAAAEER1cGxpY2F0ZUFkZHJlc3MAAAAJAAAAAAAAAA5FcG9jaE5vdExpbmtlZAAAAAAACg==" ]),
       options
     )
   }
@@ -149,8 +170,11 @@ export class Client extends ContractClient {
     get_epoch: this.txFromJSON<Result<EpochRecord>>,
         initialize: this.txFromJSON<Result<void>>,
         epoch_count: this.txFromJSON<u32>,
+        link_epochs: this.txFromJSON<Result<void>>,
         deploy_epoch: this.txFromJSON<Result<u32>>,
         latest_epoch: this.txFromJSON<Result<EpochRecord>>,
-        protocol_version: this.txFromJSON<u32>
+        get_next_epoch: this.txFromJSON<Result<EpochRecord>>,
+        protocol_version: this.txFromJSON<u32>,
+        get_epoch_by_maturity: this.txFromJSON<Result<EpochRecord>>
   }
 }

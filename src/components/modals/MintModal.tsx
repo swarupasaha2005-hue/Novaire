@@ -27,8 +27,11 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
   const [yieldPreference, setYieldPreference] = useState<YieldPreference>('keep');
   const [customYtPct, setCustomYtPct] = useState<string>('50');
 
-  const [step, setStep] = useState<'idle' | 'simulating' | 'signing' | 'broadcasting' | 'success' | 'error'>('idle');
+  const [step, setStep] = useState<'idle' | 'simulating' | 'review' | 'signing' | 'broadcasting' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+
+  const [slippageBps, setSlippageBps] = useState<number>(50); // 0.5% default
+  const [simulationData, setSimulationData] = useState<{ expectedOut: bigint; minOut: bigint; client: any; txArgs: any } | null>(null);
 
   const [balance, setBalance] = useState<number>(0);
 
@@ -127,32 +130,50 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
       const amountStroops = BigInt(Math.floor(parsedAmount * 10_000_000));
       const minImpliedRate = BigInt(0);
 
-      // ─── Diagnostic Logging ─────────────────────────────────────────
-      console.groupCollapsed('[Novaire:Mint] Yield Preference Diagnostic');
-      console.log('Selected yield mode     :', yieldPreference);
-      console.log('yt_sale_percentage      :', ytSalePercentage, '% (0=keep all, 100=sell all)');
-      console.log('YT to sell (estimated)  :', ytToSell.toFixed(4));
-      console.log('YT to keep (estimated)  :', ytToKeep.toFixed(4));
-      console.log('swap_yt_for_underlying  :', ytSalePercentage > 0 ? 'WILL BE CALLED' : 'WILL NOT BE CALLED');
-      console.log('Target intent_engine ID :', CONTRACTS.INTENT_ENGINE);
-      console.log('Full call args:', {
-        user: address,
-        usdc_amount: amountStroops.toString(),
-        min_implied_rate: minImpliedRate.toString(),
-        _maturity_ledger: maturityLedger,
-        yt_sale_percentage: ytSalePercentage,
-      });
-      console.groupEnd();
-      // ────────────────────────────────────────────────────────────────
-
-      setStep('signing');
-      const tx = await client.execute_fixed_yield_intent({
+      const txArgs = {
         user: address!,
         usdc_amount: amountStroops,
         min_implied_rate: minImpliedRate,
+        min_underlying_out: BigInt(0), // Simulation dry run
         _maturity_ledger: maturityLedger,
         yt_sale_percentage: ytSalePercentage,
-      });
+      };
+
+      const simTx = await client.execute_fixed_yield_intent(txArgs);
+      
+      let expectedOut = BigInt(0);
+      if (simTx.result) {
+        const rawResult = simTx.result;
+        const unwrapped = typeof rawResult.unwrap === 'function' ? rawResult.unwrap() : ('ok' in rawResult ? rawResult.ok : rawResult);
+        if (unwrapped && (unwrapped as any).total_underlying_received !== undefined) {
+          expectedOut = BigInt((unwrapped as any).total_underlying_received);
+        }
+      }
+
+      if (ytSalePercentage > 0 && expectedOut === BigInt(0) && amountStroops > BigInt(100)) {
+        throw new Error('Expected output from simulation is zero. Market may lack liquidity.');
+      }
+
+      const minOut = ytSalePercentage > 0 
+        ? (expectedOut * BigInt(10000 - slippageBps)) / BigInt(10000) 
+        : BigInt(0);
+
+      setSimulationData({ expectedOut, minOut, client, txArgs });
+      setStep('review');
+    } catch (e: any) {
+      console.error(e);
+      setErrorMessage(e.message || 'Transaction failed');
+      setStep('error');
+    }
+  };
+
+  const handleConfirm = async () => {
+    if (!simulationData) return;
+    setStep('signing');
+    try {
+      const { client, txArgs, minOut } = simulationData;
+      const finalTxArgs = { ...txArgs, min_underlying_out: minOut };
+      const tx = await client.execute_fixed_yield_intent(finalTxArgs);
 
       setStep('broadcasting');
       const result = await tx.signAndSend({ signTransaction });
@@ -381,6 +402,31 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
                   </div>
                 </div>
 
+                {/* Slippage Selector (only relevant if selling YT) */}
+                {ytSalePercentage > 0 && (
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-sm font-semibold text-white">Slippage Tolerance</p>
+                      <p className="text-xs text-white/50 mt-0.5">Maximum price slippage you are willing to accept for your YT sale.</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {[10, 50, 100, 200].map((bps) => (
+                        <button
+                          key={bps}
+                          onClick={() => setSlippageBps(bps)}
+                          className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                            slippageBps === bps
+                              ? 'bg-[#3ECF8E] text-black'
+                              : 'bg-white/5 text-white/70 hover:bg-white/10'
+                          }`}
+                        >
+                          {bps / 100}%
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Live Preview */}
                 <div className="rounded-xl border border-[#3ECF8E]/20 bg-[#3ECF8E]/5 p-4 space-y-2.5">
                   <div className="flex items-center justify-between">
@@ -421,6 +467,61 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
                   </div>
                 )}
               </>
+            ) : step === 'review' && simulationData ? (
+              <div className="flex flex-col space-y-6 py-4">
+                <div className="text-center space-y-1">
+                  <h3 className="text-lg font-semibold text-white">Review Transaction</h3>
+                  <p className="text-sm text-white/60">Confirm the estimated outputs before signing.</p>
+                </div>
+                
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-white/70">PT to Receive</span>
+                    <span className="text-sm font-medium text-white">{ptEstimate.toFixed(4)}</span>
+                  </div>
+                  {ytToKeep > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-white/70">YT to Receive</span>
+                      <span className="text-sm font-medium text-white">{ytToKeep.toFixed(4)}</span>
+                    </div>
+                  )}
+                  {ytSalePercentage > 0 && (
+                    <>
+                      <div className="h-px w-full bg-white/10" />
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-white/70">Expected Underlying Output</span>
+                        <span className="text-sm font-medium text-white">
+                          {(Number(simulationData.expectedOut) / 1e7).toFixed(4)} {currentAsset}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-white/70">Minimum Underlying Output</span>
+                        <span className="text-sm font-medium text-[#3ECF8E]">
+                          {(Number(simulationData.minOut) / 1e7).toFixed(4)} {currentAsset}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-white/70">Slippage Tolerance</span>
+                        <span className="text-sm font-medium text-white">{slippageBps / 100}%</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <button
+                  onClick={handleConfirm}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#3ECF8E] py-4 font-semibold text-black hover:bg-[#3ECF8E]/90 transition-colors"
+                >
+                  Confirm and Mint
+                  <ArrowRight className="h-5 w-5" />
+                </button>
+                <button
+                  onClick={() => setStep('idle')}
+                  className="w-full flex items-center justify-center py-2 text-sm font-medium text-white/50 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
             ) : step === 'success' ? (
               <div className="flex flex-col items-center justify-center py-8 text-center space-y-4">
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#3ECF8E]/20">
@@ -460,7 +561,7 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
                 disabled={isConnected && (isInvalidAmount || isInsufficientBalance || !activeVault)}
                 className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#3ECF8E] py-4 font-semibold text-black hover:bg-[#3ECF8E]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {!isConnected ? 'Connect Wallet' : isInvalidAmount ? 'Enter Amount' : isInsufficientBalance ? 'Insufficient Balance' : 'Mint PT & YT'}
+                {!isConnected ? 'Connect Wallet' : isInvalidAmount ? 'Enter Amount' : isInsufficientBalance ? 'Insufficient Balance' : 'Review Transaction'}
                 <ArrowRight className="h-5 w-5" />
               </button>
             )}

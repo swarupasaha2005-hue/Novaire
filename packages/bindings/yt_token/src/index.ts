@@ -34,7 +34,7 @@ if (typeof window !== "undefined") {
 export const networks = {
   testnet: {
     networkPassphrase: "Test SDF Network ; September 2015",
-    contractId: "CBQHG5YES2NZSLXET7CILLS6AB6SOHIRRXKVKCDB6GVMQPL4DZIHT2FU",
+    contractId: "CBI24T6ZMXCYDSLHHQ7RFV52YG7NHCCQLNGXN2WXV7XJWGZ5IOSTX4TQ",
   }
 } as const
 
@@ -225,6 +225,20 @@ export interface Client {
   transfer_admin: ({new_admin}: {new_admin: string}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
 
   /**
+   * Construct and simulate a checkpoint_user transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Checkpoints a user, safely locking in their accrued yield before a balance mutation.
+   * 
+   * This function performs the core math: `(current_index - user_index) * balance / 1e9`
+   * 
+   * # Arguments
+   * * `user` - The address to checkpoint.
+   * 
+   * # Errors
+   * Returns `MathOverflow` or `MathUnderflow` if calculation fails.
+   */
+  checkpoint_user: ({user}: {user: string}, options?: MethodOptions) => Promise<AssembledTransaction<null>>
+
+  /**
    * Construct and simulate a claimable_yield transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Simulates what a user is currently owed based on their balance and the global index.
    */
@@ -299,6 +313,7 @@ export class Client extends ContractClient {
         "AAAAAAAAAC9VcGRhdGVzIHRoZSB0cnVzdGVkIFRva2VuaXplciBjb250cmFjdCBhZGRyZXNzLgAAAAANc2V0X3Rva2VuaXplcgAAAAAAAAEAAAAAAAAADW5ld190b2tlbml6ZXIAAAAAAAATAAAAAQAAA+kAAAPtAAAAAAAAB9AAAAAOTm92YWlyZVl0RXJyb3IAAA==",
         "AAAAAAAAAGdUcmFuc2ZlcnMgdG9rZW5zIGZyb20gb25lIGFkZHJlc3MgdG8gYW5vdGhlciB1c2luZyBhbiBhbGxvd2FuY2UuCkNoZWNrcG9pbnRzIGJvdGggc2VuZGVyIGFuZCByZWNpcGllbnQuAAAAAA10cmFuc2Zlcl9mcm9tAAAAAAAABAAAAAAAAAAHc3BlbmRlcgAAAAATAAAAAAAAAARmcm9tAAAAEwAAAAAAAAACdG8AAAAAABMAAAAAAAAABmFtb3VudAAAAAAACwAAAAEAAAPpAAAD7QAAAAAAAAfQAAAADk5vdmFpcmVZdEVycm9yAAA=",
         "AAAAAAAAADVJbml0aWF0ZXMgYSB0d28tc3RlcCBhZG1pbiB0cmFuc2ZlciB0byBhIG5ldyBhZGRyZXNzLgAAAAAAAA50cmFuc2Zlcl9hZG1pbgAAAAAAAQAAAAAAAAAJbmV3X2FkbWluAAAAAAAAEwAAAAEAAAPpAAAD7QAAAAAAAAfQAAAADk5vdmFpcmVZdEVycm9yAAA=",
+        "AAAAAAAAASdDaGVja3BvaW50cyBhIHVzZXIsIHNhZmVseSBsb2NraW5nIGluIHRoZWlyIGFjY3J1ZWQgeWllbGQgYmVmb3JlIGEgYmFsYW5jZSBtdXRhdGlvbi4KClRoaXMgZnVuY3Rpb24gcGVyZm9ybXMgdGhlIGNvcmUgbWF0aDogYChjdXJyZW50X2luZGV4IC0gdXNlcl9pbmRleCkgKiBiYWxhbmNlIC8gMWU5YAoKIyBBcmd1bWVudHMKKiBgdXNlcmAgLSBUaGUgYWRkcmVzcyB0byBjaGVja3BvaW50LgoKIyBFcnJvcnMKUmV0dXJucyBgTWF0aE92ZXJmbG93YCBvciBgTWF0aFVuZGVyZmxvd2AgaWYgY2FsY3VsYXRpb24gZmFpbHMuAAAAAA9jaGVja3BvaW50X3VzZXIAAAAAAQAAAAAAAAAEdXNlcgAAABMAAAAA",
         "AAAAAAAAAFRTaW11bGF0ZXMgd2hhdCBhIHVzZXIgaXMgY3VycmVudGx5IG93ZWQgYmFzZWQgb24gdGhlaXIgYmFsYW5jZSBhbmQgdGhlIGdsb2JhbCBpbmRleC4AAAAPY2xhaW1hYmxlX3lpZWxkAAAAAAEAAAAAAAAABHVzZXIAAAATAAAAAQAAA+kAAAALAAAH0AAAAA5Ob3ZhaXJlWXRFcnJvcgAA",
         "AAAAAAAAAOZSZXNldHMgdGhlIGNsYWltYWJsZSB5aWVsZCBmb3IgYSB1c2VyIHRvIHplcm8gYWZ0ZXIgdGhleSBzdWNjZXNzZnVsbHkgY2xhaW0uCgoqKlN0cmljdGx5IHJlc3RyaWN0ZWQgdG8gdGhlIFRva2VuaXplciBjb250cmFjdC4qKgoKIyBBcmd1bWVudHMKKiBgdXNlcmAgLSBUaGUgYWRkcmVzcyB3aG9zZSBjbGFpbWFibGUgeWllbGQgaXMgcmVzZXQuCgojIEVycm9ycwpSZXR1cm5zIGBVbmF1dGhvcml6ZWRgLgAAAAAAD3Jlc2V0X2NsYWltYWJsZQAAAAABAAAAAAAAAAR1c2VyAAAAEwAAAAEAAAPpAAAD7QAAAAAAAAfQAAAADk5vdmFpcmVZdEVycm9yAAA=",
         "AAAABAAAAAAAAAAAAAAADk5vdmFpcmVZdEVycm9yAAAAAAANAAAAAAAAABJBbHJlYWR5SW5pdGlhbGl6ZWQAAAAAAAEAAAAAAAAADk5vdEluaXRpYWxpemVkAAAAAAACAAAAAAAAAAxVbmF1dGhvcml6ZWQAAAADAAAAAAAAAAZQYXVzZWQAAAAAAAQAAAAAAAAADUludmFsaWRBbW91bnQAAAAAAAAFAAAAAAAAABNJbnN1ZmZpY2llbnRCYWxhbmNlAAAAAAYAAAAAAAAAFUluc3VmZmljaWVudEFsbG93YW5jZQAAAAAAAAcAAAAAAAAADE1hdGhPdmVyZmxvdwAAAAgAAAAAAAAADU1hdGhVbmRlcmZsb3cAAAAAAAAJAAAAAAAAAA5TdG9yYWdlTWlzc2luZwAAAAAACgAAAAAAAAAUSW52YWxpZEFkbWluVHJhbnNmZXIAAAALAAAAAAAAAAxQYXN0TWF0dXJpdHkAAAAMAAAAAAAAABNJbmRleENhbm5vdERlY3JlYXNlAAAAAA0=",
@@ -328,6 +343,7 @@ export class Client extends ContractClient {
         set_tokenizer: this.txFromJSON<Result<void>>,
         transfer_from: this.txFromJSON<Result<void>>,
         transfer_admin: this.txFromJSON<Result<void>>,
+        checkpoint_user: this.txFromJSON<null>,
         claimable_yield: this.txFromJSON<Result<i128>>,
         reset_claimable: this.txFromJSON<Result<void>>,
         update_yield_index: this.txFromJSON<Result<void>>

@@ -1,6 +1,14 @@
 #![no_std]
 
-use soroban_sdk::{contract, contracterror, contractimpl, contracttype, Address, Env, String, Symbol};
+use soroban_sdk::{contract, contracterror, contractclient, contractimpl, contracttype, Address, Env, String, Symbol};
+
+/// Cross-contract client for reading the live SY exchange rate.
+/// This enables the YT Token to refresh its global yield index
+/// before user-initiated balance mutations (H4 fix).
+#[contractclient(name = "SyWrapperClient")]
+pub trait SyWrapperInterface {
+    fn get_exchange_rate(env: Env) -> i128;
+}
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -27,6 +35,7 @@ pub enum DataKey {
     Admin,
     PendingAdmin,
     Tokenizer,
+    SyWrapper,
     TotalSupply,
     YieldIndex,
     MaturityLedger,
@@ -50,7 +59,7 @@ pub struct YtMetadata {
     pub version: u32,
 }
 
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 const YIELD_SCALAR: i128 = 1_000_000_000;
 
 mod storage {
@@ -70,6 +79,10 @@ mod storage {
 
     pub fn get_tokenizer(env: &Env) -> Result<Address, NovaireYtError> {
         env.storage().instance().get(&DataKey::Tokenizer).ok_or(NovaireYtError::StorageMissing)
+    }
+
+    pub fn get_sy_wrapper(env: &Env) -> Option<Address> {
+        env.storage().instance().get(&DataKey::SyWrapper)
     }
 
     pub fn get_maturity_ledger(env: &Env) -> Result<u32, NovaireYtError> {
@@ -169,7 +182,7 @@ impl YtToken {
     ///
     /// # Errors
     /// Returns `AlreadyInitialized` if called more than once.
-    pub fn initialize(env: Env, admin: Address, tokenizer: Address, maturity_ledger: u32) -> Result<(), NovaireYtError> {
+    pub fn initialize(env: Env, admin: Address, tokenizer: Address, maturity_ledger: u32, sy_wrapper: Address) -> Result<(), NovaireYtError> {
         if storage::is_initialized(&env) {
             return Err(NovaireYtError::AlreadyInitialized);
         }
@@ -178,6 +191,7 @@ impl YtToken {
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::Tokenizer, &tokenizer);
         env.storage().instance().set(&DataKey::MaturityLedger, &maturity_ledger);
+        env.storage().instance().set(&DataKey::SyWrapper, &sy_wrapper);
         
         storage::set_total_supply(&env, 0i128);
         storage::set_yield_index(&env, 0i128);
@@ -229,6 +243,38 @@ impl YtToken {
         Self::internal_checkpoint_user(&env, &user).unwrap();
     }
 
+    /// Refreshes the global yield index from the live SY Wrapper exchange rate.
+    /// This is the core H4 fix: ensures the index reflects real accrued yield
+    /// before any user-initiated balance mutation (transfer, transfer_from).
+    ///
+    /// Safety:
+    /// - The index can only increase (monotonically non-decreasing exchange rate).
+    /// - Skipped if SyWrapper is not configured (backward compatibility).
+    /// - Skipped post-maturity (yield is frozen at settlement).
+    fn refresh_index_from_sy(env: &Env) {
+        // Skip if past maturity — yield accrual is frozen.
+        if let Ok(maturity) = storage::get_maturity_ledger(env) {
+            if env.ledger().sequence() >= maturity {
+                return;
+            }
+        }
+
+        // Skip if SyWrapper is not configured (backward compat for pre-upgrade tokens).
+        let sy_wrapper_addr = match storage::get_sy_wrapper(env) {
+            Some(addr) => addr,
+            None => return,
+        };
+
+        let sy_client = SyWrapperClient::new(env, &sy_wrapper_addr);
+        let live_rate = sy_client.get_exchange_rate();
+        let current_index = storage::get_yield_index(env);
+
+        // Only advance the index — never decrease it.
+        if live_rate > current_index {
+            storage::set_yield_index(env, live_rate);
+        }
+    }
+
     fn internal_checkpoint_user(env: &Env, user: &Address) -> Result<(), NovaireYtError> {
         let current_index = storage::get_yield_index(env);
         let user_index = storage::get_user_yield_index(env, user);
@@ -266,6 +312,36 @@ impl YtToken {
         // Ensure user is fully checkpointed before resetting.
         Self::internal_checkpoint_user(&env, &user)?;
         storage::set_accrued_yield(&env, &user, 0i128);
+        Ok(())
+    }
+
+    /// Credits historical yield directly to a user's accrued yield balance.
+    ///
+    /// **Strictly restricted to the Tokenizer contract.** 
+    /// Used during late minting to restore economic identity by crediting the
+    /// historically backed yield that has accumulated since epoch genesis.
+    ///
+    /// # Arguments
+    /// * `user` - The address receiving the credit.
+    /// * `amount` - The amount of yield to credit.
+    ///
+    /// # Errors
+    /// Returns `Unauthorized` or `InvalidAmount` if negative.
+    pub fn add_accrued_yield(env: Env, user: Address, amount: i128) -> Result<(), NovaireYtError> {
+        let tokenizer = storage::get_tokenizer(&env)?;
+        tokenizer.require_auth();
+        
+        if amount < 0 {
+            return Err(NovaireYtError::InvalidAmount);
+        }
+        
+        if amount > 0 {
+            let mut accrued = storage::get_accrued_yield(&env, &user);
+            accrued = accrued.checked_add(amount).ok_or(NovaireYtError::MathOverflow)?;
+            storage::set_accrued_yield(&env, &user, accrued);
+            env.events().publish((Symbol::new(&env, "yt_historical_credit"), user), amount);
+        }
+        
         Ok(())
     }
 
@@ -362,6 +438,12 @@ impl YtToken {
             return Err(NovaireYtError::InvalidAmount);
         }
 
+        // H4 fix: Refresh global index from the live SY exchange rate
+        // BEFORE checkpointing either party. This ensures that yield
+        // accrued during the sender's holding period is permanently
+        // locked to the sender and cannot transfer to the receiver.
+        Self::refresh_index_from_sy(&env);
+
         Self::internal_checkpoint_user(&env, &from)?;
         Self::internal_checkpoint_user(&env, &to)?;
 
@@ -401,6 +483,10 @@ impl YtToken {
         if amount <= 0 {
             return Err(NovaireYtError::InvalidAmount);
         }
+
+        // H4 fix: Refresh global index from the live SY exchange rate
+        // BEFORE checkpointing either party.
+        Self::refresh_index_from_sy(&env);
 
         Self::internal_checkpoint_user(&env, &from)?;
         Self::internal_checkpoint_user(&env, &to)?;
@@ -461,6 +547,18 @@ impl YtToken {
         Ok(())
     }
 
+    /// Sets the SY Wrapper address for live yield index refresh.
+    /// This is the upgrade-compatible entry point for H4: existing deployed
+    /// YT Token contracts can call this without re-initialization.
+    pub fn set_sy_wrapper(env: Env, sy_wrapper: Address) -> Result<(), NovaireYtError> {
+        let admin = storage::get_admin(&env)?;
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::SyWrapper, &sy_wrapper);
+
+        env.events().publish((Symbol::new(&env, "sy_wrapper_set"), admin), sy_wrapper);
+        Ok(())
+    }
+
     /// Initiates a two-step admin transfer to a new address.
     pub fn transfer_admin(env: Env, new_admin: Address) -> Result<(), NovaireYtError> {
         let admin = storage::get_admin(&env)?;
@@ -486,16 +584,36 @@ impl YtToken {
     // VIEW FUNCTIONS
     // ==========================================
 
-    /// Simulates what a user is currently owed based on their balance and the global index.
+    /// Simulates what a user is currently owed based on their balance and the live index.
+    /// H4 fix: Uses the live SY exchange rate (if available) to provide an accurate
+    /// real-time view of pending yield, even when the stored global index is stale.
     pub fn claimable_yield(env: Env, user: Address) -> Result<i128, NovaireYtError> {
         let accrued = storage::get_accrued_yield(&env, &user);
-        let current_index = storage::get_yield_index(&env);
         let user_index = storage::get_user_yield_index(&env, &user);
         let balance = storage::get_balance(&env, &user);
 
+        // Determine the best available index: live rate if SyWrapper is configured
+        // and we are pre-maturity, otherwise fall back to the stored global index.
+        let effective_index = {
+            let stored_index = storage::get_yield_index(&env);
+            let is_expired = storage::is_expired(&env).unwrap_or(true);
+            if is_expired {
+                stored_index
+            } else {
+                match storage::get_sy_wrapper(&env) {
+                    Some(sy_addr) => {
+                        let sy_client = SyWrapperClient::new(&env, &sy_addr);
+                        let live_rate = sy_client.get_exchange_rate();
+                        if live_rate > stored_index { live_rate } else { stored_index }
+                    },
+                    None => stored_index,
+                }
+            }
+        };
+
         let mut pending = 0;
-        if balance > 0 && current_index > user_index {
-            let index_delta = current_index.checked_sub(user_index).ok_or(NovaireYtError::MathUnderflow)?;
+        if balance > 0 && effective_index > user_index {
+            let index_delta = effective_index.checked_sub(user_index).ok_or(NovaireYtError::MathUnderflow)?;
             let scaled_yield = index_delta.checked_mul(balance).ok_or(NovaireYtError::MathOverflow)?;
             pending = scaled_yield / YIELD_SCALAR;
         }

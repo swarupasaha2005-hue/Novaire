@@ -34,21 +34,11 @@ if (typeof window !== "undefined") {
 export const networks = {
   testnet: {
     networkPassphrase: "Test SDF Network ; September 2015",
-    contractId: "CB3YHG26ICWV5SZEB5SWGDER7TBYY4QBQNXZZFBM3HVVYLZHJWUQHUSW",
+    contractId: "CCAJYUZNBAQDZXZEVLN4BFCC3UPSJ2RYQZEK3UOI4ADYFDESVZ3NGSMW",
   }
 } as const
 
 export type DataKey = {tag: "Admin", values: void} | {tag: "Vault", values: void} | {tag: "Tokenizer", values: void} | {tag: "Marketplace", values: void} | {tag: "SyWrapper", values: void} | {tag: "Underlying", values: void} | {tag: "PtToken", values: void} | {tag: "YtToken", values: void} | {tag: "Paused", values: void} | {tag: "UserIntents", values: readonly [string]};
-
-
-export interface IntentRecord {
-  created_ledger: u32;
-  deposited_amount: i128;
-  implied_rate_at_entry: i128;
-  maturity_ledger: u32;
-  pt_held: i128;
-  yt_sold: i128;
-}
 
 export const NovaireIntentError = {
   1: {message:"Paused"},
@@ -59,7 +49,16 @@ export const NovaireIntentError = {
   6: {message:"AlreadyInitialized"},
   7: {message:"StorageMissing"},
   8: {message:"InvariantViolated"},
-  9: {message:"InvalidPercentage"}
+  9: {message:"InvalidPercentage"},
+  10: {message:"MarketplaceNotBootstrapped"}
+}
+
+
+export interface CumulativeIntentRecord {
+  total_deposited_amount: i128;
+  total_pt_held: i128;
+  total_underlying_received: i128;
+  total_yt_sold: i128;
 }
 
 export interface Client {
@@ -81,7 +80,7 @@ export interface Client {
   /**
    * Construct and simulate a get_user_intent transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
-  get_user_intent: ({user}: {user: string}, options?: MethodOptions) => Promise<AssembledTransaction<Result<IntentRecord>>>
+  get_user_intent: ({user}: {user: string}, options?: MethodOptions) => Promise<AssembledTransaction<Result<CumulativeIntentRecord>>>
 
   /**
    * Construct and simulate a get_current_best_rate transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
@@ -91,12 +90,12 @@ export interface Client {
   /**
    * Construct and simulate a execute_fixed_yield_intent transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
-  execute_fixed_yield_intent: ({user, usdc_amount, min_implied_rate, _maturity_ledger, yt_sale_percentage}: {user: string, usdc_amount: i128, min_implied_rate: i128, _maturity_ledger: u32, yt_sale_percentage: u32}, options?: MethodOptions) => Promise<AssembledTransaction<Result<IntentRecord>>>
+  execute_fixed_yield_intent: ({user, usdc_amount, min_implied_rate, min_underlying_out, _maturity_ledger, yt_sale_percentage}: {user: string, usdc_amount: i128, min_implied_rate: i128, min_underlying_out: i128, _maturity_ledger: u32, yt_sale_percentage: u32}, options?: MethodOptions) => Promise<AssembledTransaction<Result<CumulativeIntentRecord>>>
 
   /**
    * Construct and simulate a execute_yield_speculation_intent transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
-  execute_yield_speculation_intent: ({user, usdc_amount, min_yt_out}: {user: string, usdc_amount: i128, min_yt_out: i128}, options?: MethodOptions) => Promise<AssembledTransaction<Result<i128>>>
+  execute_yield_speculation_intent: ({user, usdc_amount, min_yt_out, min_underlying_out}: {user: string, usdc_amount: i128, min_yt_out: i128, min_underlying_out: i128}, options?: MethodOptions) => Promise<AssembledTransaction<Result<i128>>>
 
 }
 export class Client extends ContractClient {
@@ -120,12 +119,12 @@ export class Client extends ContractClient {
         "AAAAAAAAAAAAAAAHdW5wYXVzZQAAAAAAAAAAAQAAA+kAAAPtAAAAAAAAB9AAAAASTm92YWlyZUludGVudEVycm9yAAA=",
         "AAAAAgAAAAAAAAAAAAAAB0RhdGFLZXkAAAAACgAAAAAAAAAAAAAABUFkbWluAAAAAAAAAAAAAAAAAAAFVmF1bHQAAAAAAAAAAAAAAAAAAAlUb2tlbml6ZXIAAAAAAAAAAAAAAAAAAAtNYXJrZXRwbGFjZQAAAAAAAAAAAAAAAAlTeVdyYXBwZXIAAAAAAAAAAAAAAAAAAApVbmRlcmx5aW5nAAAAAAAAAAAAAAAAAAdQdFRva2VuAAAAAAAAAAAAAAAAB1l0VG9rZW4AAAAAAAAAAAAAAAAGUGF1c2VkAAAAAAABAAAAAAAAAAtVc2VySW50ZW50cwAAAAABAAAAEw==",
         "AAAAAAAAAAAAAAAKaW5pdGlhbGl6ZQAAAAAACAAAAAAAAAAFYWRtaW4AAAAAAAATAAAAAAAAAAV2YXVsdAAAAAAAABMAAAAAAAAACXRva2VuaXplcgAAAAAAABMAAAAAAAAAC21hcmtldHBsYWNlAAAAABMAAAAAAAAACnN5X3dyYXBwZXIAAAAAABMAAAAAAAAACnVuZGVybHlpbmcAAAAAABMAAAAAAAAACHB0X3Rva2VuAAAAEwAAAAAAAAAIeXRfdG9rZW4AAAATAAAAAQAAA+kAAAPtAAAAAAAAB9AAAAASTm92YWlyZUludGVudEVycm9yAAA=",
-        "AAAAAQAAAAAAAAAAAAAADEludGVudFJlY29yZAAAAAYAAAAAAAAADmNyZWF0ZWRfbGVkZ2VyAAAAAAAEAAAAAAAAABBkZXBvc2l0ZWRfYW1vdW50AAAACwAAAAAAAAAVaW1wbGllZF9yYXRlX2F0X2VudHJ5AAAAAAAACwAAAAAAAAAPbWF0dXJpdHlfbGVkZ2VyAAAAAAQAAAAAAAAAB3B0X2hlbGQAAAAACwAAAAAAAAAHeXRfc29sZAAAAAAL",
-        "AAAAAAAAAAAAAAAPZ2V0X3VzZXJfaW50ZW50AAAAAAEAAAAAAAAABHVzZXIAAAATAAAAAQAAA+kAAAfQAAAADEludGVudFJlY29yZAAAB9AAAAASTm92YWlyZUludGVudEVycm9yAAA=",
-        "AAAABAAAAAAAAAAAAAAAEk5vdmFpcmVJbnRlbnRFcnJvcgAAAAAACQAAAAAAAAAGUGF1c2VkAAAAAAABAAAAAAAAAAxVbmF1dGhvcml6ZWQAAAACAAAAAAAAAApaZXJvQW1vdW50AAAAAAADAAAAAAAAAApSYXRlVG9vTG93AAAAAAAEAAAAAAAAAAxJbnRlbnRGYWlsZWQAAAAFAAAAAAAAABJBbHJlYWR5SW5pdGlhbGl6ZWQAAAAAAAYAAAAAAAAADlN0b3JhZ2VNaXNzaW5nAAAAAAAHAAAAAAAAABFJbnZhcmlhbnRWaW9sYXRlZAAAAAAAAAgAAAAAAAAAEUludmFsaWRQZXJjZW50YWdlAAAAAAAACQ==",
+        "AAAAAAAAAAAAAAAPZ2V0X3VzZXJfaW50ZW50AAAAAAEAAAAAAAAABHVzZXIAAAATAAAAAQAAA+kAAAfQAAAAFkN1bXVsYXRpdmVJbnRlbnRSZWNvcmQAAAAAB9AAAAASTm92YWlyZUludGVudEVycm9yAAA=",
+        "AAAABAAAAAAAAAAAAAAAEk5vdmFpcmVJbnRlbnRFcnJvcgAAAAAACgAAAAAAAAAGUGF1c2VkAAAAAAABAAAAAAAAAAxVbmF1dGhvcml6ZWQAAAACAAAAAAAAAApaZXJvQW1vdW50AAAAAAADAAAAAAAAAApSYXRlVG9vTG93AAAAAAAEAAAAAAAAAAxJbnRlbnRGYWlsZWQAAAAFAAAAAAAAABJBbHJlYWR5SW5pdGlhbGl6ZWQAAAAAAAYAAAAAAAAADlN0b3JhZ2VNaXNzaW5nAAAAAAAHAAAAAAAAABFJbnZhcmlhbnRWaW9sYXRlZAAAAAAAAAgAAAAAAAAAEUludmFsaWRQZXJjZW50YWdlAAAAAAAACQAAAAAAAAAaTWFya2V0cGxhY2VOb3RCb290c3RyYXBwZWQAAAAAAAo=",
         "AAAAAAAAAAAAAAAVZ2V0X2N1cnJlbnRfYmVzdF9yYXRlAAAAAAAAAAAAAAEAAAPpAAAACwAAB9AAAAASTm92YWlyZUludGVudEVycm9yAAA=",
-        "AAAAAAAAAAAAAAAaZXhlY3V0ZV9maXhlZF95aWVsZF9pbnRlbnQAAAAAAAUAAAAAAAAABHVzZXIAAAATAAAAAAAAAAt1c2RjX2Ftb3VudAAAAAALAAAAAAAAABBtaW5faW1wbGllZF9yYXRlAAAACwAAAAAAAAAQX21hdHVyaXR5X2xlZGdlcgAAAAQAAAAAAAAAEnl0X3NhbGVfcGVyY2VudGFnZQAAAAAABAAAAAEAAAPpAAAH0AAAAAxJbnRlbnRSZWNvcmQAAAfQAAAAEk5vdmFpcmVJbnRlbnRFcnJvcgAA",
-        "AAAAAAAAAAAAAAAgZXhlY3V0ZV95aWVsZF9zcGVjdWxhdGlvbl9pbnRlbnQAAAADAAAAAAAAAAR1c2VyAAAAEwAAAAAAAAALdXNkY19hbW91bnQAAAAACwAAAAAAAAAKbWluX3l0X291dAAAAAAACwAAAAEAAAPpAAAACwAAB9AAAAASTm92YWlyZUludGVudEVycm9yAAA=" ]),
+        "AAAAAQAAAAAAAAAAAAAAFkN1bXVsYXRpdmVJbnRlbnRSZWNvcmQAAAAAAAQAAAAAAAAAFnRvdGFsX2RlcG9zaXRlZF9hbW91bnQAAAAAAAsAAAAAAAAADXRvdGFsX3B0X2hlbGQAAAAAAAALAAAAAAAAABl0b3RhbF91bmRlcmx5aW5nX3JlY2VpdmVkAAAAAAAACwAAAAAAAAANdG90YWxfeXRfc29sZAAAAAAAAAs=",
+        "AAAAAAAAAAAAAAAaZXhlY3V0ZV9maXhlZF95aWVsZF9pbnRlbnQAAAAAAAYAAAAAAAAABHVzZXIAAAATAAAAAAAAAAt1c2RjX2Ftb3VudAAAAAALAAAAAAAAABBtaW5faW1wbGllZF9yYXRlAAAACwAAAAAAAAASbWluX3VuZGVybHlpbmdfb3V0AAAAAAALAAAAAAAAABBfbWF0dXJpdHlfbGVkZ2VyAAAABAAAAAAAAAASeXRfc2FsZV9wZXJjZW50YWdlAAAAAAAEAAAAAQAAA+kAAAfQAAAAFkN1bXVsYXRpdmVJbnRlbnRSZWNvcmQAAAAAB9AAAAASTm92YWlyZUludGVudEVycm9yAAA=",
+        "AAAAAAAAAAAAAAAgZXhlY3V0ZV95aWVsZF9zcGVjdWxhdGlvbl9pbnRlbnQAAAAEAAAAAAAAAAR1c2VyAAAAEwAAAAAAAAALdXNkY19hbW91bnQAAAAACwAAAAAAAAAKbWluX3l0X291dAAAAAAACwAAAAAAAAASbWluX3VuZGVybHlpbmdfb3V0AAAAAAALAAAAAQAAA+kAAAALAAAH0AAAABJOb3ZhaXJlSW50ZW50RXJyb3IAAA==" ]),
       options
     )
   }
@@ -133,9 +132,9 @@ export class Client extends ContractClient {
     pause: this.txFromJSON<Result<void>>,
         unpause: this.txFromJSON<Result<void>>,
         initialize: this.txFromJSON<Result<void>>,
-        get_user_intent: this.txFromJSON<Result<IntentRecord>>,
+        get_user_intent: this.txFromJSON<Result<CumulativeIntentRecord>>,
         get_current_best_rate: this.txFromJSON<Result<i128>>,
-        execute_fixed_yield_intent: this.txFromJSON<Result<IntentRecord>>,
+        execute_fixed_yield_intent: this.txFromJSON<Result<CumulativeIntentRecord>>,
         execute_yield_speculation_intent: this.txFromJSON<Result<i128>>
   }
 }

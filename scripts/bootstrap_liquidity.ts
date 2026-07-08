@@ -52,9 +52,8 @@ async function run() {
     console.log(`YT Token: ${d.yt_token}`);
 
     console.log('\n--- Step 2: Treasury Setup ---');
-    if (!fs.existsSync(TESTNET_KEYS)) throw new Error('testnet_keys.json missing');
-    const keys = JSON.parse(fs.readFileSync(TESTNET_KEYS, 'utf-8'));
-    const adminKp = Keypair.fromSecret(keys.admin_secret);
+    if (!process.env.ADMIN_SECRET) throw new Error('ADMIN_SECRET environment variable missing');
+    const adminKp = Keypair.fromSecret(process.env.ADMIN_SECRET);
     const adminAddress = adminKp.publicKey();
     console.log(`Treasury Wallet: ${adminAddress}`);
 
@@ -253,7 +252,7 @@ async function run() {
         const mintResult = invoke(
             d.intent_engine,
             'execute_fixed_yield_intent',
-            `--user ${testWallet.publicKey()} --usdc_amount ${retailDeposit} --min_implied_rate 0 --_maturity_ledger ${currentMaturityLedger} --yt_sale_percentage 10000`,
+            `--user ${testWallet.publicKey()} --usdc_amount ${retailDeposit} --min_implied_rate 0 --_maturity_ledger ${currentMaturityLedger} --yt_sale_percentage 100 --min_underlying_out 0`,
             testWallet.secret()
         );
         console.log('Retail Transaction Success!');

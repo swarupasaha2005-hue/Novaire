@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use soroban_sdk::{testutils::{Address as _, Ledger, Events}, token, Address, Env, IntoVal, Symbol};
+use soroban_sdk::{testutils::{Address as _, Ledger, Events}, token, Address, Env, IntoVal};
 
 use sy_wrapper::{SyWrapper, SyWrapperClient};
 use pt_token::{PtToken, PtTokenClient};
@@ -85,7 +85,7 @@ fn test_novaire_end_to_end_integration() {
 
     let yt_contract_id = env.register(YtToken, ());
     let yt_client = YtTokenClient::new(&env, &yt_contract_id);
-    yt_client.initialize(&admin, &tokenizer_contract_id, &1000);
+    yt_client.initialize(&admin, &tokenizer_contract_id, &1000, &sy_contract_id);
 
     let vault_contract_id = env.register(Vault, ());
     let vault_client = VaultClient::new(&env, &vault_contract_id);
@@ -139,10 +139,10 @@ fn test_novaire_end_to_end_integration() {
     vault_client.deposit(&lp, &5_000_000);
     let lp_sy = vault_client.balance_of(&lp);
     tokenizer_client.mint_pt_yt(&lp, &lp_sy);
-    market_client.add_liquidity(&lp, &900_000, &1_000_000);
+    market_client.add_liquidity(&lp, &1_000_000, &900_000);
 
     // Store total supply metrics to verify invariants at the end
-    let total_usdc_minted = 10_000_000;
+    let _total_usdc_minted = 10_000_000;
 
     // ==========================================
     // 2. ALICE: FIXED YIELD INTENT
@@ -244,15 +244,14 @@ fn test_novaire_end_to_end_integration() {
     // Verify settle_epoch event was emitted
     let mut settled_event_found = false;
     for (contract_id, topics, _) in env.events().all().iter() {
-        if contract_id == tokenizer_contract_id {
-            if topics.len() > 0 {
+        if contract_id == tokenizer_contract_id
+            && !topics.is_empty() {
                 let topic_sym: soroban_sdk::Symbol = topics.get(0).unwrap().into_val(&env);
                 if topic_sym == soroban_sdk::Symbol::new(&env, "tokenizer_settled") {
                     settled_event_found = true;
                     break;
                 }
             }
-        }
     }
     assert!(settled_event_found, "epoch_settled event not emitted");
 
@@ -292,7 +291,7 @@ fn test_novaire_end_to_end_integration() {
     let yt2_id = env.register(YtToken, ());
     let tokenizer2_id = env.register(Tokenizer, ());
     PtTokenClient::new(&env, &pt2_id).initialize(&admin, &tokenizer2_id);
-    YtTokenClient::new(&env, &yt2_id).initialize(&admin, &tokenizer2_id, &epoch_2_maturity);
+    YtTokenClient::new(&env, &yt2_id).initialize(&admin, &tokenizer2_id, &epoch_2_maturity, &sy_contract_id);
 
     TokenizerClient::new(&env, &tokenizer2_id).initialize(&admin, &vault_contract_id, &pt2_id, &yt2_id, &sy_contract_id, &epoch_2_maturity);
 
@@ -331,7 +330,7 @@ fn test_novaire_end_to_end_integration() {
     // ==========================================
     // FINAL ASSERTIONS
     // ==========================================
-    let total_usdc_in_vault = usdc_client.balance(&vault_contract_id);
+    let _total_usdc_in_vault = usdc_client.balance(&vault_contract_id);
     let total_usdc_in_market1 = usdc_client.balance(&market_contract_id);
     let total_usdc_in_market2 = usdc_client.balance(&market2_id);
     let total_usdc_in_tokenizer1 = usdc_client.balance(&tokenizer_contract_id);

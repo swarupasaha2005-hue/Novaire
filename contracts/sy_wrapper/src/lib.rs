@@ -193,11 +193,7 @@ impl SyWrapper {
         Ok(underlying_to_return)
     }
 
-    pub fn harvest_yield(env: Env) -> Result<(), NovaireSyError> {
-        let admin = storage::get_admin(&env)?;
-        admin.require_auth();
-        storage::require_not_paused(&env)?;
-
+    pub fn refresh_rate(env: Env) -> Result<(), NovaireSyError> {
         let underlying_addr = storage::get_underlying(&env)?;
         let token_client = token::Client::new(&env, &underlying_addr);
         let actual_balance = token_client.balance(&env.current_contract_address());
@@ -231,6 +227,16 @@ impl SyWrapper {
                 storage::set_total_underlying(&env, actual_balance);
             }
         }
+        
+        Ok(())
+    }
+
+    pub fn harvest_yield(env: Env) -> Result<(), NovaireSyError> {
+        let admin = storage::get_admin(&env)?;
+        admin.require_auth();
+        storage::require_not_paused(&env)?;
+
+        Self::refresh_rate(env.clone())?;
 
         let rate = Self::get_exchange_rate(env.clone());
         let total_shares = storage::get_total_shares(&env);

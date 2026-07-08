@@ -84,7 +84,7 @@ pub trait PtTokenInterface {
 
 #[soroban_sdk::contractclient(name = "YtTokenClient")]
 pub trait YtTokenInterface {
-    fn initialize(env: Env, admin: Address, tokenizer: Address, maturity_ledger: u32);
+    fn initialize(env: Env, admin: Address, tokenizer: Address, maturity_ledger: u32, sy_wrapper: Address);
 }
 
 #[soroban_sdk::contractclient(name = "TokenizerClient")]
@@ -104,7 +104,7 @@ pub trait IntentEngineInterface {
 
 #[soroban_sdk::contractclient(name = "RolloverEngineClient")]
 pub trait RolloverEngineInterface {
-    fn initialize(env: Env, admin: Address, tokenizer: Address, vault: Address, marketplace: Address, intent_engine: Address, keeper: Address, pt_token: Address, underlying_token: Address, grace_period_ledgers: u32);
+    fn initialize(env: Env, admin: Address, tokenizer: Address, vault: Address, marketplace: Address, intent_engine: Address, keeper: Address, pt_token: Address, underlying_token: Address, factory: Address, grace_period_ledgers: u32);
 }
 
 // ==========================================
@@ -212,7 +212,7 @@ impl Factory {
         pt_client.initialize(&admin, &params.tokenizer);
 
         let yt_client = YtTokenClient::new(&env, &params.yt_token);
-        yt_client.initialize(&admin, &params.tokenizer, &params.maturity_ledger);
+        yt_client.initialize(&admin, &params.tokenizer, &params.maturity_ledger, &params.sy_wrapper);
 
         let tokenizer_client = TokenizerClient::new(&env, &params.tokenizer);
         tokenizer_client.initialize(&admin, &params.vault, &params.pt_token, &params.yt_token, &params.sy_wrapper, &params.maturity_ledger);
@@ -224,7 +224,7 @@ impl Factory {
         intent_client.initialize(&admin, &params.vault, &params.tokenizer, &params.marketplace, &params.sy_wrapper, &params.underlying_token, &params.pt_token, &params.yt_token);
 
         let rollover_client = RolloverEngineClient::new(&env, &params.rollover_engine);
-        rollover_client.initialize(&admin, &params.tokenizer, &params.vault, &params.marketplace, &params.intent_engine, &params.keeper, &params.pt_token, &params.underlying_token, &params.grace_period_ledgers);
+        rollover_client.initialize(&admin, &params.tokenizer, &params.vault, &params.marketplace, &params.intent_engine, &params.keeper, &params.pt_token, &params.underlying_token, &env.current_contract_address(), &params.grace_period_ledgers);
 
         let version = storage::get_protocol_version(&env);
         

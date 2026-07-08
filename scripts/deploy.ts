@@ -216,7 +216,7 @@ async function deploy() {
     console.log("Generating TypeScript Bindings...");
     for (const name of contractsToDeploy) {
         if (!deployments[`${name}_bindings`]) {
-            runCmd(`stellar contract bindings typescript --id ${deployments[name]} --network testnet --output-dir ../packages/bindings/${name}`);
+            runCmd(`stellar contract bindings typescript --id ${deployments[name]} --network testnet --overwrite --output-dir ./packages/bindings/${name}`);
             deployments[`${name}_bindings`] = "true";
             saveDeployments(__dirname, deployments);
         }

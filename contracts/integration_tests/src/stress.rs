@@ -1,6 +1,6 @@
 //! Stress test battery — covers extreme conditions while verifying all invariants.
 
-use crate::framework::{Protocol, SCALE, BOOTSTRAP_PT, BOOTSTRAP_UNDER};
+use crate::framework::{Protocol, SCALE};
 use crate::invariants::InvariantEngine;
 
 /// Helper: build a fully bootstrapped protocol with a seeded marketplace.

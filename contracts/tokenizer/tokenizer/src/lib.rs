@@ -56,6 +56,7 @@ pub trait VaultInterface {
 #[soroban_sdk::contractclient(name = "SyWrapperClient")]
 pub trait SyWrapperInterface {
     fn get_exchange_rate(env: Env) -> i128;
+    fn refresh_rate(env: Env) -> Result<(), soroban_sdk::Error>;
 }
 
 #[soroban_sdk::contractclient(name = "PtTokenClient")]
@@ -74,6 +75,7 @@ pub trait YtTokenInterface {
     fn reset_claimable(env: Env, user: Address);
     fn update_yield_index(env: Env, new_index: i128);
     fn total_supply(env: Env) -> i128;
+    fn add_accrued_yield(env: Env, user: Address, amount: i128);
 }
 
 #[contracttype]
@@ -216,6 +218,16 @@ impl Tokenizer {
         yt_client.update_yield_index(&exchange_rate);
         yt_client.mint(&user, &sy_shares);
 
+        // M2 Fix: Credit historical yield to late minters
+        let epoch_start_index = storage::get_i128(&env, DataKey::EpochStartIndex)?;
+        if exchange_rate > epoch_start_index {
+            let index_delta = exchange_rate.checked_sub(epoch_start_index).ok_or(NovaireTokenizerError::MathUnderflow)?;
+            let historical_yield = index_delta.checked_mul(sy_shares).ok_or(NovaireTokenizerError::MathOverflow)? / 1_000_000_000;
+            if historical_yield > 0 {
+                yt_client.add_accrued_yield(&user, &historical_yield);
+            }
+        }
+
         // 4. Update Internal Accounting
         let mut total_pt_minted = storage::get_i128(&env, DataKey::TotalPtMinted)?;
         total_pt_minted = total_pt_minted.checked_add(sy_shares).ok_or(NovaireTokenizerError::MathOverflow)?;
@@ -299,6 +311,9 @@ impl Tokenizer {
         // State is Matured. We now transition to Settled.
         let sy_wrapper_addr = storage::get_address(&env, DataKey::SyWrapper)?;
         let sy_client = SyWrapperClient::new(&env, &sy_wrapper_addr);
+        
+        // Fix M3: Prevent stale settlement rate by refreshing accounting before freezing
+        sy_client.refresh_rate();
         let settlement_rate = sy_client.get_exchange_rate();
         
         storage::set_settlement_rate(&env, settlement_rate);
@@ -397,11 +412,10 @@ impl Tokenizer {
         let yt_outstanding = yt_client.total_supply();
 
         // INVARIANT 1: PT supply strictly equals YT supply during the Open phase.
-        if storage::get_epoch_state(&env)? == EpochState::Open {
-            if pt_outstanding != yt_outstanding {
+        if storage::get_epoch_state(&env)? == EpochState::Open
+            && pt_outstanding != yt_outstanding {
                 return Err(NovaireTokenizerError::InvariantViolated);
             }
-        }
 
         // INVARIANT 2: Tokenizer must hold enough Vault Shares to mathematically satisfy the outstanding PT principal guarantee.
         let vault_addr = storage::get_address(&env, DataKey::Vault)?;
@@ -457,7 +471,7 @@ mod tests {
         let token_admin = Address::generate(&env);
         let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone()).address();
         let token_admin_client = token::StellarAssetClient::new(&env, &token_contract);
-        let token_client = token::Client::new(&env, &token_contract);
+        let _token_client = token::Client::new(&env, &token_contract);
 
         token_admin_client.mint(&user, &2000);
 
@@ -481,7 +495,7 @@ mod tests {
         let maturity_ledger = 100;
         
         pt_client.initialize(&admin, &tokenizer_contract_id);
-        yt_client.initialize(&admin, &tokenizer_contract_id, &maturity_ledger);
+        yt_client.initialize(&admin, &tokenizer_contract_id, &maturity_ledger, &sy_contract_id);
 
         tokenizer_client.initialize(
             &admin,

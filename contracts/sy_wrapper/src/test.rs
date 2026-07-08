@@ -2,8 +2,8 @@
 
 use super::*;
 use soroban_sdk::{
-    testutils::{Address as _, Events},
-    token, Address, Env, IntoVal, Symbol,
+    testutils::Address as _,
+    token, Address, Env,
 };
 
 // --- Setup Helpers ---

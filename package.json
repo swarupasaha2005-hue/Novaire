@@ -10,7 +10,10 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "deploy": "tsx --env-file=.env scripts/deploy.ts",
+    "deploy:epoch": "tsx --env-file=.env scripts/deploy_xlm_epoch.ts",
+    "bootstrap": "tsx --env-file=.env scripts/bootstrap_liquidity.ts"
   },
   "dependencies": {
     "@prisma/client": "^7.8.0",
@@ -34,9 +37,11 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^16.6.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "tailwindcss": "^4",
+    "tsx": "^4.23.0",
     "typescript": "^5"
   }
 }

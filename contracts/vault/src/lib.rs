@@ -532,6 +532,6 @@ mod tests {
         // Test metadata
         let md = vault_client.metadata();
         assert_eq!(md.total_vault_shares, 1009);
-        assert_eq!(md.is_paused, false);
+        assert!(!md.is_paused);
     }
 }

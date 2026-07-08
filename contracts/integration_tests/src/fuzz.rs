@@ -1,7 +1,6 @@
 use crate::framework::Protocol;
 use crate::invariants::InvariantEngine;
 use proptest::prelude::*;
-use soroban_sdk::Address;
 
 #[derive(Clone, Debug)]
 pub enum ProtocolAction {
@@ -26,21 +25,21 @@ pub fn run_fuzz_sequence(actions: Vec<ProtocolAction>) {
                 let user = &users[user_idx % users.len()];
                 let amt = amount.abs() % 1_000_000;
                 if amt > 0 {
-                    let _ = protocol.try_deposit(user, amt);
+                    protocol.try_deposit(user, amt);
                 }
             },
             ProtocolAction::Withdraw { user_idx, amount } => {
                 let user = &users[user_idx % users.len()];
                 let amt = amount.abs() % 1_000_000;
                 if amt > 0 {
-                    let _ = protocol.try_withdraw(user, amt);
+                    protocol.try_withdraw(user, amt);
                 }
             },
             ProtocolAction::MintPtYt { user_idx, amount } => {
                 let user = &users[user_idx % users.len()];
                 let amt = amount.abs() % 1_000_000;
                 if amt > 0 {
-                    let _ = protocol.try_mint_pt_yt(user, amt);
+                    protocol.try_mint_pt_yt(user, amt);
                 }
             }
         }

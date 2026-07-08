@@ -37,6 +37,12 @@ pub struct Protocol<'a> {
     pub maturity_ledger:  u32,
 }
 
+impl<'a> Default for Protocol<'a> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<'a> Protocol<'a> {
     pub fn new() -> Self {
         let env = Env::default();
@@ -78,7 +84,7 @@ impl<'a> Protocol<'a> {
         sy_wrapper.initialize(&admin, &underlying_token_addr, &vault_addr);
         vault.initialize(&admin, &sy_wrapper_addr, &underlying_token_addr);
         pt_token.initialize(&admin, &tokenizer_addr);
-        yt_token.initialize(&admin, &tokenizer_addr, &MATURITY_LEDGER);
+        yt_token.initialize(&admin, &tokenizer_addr, &MATURITY_LEDGER, &sy_wrapper_addr);
         tokenizer.initialize(
             &admin, &vault_addr, &pt_token_addr, &yt_token_addr,
             &sy_wrapper_addr, &MATURITY_LEDGER,
@@ -110,6 +116,12 @@ impl<'a> Protocol<'a> {
 
     pub fn mint_mock_usdc(&self, user: &Address, amount: i128) {
         self.underlying_admin.mint(user, &amount);
+    }
+
+    pub fn generate_yield(&self, amount: i128) {
+        let sy_addr = self.sy_wrapper.address.clone();
+        self.underlying_admin.mint(&sy_addr, &amount);
+        self.sy_wrapper.harvest_yield();
     }
 
     pub fn advance_ledger(&self, n: u32) {

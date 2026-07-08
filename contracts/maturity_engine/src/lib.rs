@@ -209,7 +209,7 @@ impl MaturityEngine {
 
     pub fn next_epoch(env: Env) -> Result<u32, NovaireMaturityError> {
         let current_id = storage::get_current_epoch_id(&env);
-        Ok(current_id.checked_add(1).ok_or(NovaireMaturityError::MathOverflow)?)
+        current_id.checked_add(1).ok_or(NovaireMaturityError::MathOverflow)
     }
 
     pub fn epoch_history(env: Env, epoch_id: u32) -> Result<EpochRecord, NovaireMaturityError> {
@@ -308,13 +308,13 @@ mod tests {
         let epoch_id = me_client.open_epoch(&maturity);
         assert_eq!(epoch_id, 1);
         
-        assert_eq!(me_client.is_active(), true);
-        assert_eq!(me_client.is_settled(), false);
+        assert!(me_client.is_active());
+        assert!(!me_client.is_settled());
         assert_eq!(me_client.time_to_maturity(), 1000);
 
         let status = me_client.protocol_status();
         assert_eq!(status.current_epoch_id, 1);
-        assert_eq!(status.is_active, true);
+        assert!(status.is_active);
         assert_eq!(status.time_to_maturity, 1000);
 
         // Cannot open another active epoch
@@ -331,10 +331,10 @@ mod tests {
             ..env.ledger().get()
         });
 
-        assert_eq!(me_client.is_active(), false); // dynamic check
+        assert!(!me_client.is_active()); // dynamic check
         
         me_client.settle_epoch(&epoch_id);
-        assert_eq!(me_client.is_settled(), true);
+        assert!(me_client.is_settled());
 
         // Cannot double settle
         let res = me_client.try_settle_epoch(&epoch_id);
@@ -342,7 +342,7 @@ mod tests {
 
         // 3. Archive
         me_client.archive_epoch(&epoch_id);
-        assert_eq!(me_client.is_settled(), false); // it is now archived, not settled
+        assert!(!me_client.is_settled()); // it is now archived, not settled
         
         let epoch = me_client.get_epoch(&epoch_id);
         assert_eq!(epoch.state, EpochState::Archived);
@@ -412,7 +412,7 @@ mod tests {
             sequence_number: maturity - 1,
             ..env.ledger().get()
         });
-        assert_eq!(me_client.is_active(), true);
+        assert!(me_client.is_active());
         assert!(me_client.try_settle_epoch(&epoch_id).is_err());
 
         // ledger == maturity
@@ -420,7 +420,7 @@ mod tests {
             sequence_number: maturity,
             ..env.ledger().get()
         });
-        assert_eq!(me_client.is_active(), false);
+        assert!(!me_client.is_active());
         // Settlement should now be valid
         me_client.settle_epoch(&epoch_id);
     }
@@ -475,18 +475,18 @@ mod tests {
         });
 
         assert_eq!(me_client.total_epochs(), 0);
-        assert_eq!(me_client.is_active(), false);
-        assert_eq!(me_client.is_settled(), false);
+        assert!(!me_client.is_active());
+        assert!(!me_client.is_settled());
         assert!(me_client.try_current_epoch().is_err());
 
         me_client.open_epoch(&200);
         
         assert_eq!(me_client.total_epochs(), 1);
-        assert_eq!(me_client.is_active(), true);
+        assert!(me_client.is_active());
         assert_eq!(me_client.time_to_maturity(), 100);
         
         let status = me_client.protocol_status();
-        assert_eq!(status.is_active, true);
+        assert!(status.is_active);
         assert_eq!(status.current_epoch_id, 1);
     }
 }

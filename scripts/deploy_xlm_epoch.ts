@@ -139,11 +139,11 @@ ${out}`);
 
     console.log("Generating TypeScript Bindings for new XLM Epoch...");
     for (const name of contractsToDeploy) {
-        runCmd(`stellar contract bindings typescript --id ${deployments[name]} --network testnet --output-dir ../packages/bindings/${name} --overwrite`);
+        runCmd(`stellar contract bindings typescript --id ${deployments[name]} --network testnet --output-dir ./packages/bindings/${name} --overwrite`);
     }
     
     // Also regenerate factory just in case
-    runCmd(`stellar contract bindings typescript --id ${deployments.factory} --network testnet --output-dir ../packages/bindings/factory --overwrite`);
+    runCmd(`stellar contract bindings typescript --id ${deployments.factory} --network testnet --output-dir ./packages/bindings/factory --overwrite`);
 
     console.log("Verifying Deployment...");
     const epochCountOut = runCmdNoFail(`stellar contract invoke --id ${deployments.factory} --network-passphrase "${NETWORK_PASSPHRASE}" --rpc-url ${RPC_URL} -- epoch_count`);

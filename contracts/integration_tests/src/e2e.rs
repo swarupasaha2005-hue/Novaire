@@ -222,3 +222,248 @@ fn scenario_forced_rollover_slippage_protection() {
     assert!(result.is_err(), "Rollover should fail when minimum output requirement cannot be met");
     println!("  ✅ Forced Rollover slippage protection scenario complete");
 }
+
+// ── Scenario 8: H4 Fix - Yield is not transferred upon YT Transfer ────────────
+#[test]
+fn scenario_h4_yt_yield_transfer() {
+    let protocol = Protocol::new();
+    let alice = protocol.create_user();
+    let bob = protocol.create_user();
+
+    // 1. Alice deposits and mints
+    protocol.mint_mock_usdc(&alice, 100_000);
+    protocol.deposit(&alice, 100_000);
+    protocol.mint_pt_yt(&alice, 50_000);
+
+    // Initial yield should be 0
+    let alice_yield_init = protocol.yt_token.claimable_yield(&alice);
+    assert_eq!(alice_yield_init, 0);
+
+    // 2. Protocol accrues yield (e.g. 10% on the 100k)
+    protocol.generate_yield(10_000); // 10k yield
+
+    // Alice should now have 5k yield claimable (she owns 50k out of 100k SY)
+    let alice_yield_mid = protocol.yt_token.claimable_yield(&alice);
+    assert!(alice_yield_mid > 0);
+    assert_eq!(alice_yield_mid, 5_000);
+
+    // 3. Alice transfers all YT to Bob
+    let alice_yt = protocol.yt_token.balance(&alice);
+    protocol.yt_token.transfer(&alice, &bob, &alice_yt);
+
+    // 4. Bob should NOT receive Alice's accrued yield!
+    // Since transfer forces an index update, Alice's accrued yield gets locked to her,
+    // and Bob starts at the new index.
+    let bob_yield_after_transfer = protocol.yt_token.claimable_yield(&bob);
+    assert_eq!(bob_yield_after_transfer, 0, "Bob should not receive yield accrued before the transfer");
+
+    let alice_yield_after_transfer = protocol.yt_token.claimable_yield(&alice);
+    assert_eq!(alice_yield_after_transfer, alice_yield_mid, "Alice must retain her accrued yield");
+
+    // 5. Claim the yield to prove it
+    let alice_balance_before = protocol.underlying_token.balance(&alice);
+    protocol.claim_yield(&alice);
+    let alice_balance_after = protocol.underlying_token.balance(&alice);
+    let diff = ((alice_balance_after - alice_balance_before) - alice_yield_mid).abs();
+    assert!(diff <= 1, "Yield claimed should match expected within 1 unit of rounding");
+    println!("  ✅ H4 YT yield misassignment scenario complete");
+}
+
+// ── Regression Test 1: Partial Transfer ────────────
+#[test]
+fn scenario_h4_partial_transfer() {
+    let protocol = Protocol::new();
+    let alice = protocol.create_user();
+    let bob = protocol.create_user();
+
+    protocol.mint_mock_usdc(&alice, 100_000);
+    let sy_shares = protocol.deposit(&alice, 100_000);
+    protocol.mint_pt_yt(&alice, sy_shares);
+
+    protocol.generate_yield(10_000);
+
+    let alice_yield_mid = protocol.yt_token.claimable_yield(&alice);
+    
+    protocol.yt_token.transfer(&alice, &bob, &30_000);
+
+    let bob_yield = protocol.yt_token.claimable_yield(&bob);
+    assert_eq!(bob_yield, 0, "Bob should not receive Alice's historical yield");
+
+    let alice_yield_after = protocol.yt_token.claimable_yield(&alice);
+    assert_eq!(alice_yield_after, alice_yield_mid, "Alice retains accrued yield on entire position prior to transfer");
+    
+    let alice_balance_before = protocol.underlying_token.balance(&alice);
+    protocol.claim_yield(&alice);
+    let alice_balance_after = protocol.underlying_token.balance(&alice);
+    let diff = ((alice_balance_after - alice_balance_before) - alice_yield_mid).abs();
+    assert!(diff <= 1);
+    
+    let bob_res = protocol.tokenizer.try_claim_yield(&bob);
+    assert!(bob_res.is_err(), "Claim should revert since yield is 0");
+}
+
+// ── Regression Test 2: transfer_from ────────────
+#[test]
+fn scenario_h4_transfer_from() {
+    let protocol = Protocol::new();
+    let alice = protocol.create_user();
+    let bob = protocol.create_user();
+    let charlie = protocol.create_user();
+
+    protocol.mint_mock_usdc(&alice, 100_000);
+    let sy_shares = protocol.deposit(&alice, 100_000);
+    protocol.mint_pt_yt(&alice, sy_shares);
+
+    protocol.generate_yield(10_000);
+    let alice_yield_mid = protocol.yt_token.claimable_yield(&alice);
+
+    protocol.yt_token.approve(&alice, &charlie, &sy_shares, &2000000);
+    protocol.yt_token.transfer_from(&charlie, &alice, &bob, &sy_shares);
+
+    let bob_yield = protocol.yt_token.claimable_yield(&bob);
+    assert_eq!(bob_yield, 0, "Bob should not receive yield accrued before ownership transfer");
+
+    let alice_yield_after = protocol.yt_token.claimable_yield(&alice);
+    assert_eq!(alice_yield_after, alice_yield_mid, "Alice retains yield even after delegated transfer");
+}
+
+// ── Regression Test 3: Multiple Sequential Transfers ────────────
+#[test]
+fn scenario_h4_multiple_sequential_transfers() {
+    let protocol = Protocol::new();
+    let alice = protocol.create_user();
+    let bob = protocol.create_user();
+    let charlie = protocol.create_user();
+
+    protocol.mint_mock_usdc(&alice, 100_000);
+    let sy_shares = protocol.deposit(&alice, 100_000);
+    protocol.mint_pt_yt(&alice, sy_shares);
+
+    protocol.generate_yield(10_000);
+    let yield_1 = protocol.yt_token.claimable_yield(&alice);
+
+    protocol.yt_token.transfer(&alice, &bob, &sy_shares);
+
+    protocol.generate_yield(10_000);
+    let yield_2 = protocol.yt_token.claimable_yield(&bob);
+
+    protocol.yt_token.transfer(&bob, &charlie, &sy_shares);
+
+    protocol.generate_yield(10_000);
+    let yield_3 = protocol.yt_token.claimable_yield(&charlie);
+
+    let a_bal_b = protocol.underlying_token.balance(&alice);
+    protocol.claim_yield(&alice);
+    let a_bal_a = protocol.underlying_token.balance(&alice);
+    assert!(((a_bal_a - a_bal_b) - yield_1).abs() <= 1);
+
+    let b_bal_b = protocol.underlying_token.balance(&bob);
+    protocol.claim_yield(&bob);
+    let b_bal_a = protocol.underlying_token.balance(&bob);
+    assert!(((b_bal_a - b_bal_b) - yield_2).abs() <= 1);
+
+    let c_bal_b = protocol.underlying_token.balance(&charlie);
+    protocol.claim_yield(&charlie);
+    let c_bal_a = protocol.underlying_token.balance(&charlie);
+    assert!(((c_bal_a - c_bal_b) - yield_3).abs() <= 1);
+}
+
+#[test]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
+fn scenario_h4_set_sy_wrapper_auth_rejection() {
+    use soroban_sdk::{Env, Address, IntoVal};
+    use soroban_sdk::testutils::Address as _;
+    
+    let env = Env::default();
+    let admin = Address::generate(&env);
+    let old_sy = Address::generate(&env);
+    let new_sy = Address::generate(&env);
+    let tokenizer = Address::generate(&env);
+    
+    let yt_token_addr = env.register(yt_token::YtToken, ());
+    let yt_token_client = yt_token::YtTokenClient::new(&env, &yt_token_addr);
+
+    env.mock_auths(&[
+        soroban_sdk::testutils::MockAuth {
+            address: &admin,
+            invoke: &soroban_sdk::testutils::MockAuthInvoke {
+                contract: &yt_token_addr,
+                fn_name: "initialize",
+                args: (&admin, &tokenizer, &1_000u32, &old_sy).into_val(&env),
+                sub_invokes: &[],
+            },
+        }
+    ]);
+    yt_token_client.initialize(&admin, &tokenizer, &1_000, &old_sy);
+    
+    // Calling it without mock_auth should panic the test thread
+    yt_token_client.set_sy_wrapper(&new_sy);
+}
+
+#[test]
+fn scenario_h4_set_sy_wrapper_auth_success() {
+    use soroban_sdk::{Env, Address, IntoVal};
+    use soroban_sdk::testutils::Address as _;
+    
+    let env = Env::default();
+    let admin = Address::generate(&env);
+    let old_sy = Address::generate(&env);
+    let new_sy = Address::generate(&env);
+    let tokenizer = Address::generate(&env);
+    
+    let yt_token_addr = env.register(yt_token::YtToken, ());
+    let yt_token_client = yt_token::YtTokenClient::new(&env, &yt_token_addr);
+
+    env.mock_auths(&[
+        soroban_sdk::testutils::MockAuth {
+            address: &admin,
+            invoke: &soroban_sdk::testutils::MockAuthInvoke {
+                contract: &yt_token_addr,
+                fn_name: "initialize",
+                args: (&admin, &tokenizer, &1_000u32, &old_sy).into_val(&env),
+                sub_invokes: &[],
+            },
+        }
+    ]);
+    yt_token_client.initialize(&admin, &tokenizer, &1_000, &old_sy);
+    
+    env.mock_auths(&[
+        soroban_sdk::testutils::MockAuth {
+            address: &admin,
+            invoke: &soroban_sdk::testutils::MockAuthInvoke {
+                contract: &yt_token_addr,
+                fn_name: "set_sy_wrapper",
+                args: (&new_sy,).into_val(&env),
+                sub_invokes: &[],
+            },
+        }
+    ]);
+    
+    yt_token_client.set_sy_wrapper(&new_sy);
+}
+
+// ── Regression Test 5: Long Idle Period ────────────
+#[test]
+fn scenario_h4_long_idle_period() {
+    let protocol = Protocol::new();
+    let alice = protocol.create_user();
+    let bob = protocol.create_user();
+
+    protocol.mint_mock_usdc(&alice, 100_000);
+    let sy_shares = protocol.deposit(&alice, 100_000);
+    protocol.mint_pt_yt(&alice, sy_shares);
+
+    protocol.generate_yield(50_000);
+    protocol.advance_ledger(100);
+    protocol.generate_yield(50_000);
+
+    let alice_yield_mid = protocol.yt_token.claimable_yield(&alice);
+
+    protocol.yt_token.transfer(&alice, &bob, &sy_shares);
+
+    let bob_yield = protocol.yt_token.claimable_yield(&bob);
+    assert_eq!(bob_yield, 0);
+
+    let alice_yield_after = protocol.yt_token.claimable_yield(&alice);
+    assert_eq!(alice_yield_after, alice_yield_mid);
+}

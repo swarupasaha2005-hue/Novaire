@@ -4,7 +4,7 @@ use super::*;
 use soroban_sdk::{
     contract, contractimpl,
     testutils::{Address as _, Ledger},
-    token, Address, Env, IntoVal, Symbol,
+    token, Address, Env, IntoVal,
 };
 
 // ==========================================

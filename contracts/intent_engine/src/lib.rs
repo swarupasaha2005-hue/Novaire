@@ -454,7 +454,7 @@ mod tests {
         let tokenizer_client = RealTokenizerClient::new(&env, &tokenizer_contract_id);
         
         pt_client.initialize(&admin, &tokenizer_contract_id);
-        yt_client.initialize(&admin, &tokenizer_contract_id, &maturity_ledger);
+        yt_client.initialize(&admin, &tokenizer_contract_id, &maturity_ledger, &sy_contract_id);
         
         tokenizer_client.initialize(&admin, &vault_contract_id, &pt_contract_id, &yt_contract_id, &sy_contract_id, &maturity_ledger);
 
@@ -533,7 +533,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Error(Contract, #1)")]
     fn test_paused() {
-        let (env, admin, _, intent_engine, _, _, _, token_admin, _) = setup_env();
+        let (env, _admin, _, intent_engine, _, _, _, token_admin, _) = setup_env();
         let user = Address::generate(&env);
         token_admin.mint(&user, &10_000);
 
