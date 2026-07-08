@@ -15,6 +15,7 @@ pub enum NovaireFactoryError {
     MaturityInPast = 8,
     DuplicateAddress = 9,
     EpochNotLinked = 10,
+    WiringMismatch = 11,
 }
 
 #[contracttype]
@@ -67,29 +68,87 @@ pub struct DeployEpochParams {
 // CLIENT INTERFACES FOR DEPENDENCY INJECTION
 // ==========================================
 
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VaultMetadata {
+    pub admin: Address,
+    pub pending_admin: Option<Address>,
+    pub sy_wrapper: Address,
+    pub underlying: Address,
+    pub total_vault_shares: i128,
+    pub is_paused: bool,
+    pub version: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PtMetadata {
+    pub admin: Address,
+    pub tokenizer: Address,
+    pub total_supply: i128,
+    pub is_paused: bool,
+    pub version: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct YtMetadata {
+    pub admin: Address,
+    pub tokenizer: Address,
+    pub total_supply: i128,
+    pub yield_index: i128,
+    pub maturity_ledger: u32,
+    pub sy_wrapper: Address,
+    pub is_paused: bool,
+    pub is_expired: bool,
+    pub version: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TokenizerMetadata {
+    pub admin: Address,
+    pub vault: Address,
+    pub pt_token: Address,
+    pub yt_token: Address,
+    pub sy_wrapper: Address,
+    pub maturity_ledger: u32,
+    pub epoch_id: u32,
+    pub epoch_start_index: i128,
+    pub total_pt_minted: i128,
+    pub settlement_exchange_rate: Option<i128>,
+    pub epoch_state: u32,
+}
+
 #[soroban_sdk::contractclient(name = "SyWrapperClient")]
 pub trait SyWrapperInterface {
     fn initialize(env: Env, admin: Address, underlying_token: Address, vault: Address);
+    fn admin(env: Env) -> Address;
+    fn underlying_asset(env: Env) -> Address;
 }
 
 #[soroban_sdk::contractclient(name = "VaultClient")]
 pub trait VaultInterface {
     fn initialize(env: Env, admin: Address, sy_token: Address, underlying_token: Address);
+    fn metadata(env: Env) -> VaultMetadata;
 }
 
 #[soroban_sdk::contractclient(name = "PtTokenClient")]
 pub trait PtTokenInterface {
     fn initialize(env: Env, admin: Address, tokenizer: Address);
+    fn metadata(env: Env) -> PtMetadata;
 }
 
 #[soroban_sdk::contractclient(name = "YtTokenClient")]
 pub trait YtTokenInterface {
     fn initialize(env: Env, admin: Address, tokenizer: Address, maturity_ledger: u32, sy_wrapper: Address);
+    fn metadata(env: Env) -> YtMetadata;
 }
 
 #[soroban_sdk::contractclient(name = "TokenizerClient")]
 pub trait TokenizerInterface {
     fn initialize(env: Env, admin: Address, vault: Address, pt_token: Address, yt_token: Address, sy_token: Address, maturity_ledger: u32);
+    fn metadata(env: Env) -> TokenizerMetadata;
 }
 
 #[soroban_sdk::contractclient(name = "MarketplaceClient")]
@@ -225,6 +284,30 @@ impl Factory {
 
         let rollover_client = RolloverEngineClient::new(&env, &params.rollover_engine);
         rollover_client.initialize(&admin, &params.tokenizer, &params.vault, &params.marketplace, &params.intent_engine, &params.keeper, &params.pt_token, &params.underlying_token, &env.current_contract_address(), &params.grace_period_ledgers);
+
+        if sy_client.admin() != admin || sy_client.underlying_asset() != params.underlying_token {
+            return Err(NovaireFactoryError::WiringMismatch);
+        }
+
+        let vault_meta = vault_client.metadata();
+        if vault_meta.admin != admin || vault_meta.sy_wrapper != params.sy_wrapper || vault_meta.underlying != params.underlying_token {
+            return Err(NovaireFactoryError::WiringMismatch);
+        }
+
+        let pt_meta = pt_client.metadata();
+        if pt_meta.admin != admin || pt_meta.tokenizer != params.tokenizer {
+            return Err(NovaireFactoryError::WiringMismatch);
+        }
+
+        let yt_meta = yt_client.metadata();
+        if yt_meta.admin != admin || yt_meta.tokenizer != params.tokenizer || yt_meta.sy_wrapper != params.sy_wrapper || yt_meta.maturity_ledger != params.maturity_ledger {
+            return Err(NovaireFactoryError::WiringMismatch);
+        }
+
+        let tok_meta = tokenizer_client.metadata();
+        if tok_meta.admin != admin || tok_meta.vault != params.vault || tok_meta.pt_token != params.pt_token || tok_meta.yt_token != params.yt_token || tok_meta.sy_wrapper != params.sy_wrapper || tok_meta.maturity_ledger != params.maturity_ledger {
+            return Err(NovaireFactoryError::WiringMismatch);
+        }
 
         let version = storage::get_protocol_version(&env);
         

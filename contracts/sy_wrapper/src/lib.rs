@@ -301,8 +301,8 @@ impl SyWrapper {
         storage::get_total_shares(&env)
     }
 
-    pub fn underlying_asset(env: Env) -> Address {
-        storage::get_underlying(&env).unwrap()
+    pub fn underlying_asset(env: Env) -> Result<Address, NovaireSyError> {
+        storage::get_underlying(&env)
     }
 }
 

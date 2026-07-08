@@ -61,6 +61,22 @@ fn setup_test() -> Setup {
 // ==========================================
 
 #[test]
+fn test_l2_underlying_asset_missing_storage_error() {
+    let setup = setup_test();
+    
+    // Call try_underlying_asset() before initialization
+    let res = setup.client.try_underlying_asset();
+    assert_eq!(res, Err(Ok(NovaireSyError::StorageMissing)));
+
+    // Initialize the contract
+    setup.client.initialize(&setup.admin, &setup.token_contract, &setup.yield_source);
+
+    // Verify underlying_asset() still returns the expected Address
+    assert_eq!(setup.client.underlying_asset(), setup.token_contract);
+}
+// ==========================================
+
+#[test]
 fn test_initialize_success() {
     let setup = setup_test();
     setup.client.initialize(&setup.admin, &setup.token_contract, &setup.yield_source);

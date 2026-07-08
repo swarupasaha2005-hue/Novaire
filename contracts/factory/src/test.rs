@@ -13,28 +13,73 @@ use soroban_sdk::{
 
 pub mod mock_sy {
     use super::*;
+    use soroban_sdk::Symbol;
     #[contract] pub struct MockSyWrapper;
-    #[contractimpl] impl MockSyWrapper { pub fn initialize(_env: Env, _admin: Address, _underlying_token: Address, _vault: Address) {} }
+    #[contractimpl] impl MockSyWrapper { 
+        pub fn initialize(env: Env, admin: Address, underlying_token: Address, _vault: Address) {
+            env.storage().instance().set(&Symbol::new(&env, "admin"), &admin);
+            env.storage().instance().set(&Symbol::new(&env, "underlying"), &underlying_token);
+        }
+        pub fn admin(env: Env) -> Address { env.storage().instance().get(&Symbol::new(&env, "admin")).unwrap() }
+        pub fn underlying_asset(env: Env) -> Address { env.storage().instance().get(&Symbol::new(&env, "underlying")).unwrap() }
+    }
+}
+pub mod mock_bad_sy {
+    use super::*;
+    #[contract] pub struct MockBadSyWrapper;
+    #[contractimpl] impl MockBadSyWrapper { 
+        pub fn initialize(_env: Env, _admin: Address, _underlying_token: Address, _vault: Address) {}
+        pub fn admin(env: Env) -> Address { Address::generate(&env) }
+        pub fn underlying_asset(env: Env) -> Address { Address::generate(&env) }
+    }
 }
 pub mod mock_vault {
     use super::*;
+    use soroban_sdk::Symbol;
     #[contract] pub struct MockVault;
-    #[contractimpl] impl MockVault { pub fn initialize(_env: Env, _admin: Address, _sy_token: Address, _underlying_token: Address) {} }
+    #[contractimpl] impl MockVault { 
+        pub fn initialize(env: Env, admin: Address, sy_token: Address, underlying_token: Address) {
+            let meta = VaultMetadata { admin, pending_admin: None, sy_wrapper: sy_token, underlying: underlying_token, total_vault_shares: 0, is_paused: false, version: 1 };
+            env.storage().instance().set(&Symbol::new(&env, "meta"), &meta);
+        }
+        pub fn metadata(env: Env) -> VaultMetadata { env.storage().instance().get(&Symbol::new(&env, "meta")).unwrap() }
+    }
 }
 pub mod mock_pt {
     use super::*;
+    use soroban_sdk::Symbol;
     #[contract] pub struct MockPtToken;
-    #[contractimpl] impl MockPtToken { pub fn initialize(_env: Env, _admin: Address, _tokenizer: Address) {} }
+    #[contractimpl] impl MockPtToken { 
+        pub fn initialize(env: Env, admin: Address, tokenizer: Address) {
+            let meta = PtMetadata { admin, tokenizer, total_supply: 0, is_paused: false, version: 1 };
+            env.storage().instance().set(&Symbol::new(&env, "meta"), &meta);
+        }
+        pub fn metadata(env: Env) -> PtMetadata { env.storage().instance().get(&Symbol::new(&env, "meta")).unwrap() }
+    }
 }
 pub mod mock_yt {
     use super::*;
+    use soroban_sdk::Symbol;
     #[contract] pub struct MockYtToken;
-    #[contractimpl] impl MockYtToken { pub fn initialize(_env: Env, _admin: Address, _tokenizer: Address, _maturity_ledger: u32, _sy_wrapper: Address) {} }
+    #[contractimpl] impl MockYtToken { 
+        pub fn initialize(env: Env, admin: Address, tokenizer: Address, maturity_ledger: u32, sy_wrapper: Address) {
+            let meta = YtMetadata { admin, tokenizer, total_supply: 0, yield_index: 0, maturity_ledger, sy_wrapper, is_paused: false, is_expired: false, version: 1 };
+            env.storage().instance().set(&Symbol::new(&env, "meta"), &meta);
+        }
+        pub fn metadata(env: Env) -> YtMetadata { env.storage().instance().get(&Symbol::new(&env, "meta")).unwrap() }
+    }
 }
 pub mod mock_tokenizer {
     use super::*;
+    use soroban_sdk::Symbol;
     #[contract] pub struct MockTokenizer;
-    #[contractimpl] impl MockTokenizer { pub fn initialize(_env: Env, _admin: Address, _vault: Address, _pt_token: Address, _yt_token: Address, _sy_token: Address, _maturity_ledger: u32) {} }
+    #[contractimpl] impl MockTokenizer { 
+        pub fn initialize(env: Env, admin: Address, vault: Address, pt_token: Address, yt_token: Address, sy_token: Address, maturity_ledger: u32) {
+            let meta = TokenizerMetadata { admin, vault, pt_token, yt_token, sy_wrapper: sy_token, maturity_ledger, epoch_id: 0, epoch_start_index: 0, total_pt_minted: 0, settlement_exchange_rate: None, epoch_state: 0 };
+            env.storage().instance().set(&Symbol::new(&env, "meta"), &meta);
+        }
+        pub fn metadata(env: Env) -> TokenizerMetadata { env.storage().instance().get(&Symbol::new(&env, "meta")).unwrap() }
+    }
 }
 pub mod mock_market {
     use super::*;
@@ -238,4 +283,38 @@ fn test_unauthorized_initialization_fails() {
     
     // This will fail because it lacks `admin` authorization
     factory.initialize(&admin, &1);
+}
+
+#[test]
+#[should_panic(expected = "HostError: Error(Contract, #11)")]
+fn test_wiring_mismatch_fails() {
+    let s = setup();
+    let env = &s.env;
+    let underlying = Address::generate(env);
+    let sy = env.register(mock_bad_sy::MockBadSyWrapper, ());
+    let vault = env.register(mock_vault::MockVault, ());
+    let pt = env.register(mock_pt::MockPtToken, ());
+    let yt = env.register(mock_yt::MockYtToken, ());
+    let tokenizer = env.register(mock_tokenizer::MockTokenizer, ());
+    let marketplace = env.register(mock_market::MockMarketplace, ());
+    let intent = env.register(mock_intent::MockIntentEngine, ());
+    let rollover = env.register(mock_rollover::MockRolloverEngine, ());
+    let keeper = Address::generate(env);
+
+    let params = DeployEpochParams {
+        maturity_ledger: 100000,
+        underlying_token: underlying,
+        sy_wrapper: sy,
+        vault,
+        pt_token: pt,
+        yt_token: yt,
+        tokenizer,
+        marketplace,
+        intent_engine: intent,
+        rollover_engine: rollover,
+        keeper,
+        grace_period_ledgers: 17280,
+    };
+
+    s.factory.deploy_epoch(&params);
 }
