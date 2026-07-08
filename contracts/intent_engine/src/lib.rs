@@ -114,10 +114,10 @@ impl IntentEngine {
         pt_token: Address,
         yt_token: Address,
     ) -> Result<(), NovaireIntentError> {
+        admin.require_auth();
         if storage::is_initialized(&env) {
             return Err(NovaireIntentError::AlreadyInitialized);
         }
-        admin.require_auth();
 
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::Vault, &vault);

@@ -167,10 +167,10 @@ impl NovaireMarketplace {
         tokenizer: Address,
         maturity_ledger: u32,
     ) -> Result<(), NovaireMarketError> {
+        admin.require_auth();
         if storage::is_initialized(&env) {
             return Err(NovaireMarketError::AlreadyInitialized);
         }
-        admin.require_auth();
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::PtToken, &pt_token);
         env.storage().instance().set(&DataKey::YtToken, &yt_token);

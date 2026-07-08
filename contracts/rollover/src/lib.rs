@@ -173,10 +173,10 @@ impl AutonomousRollover {
         factory: Address,
         grace_period_ledgers: u32,
     ) -> Result<(), NovaireRolloverError> {
+        admin.require_auth();
         if storage::is_initialized(&env) {
             return Err(NovaireRolloverError::AlreadyInitialized);
         }
-        admin.require_auth();
 
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::Tokenizer, &tokenizer);

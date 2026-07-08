@@ -153,10 +153,10 @@ pub struct Factory;
 #[contractimpl]
 impl Factory {
     pub fn initialize(env: Env, admin: Address, protocol_version: u32) -> Result<(), NovaireFactoryError> {
+        admin.require_auth();
         if storage::is_initialized(&env) {
             return Err(NovaireFactoryError::AlreadyInitialized);
         }
-        admin.require_auth();
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::ProtocolVersion, &protocol_version);
         storage::set_epoch_count(&env, 0);
