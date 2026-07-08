@@ -635,10 +635,6 @@ impl YtToken {
         storage::get_allowance(&env, &from, &spender)
     }
 
-    fn is_initialized(env: Env) -> bool {
-        storage::is_initialized(&env)
-    }
-
     pub fn is_paused(env: Env) -> bool {
         storage::is_paused(&env)
     }

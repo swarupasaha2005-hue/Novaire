@@ -293,6 +293,7 @@ impl Tokenizer {
         let actual_underlying = vault_client.withdraw_for(&env.current_contract_address(), &user, &shares_to_withdraw);
 
         env.events().publish((Symbol::new(&env, "tokenizer_claimed"), user), (actual_underlying, shares_to_withdraw));
+        Self::assert_invariant(env.clone())?;
         Ok(actual_underlying)
     }
 
@@ -371,6 +372,7 @@ impl Tokenizer {
         let actual_underlying = vault_client.withdraw_for(&env.current_contract_address(), &user, &shares_to_withdraw);
 
         env.events().publish((Symbol::new(&env, "tokenizer_redeemed"), user), (pt_amount, actual_underlying));
+        Self::assert_invariant(env.clone())?;
         Ok(actual_underlying)
     }
 

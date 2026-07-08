@@ -468,7 +468,7 @@ mod tests {
         vault_client.deposit(&lp_provider, &2_000_000);
         let sy_bal = vault_client.balance_of(&lp_provider);
         tokenizer_client.mint_pt_yt(&lp_provider, &sy_bal);
-        market_client.add_liquidity(&lp_provider, &1_000_000, &1_100_000); // 1M PT, 1.1M U
+        market_client.add_liquidity(&lp_provider, &1_000_000, &900_000); // 1M PT, 1.1M U
 
         let intent_engine_contract_id = env.register(IntentEngine, ());
         let intent_engine_client = IntentEngineClient::new(&env, &intent_engine_contract_id);
