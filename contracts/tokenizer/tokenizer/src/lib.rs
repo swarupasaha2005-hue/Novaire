@@ -70,7 +70,7 @@ pub trait PtTokenInterface {
 #[soroban_sdk::contractclient(name = "YtTokenClient")]
 pub trait YtTokenInterface {
     fn mint(env: Env, to: Address, amount: i128);
-    fn checkpoint_user(env: Env, user: Address);
+    fn checkpoint_user(env: Env, user: Address) -> Result<(), soroban_sdk::Error>;
     fn claimable_yield(env: Env, user: Address) -> i128;
     fn reset_claimable(env: Env, user: Address);
     fn update_yield_index(env: Env, new_index: i128);
@@ -274,7 +274,7 @@ impl Tokenizer {
         };
 
         // Checkpoint the user so their internal math catches up to the global index
-        yt_client.checkpoint_user(&user);
+        yt_client.try_checkpoint_user(&user).map_err(|_| NovaireTokenizerError::MathUnderflow)?;
         let claimable = yt_client.claimable_yield(&user);
         
         if claimable <= 0 {

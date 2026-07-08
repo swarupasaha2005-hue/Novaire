@@ -238,9 +238,10 @@ impl YtToken {
     ///
     /// # Errors
     /// Returns `MathOverflow` or `MathUnderflow` if calculation fails.
-    pub fn checkpoint_user(env: Env, user: Address) {
+    pub fn checkpoint_user(env: Env, user: Address) -> Result<(), NovaireYtError> {
         user.require_auth();
-        Self::internal_checkpoint_user(&env, &user).unwrap();
+        Self::internal_checkpoint_user(&env, &user)?;
+        Ok(())
     }
 
     /// Refreshes the global yield index from the live SY Wrapper exchange rate.

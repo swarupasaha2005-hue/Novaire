@@ -11,3 +11,4 @@ pub mod m5_regression;
 pub mod m2_regression;
 pub mod m1_regression;
 pub mod m1_production_bootstrap;
+pub mod l1_regression;
