@@ -98,7 +98,6 @@ pub struct YtMetadata {
     pub total_supply: i128,
     pub yield_index: i128,
     pub maturity_ledger: u32,
-    pub sy_wrapper: Address,
     pub is_paused: bool,
     pub is_expired: bool,
     pub version: u32,
@@ -118,12 +117,12 @@ pub struct TokenizerMetadata {
     pub total_pt_minted: i128,
     pub settlement_exchange_rate: Option<i128>,
     pub epoch_state: u32,
+    pub version: u32,
 }
 
 #[soroban_sdk::contractclient(name = "SyWrapperClient")]
 pub trait SyWrapperInterface {
     fn initialize(env: Env, admin: Address, underlying_token: Address, vault: Address);
-    fn admin(env: Env) -> Address;
     fn underlying_asset(env: Env) -> Address;
 }
 
@@ -138,6 +137,7 @@ pub trait PtTokenInterface {
     fn initialize(env: Env, admin: Address, tokenizer: Address);
     fn metadata(env: Env) -> PtMetadata;
 }
+
 
 #[soroban_sdk::contractclient(name = "YtTokenClient")]
 pub trait YtTokenInterface {
@@ -285,7 +285,7 @@ impl Factory {
         let rollover_client = RolloverEngineClient::new(&env, &params.rollover_engine);
         rollover_client.initialize(&admin, &params.tokenizer, &params.vault, &params.marketplace, &params.intent_engine, &params.keeper, &params.pt_token, &params.underlying_token, &env.current_contract_address(), &params.grace_period_ledgers);
 
-        if sy_client.admin() != admin || sy_client.underlying_asset() != params.underlying_token {
+        if sy_client.underlying_asset() != params.underlying_token {
             return Err(NovaireFactoryError::WiringMismatch);
         }
 
@@ -300,7 +300,7 @@ impl Factory {
         }
 
         let yt_meta = yt_client.metadata();
-        if yt_meta.admin != admin || yt_meta.tokenizer != params.tokenizer || yt_meta.sy_wrapper != params.sy_wrapper || yt_meta.maturity_ledger != params.maturity_ledger {
+        if yt_meta.admin != admin || yt_meta.tokenizer != params.tokenizer || yt_meta.maturity_ledger != params.maturity_ledger {
             return Err(NovaireFactoryError::WiringMismatch);
         }
 

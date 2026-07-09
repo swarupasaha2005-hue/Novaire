@@ -63,7 +63,7 @@ pub mod mock_yt {
     #[contract] pub struct MockYtToken;
     #[contractimpl] impl MockYtToken { 
         pub fn initialize(env: Env, admin: Address, tokenizer: Address, maturity_ledger: u32, sy_wrapper: Address) {
-            let meta = YtMetadata { admin, tokenizer, total_supply: 0, yield_index: 0, maturity_ledger, sy_wrapper, is_paused: false, is_expired: false, version: 1 };
+            let meta = YtMetadata { admin, tokenizer, total_supply: 0, yield_index: 0, maturity_ledger, is_paused: false, is_expired: false, version: 1 };
             env.storage().instance().set(&Symbol::new(&env, "meta"), &meta);
         }
         pub fn metadata(env: Env) -> YtMetadata { env.storage().instance().get(&Symbol::new(&env, "meta")).unwrap() }
@@ -75,7 +75,7 @@ pub mod mock_tokenizer {
     #[contract] pub struct MockTokenizer;
     #[contractimpl] impl MockTokenizer { 
         pub fn initialize(env: Env, admin: Address, vault: Address, pt_token: Address, yt_token: Address, sy_token: Address, maturity_ledger: u32) {
-            let meta = TokenizerMetadata { admin, vault, pt_token, yt_token, sy_wrapper: sy_token, maturity_ledger, epoch_id: 0, epoch_start_index: 0, total_pt_minted: 0, settlement_exchange_rate: None, epoch_state: 0 };
+            let meta = TokenizerMetadata { admin, vault, pt_token, yt_token, sy_wrapper: sy_token, maturity_ledger, epoch_id: 0, epoch_start_index: 0, total_pt_minted: 0, settlement_exchange_rate: None, epoch_state: 0, version: 1 };
             env.storage().instance().set(&Symbol::new(&env, "meta"), &meta);
         }
         pub fn metadata(env: Env) -> TokenizerMetadata { env.storage().instance().get(&Symbol::new(&env, "meta")).unwrap() }
