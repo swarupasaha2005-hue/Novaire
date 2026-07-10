@@ -20,7 +20,6 @@ const NAV_ICONS = [
   { icon: LayoutDashboard, href: '/app' },
   { icon: Wallet, href: '/app/portfolio' },
   { icon: Shield, href: '/app/vaults' },
-  { icon: ArrowRightLeft, href: '/app/trade' },
   { icon: Zap, href: '/app/automation' },
   { icon: BarChart2, href: '/app/analytics' },
   { icon: Search, href: '/app/explorer' },
@@ -35,15 +34,15 @@ export function Sidebar() {
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.4, ease: 'easeOut' }}
-      className="flex h-screen w-[80px] flex-col items-center border-r border-white/10 bg-[#0A0A0A] py-6 flex-shrink-0"
+      className="flex h-screen w-[80px] flex-col items-center border-r border-nova-border bg-nova-bg py-6 flex-shrink-0"
     >
       {/* Top Logo */}
-      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#111111] border border-white/10">
+      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-nova-surface border border-nova-border">
         <svg
           viewBox="0 0 24 24"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
-          className="h-6 w-6 text-[#F5F5F2]"
+          className="h-6 w-6 text-nova-text"
         >
           <path
             d="M12 2L2 22h20L12 2z"
@@ -72,7 +71,7 @@ export function Sidebar() {
               {isActive && (
                 <motion.div
                   layoutId="activeSidebarIndicator"
-                  className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-md bg-[#3ECF8E]"
+                  className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-md bg-nova-accent"
                   transition={{ duration: 0.2 }}
                 />
               )}
@@ -80,8 +79,8 @@ export function Sidebar() {
                 href={item.href}
                 className={`relative flex h-11 w-11 items-center justify-center rounded-xl transition-all duration-200 ${
                   isActive
-                    ? 'bg-[#111111] text-[#3ECF8E] border border-white/5'
-                    : 'text-[#8E8E8E] hover:bg-[rgba(62,207,142,0.08)] hover:text-[#F5F5F2]'
+                    ? 'bg-nova-surface text-nova-accent border border-nova-border'
+                    : 'text-nova-muted hover:bg-[rgba(62,207,142,0.08)] hover:text-nova-text'
                 }`}
               >
                 <item.icon className="h-[22px] w-[22px]" strokeWidth={isActive ? 2 : 1.5} />
@@ -93,13 +92,13 @@ export function Sidebar() {
 
       {/* Bottom Area */}
       <div className="flex flex-col items-center gap-6 mt-auto">
-        <button className="text-[#8E8E8E] transition-colors hover:text-[#F5F5F2]">
+        <button className="text-nova-muted transition-colors hover:text-nova-text">
           <CircleUser className="h-[22px] w-[22px]" strokeWidth={1.5} />
         </button>
-        <button className="text-[#8E8E8E] transition-colors hover:text-[#F5F5F2]">
+        <button className="text-nova-muted transition-colors hover:text-nova-text">
           <Globe className="h-[22px] w-[22px]" strokeWidth={1.5} />
         </button>
-        <button className="text-[#8E8E8E] transition-colors hover:text-[#F5F5F2]">
+        <button className="text-nova-muted transition-colors hover:text-nova-text">
           <Wallet className="h-[22px] w-[22px]" strokeWidth={1.5} />
         </button>
         
@@ -108,7 +107,7 @@ export function Sidebar() {
             viewBox="0 0 24 24"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5 text-[#8E8E8E]"
+            className="h-5 w-5 text-nova-muted"
           >
             <path
               d="M12 2L2 22h20L12 2z"

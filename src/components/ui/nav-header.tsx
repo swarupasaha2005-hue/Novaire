@@ -97,7 +97,7 @@ export default function NavHeader() {
 
             {/* Hamburger Toggle */}
             <button
-              className="md:hidden text-[#F5F5F5] focus:outline-none transition-transform active:scale-95 p-2"
+              className="md:hidden text-nova-text focus:outline-none transition-transform active:scale-95 p-2"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               aria-label="Toggle mobile menu"
             >
@@ -115,7 +115,7 @@ export default function NavHeader() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.3, ease: "easeInOut" }}
-            className="fixed inset-0 z-40 bg-[#050505] flex flex-col pt-[100px] px-8 pb-12 font-sans"
+            className="fixed inset-0 z-40 bg-nova-bg flex flex-col pt-[100px] px-8 pb-12 font-sans"
           >
             <div className="flex flex-col gap-6 items-start flex-1 overflow-y-auto">
               {[
@@ -135,7 +135,7 @@ export default function NavHeader() {
                       href={`#${item.id}`}
                       onClick={handleScrollToHowItWorks}
                       className={`text-[24px] font-medium transition-colors duration-200 block py-2 ${
-                        activeSection === item.id ? 'text-white' : 'text-[#B8B8B8] hover:text-[#F5F5F5]'
+                        activeSection === item.id ? 'text-white' : 'text-[#B8B8B8] hover:text-nova-text'
                       }`}
                     >
                       {item.label}
@@ -146,7 +146,7 @@ export default function NavHeader() {
                         href={item.href}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[#B8B8B8] hover:text-[#F5F5F5] text-[24px] font-medium transition-colors duration-200 block py-2"
+                        className="text-[#B8B8B8] hover:text-nova-text text-[24px] font-medium transition-colors duration-200 block py-2"
                         onClick={() => setIsMobileMenuOpen(false)}
                       >
                         {item.label}
@@ -154,7 +154,7 @@ export default function NavHeader() {
                     ) : (
                       <Link
                         href={item.href}
-                        className="text-[#B8B8B8] hover:text-[#F5F5F5] text-[24px] font-medium transition-colors duration-200 block py-2"
+                        className="text-[#B8B8B8] hover:text-nova-text text-[24px] font-medium transition-colors duration-200 block py-2"
                         onClick={() => setIsMobileMenuOpen(false)}
                       >
                         {item.label}
@@ -163,7 +163,7 @@ export default function NavHeader() {
                   ) : (
                     <Link
                       href="#"
-                      className="text-[#B8B8B8] hover:text-[#F5F5F5] text-[24px] font-medium transition-colors duration-200 block py-2"
+                      className="text-[#B8B8B8] hover:text-nova-text text-[24px] font-medium transition-colors duration-200 block py-2"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
                       {item.label}
@@ -212,8 +212,8 @@ const Tab = ({
       <div 
         className={`absolute inset-0 w-full h-full rounded-full border transition-all duration-300 ease-out pointer-events-none backdrop-blur-[8px] ${
           isActive 
-            ? 'opacity-100 scale-100 bg-[#0F5E3A]/80 border-[#3ECF8E]/20' 
-            : 'border-transparent opacity-0 scale-[0.97] group-hover:opacity-100 group-hover:scale-100 group-hover:bg-[#0F5E3A]/80 group-hover:border-[#3ECF8E]/20'
+            ? 'opacity-100 scale-100 bg-[#0F5E3A]/80 border-nova-accent/20' 
+            : 'border-transparent opacity-0 scale-[0.97] group-hover:opacity-100 group-hover:scale-100 group-hover:bg-[#0F5E3A]/80 group-hover:border-nova-accent/20'
         }`} 
       />
       <span className="relative z-10">{children}</span>

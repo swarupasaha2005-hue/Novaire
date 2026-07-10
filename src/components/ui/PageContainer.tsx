@@ -24,7 +24,7 @@ export function PageContainer({ children, title, description, actions, className
             {title}
           </h1>
           {description && (
-            <p className="mt-1.5 text-sm text-[#9A9A9A] font-sans leading-snug">{description}</p>
+            <p className="mt-1.5 text-sm text-nova-muted font-sans leading-snug">{description}</p>
           )}
         </div>
         {actions && (

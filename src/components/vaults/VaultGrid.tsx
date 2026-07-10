@@ -10,7 +10,7 @@ interface VaultGridProps {
 
 export function VaultGrid({ vaults, protocolState, onDeposit }: VaultGridProps) {
   return (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+    <div className="grid grid-cols-1 gap-6 h-full">
       {vaults.map((vault, i) => {
         const maturity = new Date(vault.maturityDate);
         const now = new Date();
@@ -23,64 +23,73 @@ export function VaultGrid({ vaults, protocolState, onDeposit }: VaultGridProps) 
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: i * 0.1 }}
-            className="flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#111111]"
+            className="flex flex-col rounded-2xl border border-nova-border bg-nova-surface p-6 shadow-2xl relative overflow-hidden transition-all duration-200 hover:border-nova-accent-hover hover:shadow-[0_0_20px_var(--accent-hover)] hover:-translate-y-[3px]"
           >
-            <div className="border-b border-white/10 p-6">
-              <div className="flex items-center justify-between mb-4">
+            {/* Decorative gradient to match TradeInterface */}
+            <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-nova-accent-hover opacity-[0.03] blur-[100px] rounded-full translate-x-1/2 -translate-y-1/2 pointer-events-none" />
+
+            <div className="z-10 relative">
+              {/* Vault Name and Epoch */}
+              <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5">
                     <span className="font-bold text-white">{vault.asset.charAt(0)}</span>
                   </div>
                   <div>
-                    <h3 className="font-medium text-[#F5F5F2]">{vault.protocol} {vault.asset} Vault</h3>
-                    <p className="text-xs text-[#9A9A9A]">Current Epoch</p>
+                    <h3 className="font-medium text-nova-text">{vault.protocol} {vault.asset} Vault</h3>
+                    <p className="text-xs text-nova-muted">Current Epoch</p>
                   </div>
                 </div>
-                <div className="flex flex-col items-end">
-                  <span className="rounded-full bg-[#3ECF8E]/10 px-2.5 py-1 text-xs font-medium text-[#3ECF8E]">
-                    Active
-                  </span>
-                </div>
+                <span className="rounded-full bg-nova-accent/10 px-2.5 py-1 text-xs font-medium text-nova-accent">
+                  Active
+                </span>
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
+              {/* APY and TVL */}
+              <div className="grid grid-cols-2 gap-4 mb-6">
                 <div>
-                  <p className="text-xs text-[#9A9A9A] mb-1">Fixed APY</p>
-                  <p className="text-sm font-semibold text-[#3ECF8E]">
+                  <p className="text-xs text-nova-muted mb-1">Fixed APY</p>
+                  <p className="text-lg font-semibold text-nova-accent">
                     {vault.fixedApy.toFixed(2)}%
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-[#9A9A9A] mb-1">TVL</p>
-                  <p className="text-sm font-semibold text-[#F5F5F2]">
+                  <p className="text-xs text-nova-muted mb-1">TVL</p>
+                  <p className="text-lg font-semibold text-nova-text">
                     {protocolState ? `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(protocolState.tvlXlm)} XLM` : 'Loading...'}
                   </p>
                 </div>
               </div>
-            </div>
-            
-            <div className="flex-1 p-6 flex flex-col justify-between gap-6 bg-white/[0.02]">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-[#9A9A9A]">Maturity Date</span>
-                <span className="font-medium text-[#F5F5F2]">
-                  {maturity.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                </span>
+
+              <div className="h-[1px] w-full bg-white/10 mb-6" />
+
+              {/* Maturity */}
+              <div className="flex flex-col gap-3 mb-6">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-nova-muted">Maturity Date</span>
+                  <span className="font-medium text-nova-text">
+                    {maturity.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </span>
+                </div>
+                
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-nova-muted">Days Remaining</span>
+                  <span className="font-medium text-nova-text">{diffDays} days</span>
+                </div>
               </div>
+
+              <div className="h-[1px] w-full bg-white/10 mb-6" />
               
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-[#9A9A9A]">Days Remaining</span>
-                <span className="font-medium text-[#F5F5F2]">{diffDays} days</span>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-3 mt-2">
+              {/* Action Buttons */}
+              <div className="grid grid-cols-2 gap-3">
                 <button 
                   onClick={() => onDeposit(vault.asset)}
-                  className="rounded-xl bg-[#3ECF8E] py-2.5 text-sm font-semibold text-black transition-transform hover:scale-[1.02] active:scale-[0.98]"
+                  className="flex items-center justify-center gap-2 rounded-xl bg-nova-accent py-4 text-base font-semibold text-black transition-all duration-200 hover:brightness-110 hover:-translate-y-[1px] shadow-sm active:scale-[0.98]"
                 >
                   Deposit
                 </button>
                 <button 
-                  className="rounded-xl border border-white/10 bg-transparent py-2.5 text-sm font-medium text-[#F5F5F2] transition-colors hover:bg-white/5"
+                  className="rounded-xl border border-nova-border bg-transparent py-4 text-base font-medium text-nova-text transition-colors hover:bg-white/5"
                 >
                   View Details
                 </button>

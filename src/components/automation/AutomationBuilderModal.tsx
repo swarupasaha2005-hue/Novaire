@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Zap, Settings, Clock, ChevronDown } from 'lucide-react';
 import { YieldService } from '@/services/yieldService';
+import { WalletService } from '@/services/walletService';
 import { usePortfolio } from '@/hooks/usePortfolio';
 import { useTrade } from '@/hooks/useTrade';
 import { useWallet } from '@/hooks/useWallet';
@@ -27,6 +28,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Template Specific State
+  const [s1Amount, setS1Amount] = useState('1000');
   const [s1Action, setS1Action] = useState('Redeem PT & Mint Next Epoch');
   const [s2Threshold, setS2Threshold] = useState('10');
   const [s2Operator, setS2Operator] = useState('>');
@@ -154,13 +156,83 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
     const id = initialTemplate?.id;
 
     if (!id) {
-      conditionDesc = `IF ${conditionAsset} ${conditionOperator} ${conditionValue}`;
-      actionDesc = `THEN ${actionType} ${actionAmount} ${actionAsset}`;
-    } else if (id === 's1') {
-      const selectedVault = vaults.find(v => v.id === selectedVaultId);
-      const vaultName = selectedVault ? `${selectedVault.protocol} ${selectedVault.asset} Vault` : 'Selected Vault';
-      conditionDesc = `IF ${vaultName} Reaches Maturity`;
-      actionDesc = `THEN ${s1Action}`;
+      setIsSubmitting(false);
+      return;
+    } else if (initialTemplate?.id === 's1') {
+      const parsedAmount = parseFloat(s1Amount);
+      
+      let availablePt = 0;
+      if (portfolio) {
+        const ptAsset = portfolio.assets.find((a: any) => a.assetType === 'pt');
+        if (ptAsset && !isNaN(ptAsset.balance)) {
+          availablePt = ptAsset.balance;
+        }
+      }
+
+      if (isNaN(parsedAmount) || parsedAmount <= 0 || parsedAmount > availablePt) {
+        setIsSubmitting(false);
+        return;
+      }
+
+      try {
+        const address = await WalletService.getWalletAddress();
+        if (!address) throw new Error('Wallet not connected');
+
+        const { signTransaction } = await import('@stellar/freighter-api');
+        const { Client: RolloverClient } = await import('../../../packages/bindings/rollover/src/index');
+        const { CONTRACTS, RPC_URL, NETWORK_PASSPHRASE } = await import('../../config/contracts');
+        
+        const client = new RolloverClient({
+          rpcUrl: RPC_URL,
+          networkPassphrase: NETWORK_PASSPHRASE,
+          contractId: CONTRACTS.ROLLOVER,
+          publicKey: address,
+        });
+
+        const currentMaturityLedger = await YieldService.getActiveMaturityLedger();
+        if (currentMaturityLedger === 0) throw new Error('Failed to fetch active maturity ledger');
+
+        const amountStroops = BigInt(Math.floor(parsedAmount * 10000000));
+        
+        const tx = await client.register_rollover({
+          user: address,
+          pt_amount: amountStroops,
+          current_epoch_maturity: currentMaturityLedger,
+          min_rate_bps: 0n,
+          min_underlying_out: 0n
+        });
+
+        // @ts-ignore
+        const result = await tx.signAndSend({ signTransaction });
+        
+        try {
+          await fetch('/api/keeper/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user: address })
+          });
+        } catch (e) {
+          console.warn('Failed to notify local keeper service', e);
+        }
+
+        const selectedVault = vaults.find(v => v.id === selectedVaultId);
+        const vaultName = selectedVault ? `${selectedVault.protocol} ${selectedVault.asset} Vault` : 'Selected Vault';
+        
+        onSubmit({
+          condition: `IF ${vaultName} Reaches Maturity`,
+          action: `THEN Roll ${parsedAmount} PT`,
+          status: 'Registered',
+          id: (result as any).hash || Math.random().toString(36).substring(7),
+          isReal: true,
+          txHash: (result as any).hash
+        });
+      } catch (e) {
+        console.error('Failed to register rollover', e);
+      } finally {
+        setIsSubmitting(false);
+        onClose();
+      }
+      return;
     } else if (id === 's2') {
       const selectedVault = vaults.find(v => v.id === selectedVaultId);
       const vaultName = selectedVault ? `${selectedVault.protocol} ${selectedVault.asset} Vault` : 'Selected Vault';
@@ -201,13 +273,24 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
       }) : '';
       const vaultName = selectedVault ? `${selectedVault.protocol} ${selectedVault.asset} Vault` : '';
 
+      let availablePt = 0;
+      if (portfolio) {
+        const ptAsset = portfolio.assets.find((a: any) => a.assetType === 'pt');
+        if (ptAsset && !isNaN(ptAsset.balance)) {
+          availablePt = ptAsset.balance;
+        }
+      }
+      const parsedAmount = parseFloat(s1Amount);
+      const isAmountValid = !isNaN(parsedAmount) && parsedAmount > 0;
+      const isAmountWithinBalance = isAmountValid && parsedAmount <= availablePt;
+
       return (
         <div className="space-y-4">
           <div className="relative">
             <select
               value={selectedVaultId}
               onChange={(e) => setSelectedVaultId(e.target.value)}
-              className="w-full appearance-none rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none"
+              className="w-full appearance-none rounded-xl border border-nova-border bg-white/5 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none"
             >
               {vaults.map((vault) => (
                 <option key={vault.id} value={vault.id}>
@@ -217,8 +300,44 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
             </select>
             <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/50" />
           </div>
+          
+          <div className="rounded-xl border border-nova-border bg-white/[0.02] p-5">
+            <div className="flex justify-between items-center mb-2">
+              <label className="block text-sm font-medium text-white/70">PT Amount to Roll</label>
+              <div className="text-xs text-white/50">
+                Available: <span className="text-white">{availablePt.toFixed(4)} PT</span>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3 mb-4">
+              <input
+                type="number"
+                value={s1Amount}
+                onChange={(e) => setS1Amount(e.target.value)}
+                placeholder="1000"
+                className="w-full rounded-lg border border-nova-border bg-white/10 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none"
+              />
+              <button
+                onClick={() => setS1Amount(availablePt.toString())}
+                className="rounded-lg bg-blue-500/20 px-3 py-2 text-xs font-medium text-blue-400 hover:bg-blue-500/30 transition-colors"
+              >
+                Max
+              </button>
+              <span className="text-sm font-medium text-white">PT</span>
+            </div>
 
-          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5">
+            {!isAmountValid ? (
+              <div className="mt-3 rounded-lg bg-red-500/10 px-4 py-3 text-xs leading-relaxed text-red-400">
+                Amount must be greater than zero.
+              </div>
+            ) : !isAmountWithinBalance ? (
+              <div className="mt-3 rounded-lg bg-red-500/10 px-4 py-3 text-xs leading-relaxed text-red-400">
+                Amount cannot exceed available PT balance.
+              </div>
+            ) : null}
+          </div>
+
+          <div className="rounded-xl border border-nova-border bg-white/[0.02] p-5">
             <div className="mb-4 flex items-center gap-2 text-sm font-medium text-white/70">
               <Clock className="h-4 w-4" />
               At Vault Maturity
@@ -240,7 +359,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
             </div>
 
             <div className="rounded-lg bg-blue-500/10 px-4 py-3 text-xs leading-relaxed text-blue-300">
-              This strategy will execute automatically when this vault reaches maturity.
+              This strategy will register an on-chain transaction. Once maturity is reached, the Keeper will automatically roll your position.
             </div>
           </div>
         </div>
@@ -266,7 +385,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
             <select
               value={selectedVaultId}
               onChange={(e) => setSelectedVaultId(e.target.value)}
-              className="w-full appearance-none rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none"
+              className="w-full appearance-none rounded-xl border border-nova-border bg-white/5 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none"
             >
               {vaults.map((vault) => (
                 <option key={vault.id} value={vault.id}>
@@ -277,7 +396,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
             <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/50" />
           </div>
 
-          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5">
+          <div className="rounded-xl border border-nova-border bg-white/[0.02] p-5">
             <div className="mb-4">
               <div className="mb-1 text-xs text-white/40">Current Claimable Yield</div>
               <div className="text-xl font-semibold text-emerald-400">
@@ -291,7 +410,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
                 <select
                   value={s2Operator}
                   onChange={(e) => setS2Operator(e.target.value)}
-                  className="appearance-none rounded-lg border border-white/10 bg-white/10 px-3 py-1.5 pr-8 text-sm text-white focus:border-blue-500/50 focus:outline-none"
+                  className="appearance-none rounded-lg border border-nova-border bg-white/10 px-3 py-1.5 pr-8 text-sm text-white focus:border-blue-500/50 focus:outline-none"
                 >
                   <option value=">">Greater Than (&gt;)</option>
                   <option value=">=">Greater or Equal (&gt;=)</option>
@@ -306,7 +425,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
                   value={s2Threshold}
                   onChange={(e) => setS2Threshold(e.target.value)}
                   placeholder="10"
-                  className="w-full rounded-lg border border-white/10 bg-white/10 px-3 py-1.5 text-sm text-white focus:border-blue-500/50 focus:outline-none"
+                  className="w-full rounded-lg border border-nova-border bg-white/10 px-3 py-1.5 text-sm text-white focus:border-blue-500/50 focus:outline-none"
                 />
               </div>
               <span className="text-sm text-white/70">{assetLabel}</span>
@@ -340,7 +459,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
             <select
               value={selectedVaultId}
               onChange={(e) => setSelectedVaultId(e.target.value)}
-              className="w-full appearance-none rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none"
+              className="w-full appearance-none rounded-xl border border-nova-border bg-white/5 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none"
             >
               {vaults.map((vault) => (
                 <option key={vault.id} value={vault.id}>
@@ -351,10 +470,10 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
             <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/50" />
           </div>
           <div className="flex items-center gap-3">
-            <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white flex-1">
+            <div className="rounded-xl border border-nova-border bg-white/5 px-4 py-3 text-sm text-white flex-1">
               PT Price
             </div>
-            <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/50 w-16 text-center">
+            <div className="rounded-xl border border-nova-border bg-white/5 px-4 py-3 text-sm text-white/50 w-16 text-center">
               &lt;
             </div>
             <input
@@ -363,7 +482,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
               onChange={(e) => setS3Target(e.target.value)}
               placeholder="Target Price"
               step="0.01"
-              className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none flex-1"
+              className="rounded-xl border border-nova-border bg-white/5 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none flex-1"
             />
           </div>
         </div>
@@ -376,7 +495,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
             <select
               value={selectedVaultId}
               onChange={(e) => setSelectedVaultId(e.target.value)}
-              className="w-full appearance-none rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-orange-500/50 focus:outline-none"
+              className="w-full appearance-none rounded-xl border border-nova-border bg-white/5 px-4 py-3 text-sm text-white focus:border-orange-500/50 focus:outline-none"
             >
               {vaults.map((vault) => (
                 <option key={vault.id} value={vault.id}>
@@ -387,10 +506,10 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
             <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/50" />
           </div>
           <div className="flex items-center gap-3">
-            <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white flex-1">
+            <div className="rounded-xl border border-nova-border bg-white/5 px-4 py-3 text-sm text-white flex-1">
               YT Price
             </div>
-            <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/50 w-16 text-center">
+            <div className="rounded-xl border border-nova-border bg-white/5 px-4 py-3 text-sm text-white/50 w-16 text-center">
               &gt;
             </div>
             <input
@@ -399,7 +518,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
               onChange={(e) => setS4Target(e.target.value)}
               placeholder="Target Price"
               step="0.01"
-              className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-orange-500/50 focus:outline-none flex-1"
+              className="rounded-xl border border-nova-border bg-white/5 px-4 py-3 text-sm text-white focus:border-orange-500/50 focus:outline-none flex-1"
             />
           </div>
         </div>
@@ -417,7 +536,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
             <select
               value={selectedVaultId}
               onChange={(e) => setSelectedVaultId(e.target.value)}
-              className="w-full appearance-none rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none"
+              className="w-full appearance-none rounded-xl border border-nova-border bg-white/5 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none"
             >
               {vaults.map((vault) => (
                 <option key={vault.id} value={vault.id}>
@@ -428,7 +547,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
             <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/50" />
           </div>
 
-          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5">
+          <div className="rounded-xl border border-nova-border bg-white/[0.02] p-5">
             <div className="mb-4">
               <div className="mb-1 text-xs text-white/40">Current Vault APY</div>
               <div className="text-xl font-semibold text-blue-400">
@@ -442,7 +561,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
                 <select
                   value={s5Operator}
                   onChange={(e) => setS5Operator(e.target.value)}
-                  className="appearance-none rounded-lg border border-white/10 bg-white/10 px-3 py-1.5 pr-8 text-sm text-white focus:border-blue-500/50 focus:outline-none"
+                  className="appearance-none rounded-lg border border-nova-border bg-white/10 px-3 py-1.5 pr-8 text-sm text-white focus:border-blue-500/50 focus:outline-none"
                 >
                   <option value=">">Greater Than (&gt;)</option>
                   <option value=">=">Greater or Equal (&ge;)</option>
@@ -457,7 +576,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
                   value={s5Target}
                   onChange={(e) => setS5Target(e.target.value)}
                   placeholder="15"
-                  className="w-full rounded-lg border border-white/10 bg-white/10 px-3 py-1.5 text-sm text-white focus:border-blue-500/50 focus:outline-none"
+                  className="w-full rounded-lg border border-nova-border bg-white/10 px-3 py-1.5 text-sm text-white focus:border-blue-500/50 focus:outline-none"
                 />
               </div>
               <span className="text-sm text-white/70">%</span>
@@ -473,40 +592,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
       );
     }
 
-    // Default generic custom trigger
-    return (
-      <div className="grid grid-cols-3 gap-3">
-        <select 
-          value={conditionAsset}
-          onChange={(e) => setConditionAsset(e.target.value)}
-          className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none"
-        >
-          <option value="PT Price">PT Price</option>
-          <option value="YT Price">YT Price</option>
-          <option value="Fixed APY">Fixed APY</option>
-          <option value="Vault Yield">Vault Yield</option>
-          <option value="Time">Time (Maturity)</option>
-        </select>
-        
-        <select
-          value={conditionOperator}
-          onChange={(e) => setConditionOperator(e.target.value)}
-          className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none"
-        >
-          <option value="<">Falls Below (&lt;)</option>
-          <option value=">">Rises Above (&gt;)</option>
-          <option value="=">Equals (=)</option>
-        </select>
-        
-        <input
-          type="number"
-          value={conditionValue}
-          onChange={(e) => setConditionValue(e.target.value)}
-          placeholder="0.00"
-          className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none"
-        />
-      </div>
-    );
+      return null;
   };
 
   const renderActionFields = () => {
@@ -514,17 +600,45 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
 
     if (id === 's1') {
       return (
-        <div className="relative">
-          <select
-            value={s1Action}
-            onChange={(e) => setS1Action(e.target.value)}
-            className="w-full appearance-none rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none"
-          >
-            <option value="Redeem PT & Mint Next Epoch">Redeem PT & Mint Next Epoch</option>
-            <option value="Redeem PT to Wallet">Redeem PT to Wallet</option>
-            <option value="Sell PT Before Maturity">Sell PT Before Maturity</option>
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/50" />
+        <div className="space-y-4">
+          <div className="rounded-xl border border-nova-border bg-white/[0.02] p-5">
+            <h4 className="mb-4 text-sm font-medium text-white/90">What happens at maturity?</h4>
+            
+            <div className="flex flex-col gap-1 text-sm text-white/70">
+              <div className="flex gap-3">
+                <span className="text-blue-400">✓</span>
+                <span>Redeem your selected PT into XLM</span>
+              </div>
+              <div className="ml-1.5 w-[2px] h-4 bg-white/10 my-1"></div>
+              
+              <div className="flex gap-3">
+                <span className="text-blue-400">✓</span>
+                <span>Mint a new PT and a new YT for the next epoch</span>
+              </div>
+              <div className="ml-1.5 w-[2px] h-4 bg-white/10 my-1"></div>
+              
+              <div className="flex gap-3">
+                <span className="text-blue-400">✓</span>
+                <span>Automatically sell 100% of the newly minted YT</span>
+              </div>
+              <div className="ml-1.5 w-[2px] h-4 bg-white/10 my-1"></div>
+              
+              <div className="flex gap-3">
+                <span className="text-blue-400">✓</span>
+                <span>Send the XLM proceeds from the YT sale directly to your wallet</span>
+              </div>
+              <div className="ml-1.5 w-[2px] h-4 bg-white/10 my-1"></div>
+              
+              <div className="flex gap-3">
+                <span className="text-blue-400">✓</span>
+                <span>Keep the new PT registered for the next rollover cycle</span>
+              </div>
+            </div>
+            
+            <div className="mt-6 rounded-lg bg-blue-500/10 px-4 py-3 text-xs leading-relaxed text-blue-300">
+              Auto Roll compounds your principal automatically. Newly minted Yield Tokens (YT) are immediately sold and their XLM proceeds are transferred to your wallet. This behavior is currently fixed (yt_sale_percentage = 100) for the Mainnet release.
+            </div>
+          </div>
         </div>
       );
     }
@@ -540,7 +654,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
 
       return (
         <div className="space-y-4">
-          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5">
+          <div className="rounded-xl border border-nova-border bg-white/[0.02] p-5">
             <label className="mb-2 block text-sm font-medium text-white/70">Buy Amount</label>
             <div className="flex items-center gap-3 mb-4">
               <input
@@ -548,12 +662,12 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
                 value={s3Amount}
                 onChange={(e) => setS3Amount(e.target.value)}
                 placeholder="1000"
-                className="w-full rounded-lg border border-white/10 bg-white/10 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none"
+                className="w-full rounded-lg border border-nova-border bg-white/10 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none"
               />
               <span className="text-sm font-medium text-white">PT</span>
             </div>
             
-            <div className="mt-4 pt-4 border-t border-white/10">
+            <div className="mt-4 pt-4 border-t border-nova-border">
               <div className="flex justify-between items-center text-sm">
                 <span className="text-white/50">Estimated Cost</span>
                 <span className="font-semibold text-white">≈ {estimatedCost.toFixed(4)} {assetLabel}</span>
@@ -573,7 +687,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
       if (loading) {
         return (
           <div className="space-y-4">
-            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5 text-sm text-white/50 text-center animate-pulse">
+            <div className="rounded-xl border border-nova-border bg-white/[0.02] p-5 text-sm text-white/50 text-center animate-pulse">
               Loading Portfolio...
             </div>
           </div>
@@ -582,7 +696,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
       if (!portfolio || !portfolio.assets || portfolio.assets.length === 0) {
         return (
           <div className="space-y-4">
-            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5 text-sm text-white/50 text-center animate-pulse">
+            <div className="rounded-xl border border-nova-border bg-white/[0.02] p-5 text-sm text-white/50 text-center animate-pulse">
               Loading Portfolio Assets...
             </div>
           </div>
@@ -616,7 +730,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
 
       return (
         <div className="space-y-4">
-          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5">
+          <div className="rounded-xl border border-nova-border bg-white/[0.02] p-5">
             <div className="flex justify-between items-center mb-2">
               <label className="block text-sm font-medium text-white/70">Sell Amount</label>
               <div className="text-xs text-white/50">
@@ -630,7 +744,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
                 value={s4Amount}
                 onChange={(e) => setS4Amount(e.target.value)}
                 placeholder="100"
-                className="w-full rounded-lg border border-white/10 bg-white/10 px-4 py-3 text-sm text-white focus:border-orange-500/50 focus:outline-none"
+                className="w-full rounded-lg border border-nova-border bg-white/10 px-4 py-3 text-sm text-white focus:border-orange-500/50 focus:outline-none"
               />
               <button
                 onClick={() => setS4Amount(availableYt.toString())}
@@ -641,7 +755,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
               <span className="text-sm font-medium text-white">YT</span>
             </div>
             
-            <div className="mt-4 pt-4 border-t border-white/10">
+            <div className="mt-4 pt-4 border-t border-nova-border">
               <div className="flex justify-between items-center text-sm">
                 <span className="text-white/50">Estimated Receive</span>
                 <span className="font-semibold text-white">≈ {estimatedReceive.toFixed(4)} {assetLabel}</span>
@@ -676,7 +790,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
 
       return (
         <div className="space-y-4">
-          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5">
+          <div className="rounded-xl border border-nova-border bg-white/[0.02] p-5">
             <div className="flex justify-between items-center mb-2">
               <label className="block text-sm font-medium text-white/70">Deposit Amount</label>
               <div className="text-xs text-white/50">
@@ -690,7 +804,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
                 value={s5Amount}
                 onChange={(e) => setS5Amount(e.target.value)}
                 placeholder="500"
-                className="w-full rounded-lg border border-white/10 bg-white/10 px-4 py-3 text-sm text-white focus:border-emerald-500/50 focus:outline-none"
+                className="w-full rounded-lg border border-nova-border bg-white/10 px-4 py-3 text-sm text-white focus:border-emerald-500/50 focus:outline-none"
               />
               <button
                 onClick={() => setS5Amount(availableXlm.toString())}
@@ -719,41 +833,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
       );
     }
 
-    // Default generic custom action
-    return (
-      <div className="grid grid-cols-3 gap-3">
-        <select
-          value={actionType}
-          onChange={(e) => setActionType(e.target.value)}
-          className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-emerald-500/50 focus:outline-none"
-        >
-          <option value="Buy">Buy</option>
-          <option value="Sell">Sell</option>
-          <option value="Mint">Mint</option>
-          <option value="Redeem">Redeem</option>
-          <option value="Compound">Compound</option>
-        </select>
-        
-        <input
-          type="number"
-          value={actionAmount}
-          onChange={(e) => setActionAmount(e.target.value)}
-          placeholder="Amount"
-          className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-emerald-500/50 focus:outline-none"
-        />
-
-        <select
-          value={actionAsset}
-          onChange={(e) => setActionAsset(e.target.value)}
-          className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-emerald-500/50 focus:outline-none"
-        >
-          <option value="PT">PT</option>
-          <option value="YT">YT</option>
-          <option value="XLM">XLM</option>
-          <option value="Yield">Yield</option>
-        </select>
-      </div>
-    );
+      return null;
   };
 
   const showSlippage = initialTemplate?.id === 's3' || initialTemplate?.id === 's4' || !initialTemplate;
@@ -775,10 +855,10 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-white/10 bg-[#0A0A0A] shadow-2xl"
+          className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-nova-border bg-nova-bg shadow-2xl"
         >
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-white/10 p-6">
+          <div className="flex items-center justify-between border-b border-nova-border p-6">
             <div>
               <h2 className="text-xl font-medium text-white">
                 Strategy Builder {initialTemplate?.title ? `– ${initialTemplate.title}` : ''}
@@ -822,7 +902,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
                     <select
                       value={s2Action}
                       onChange={(e) => setS2Action(e.target.value)}
-                      className="w-full appearance-none rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none"
+                      className="w-full appearance-none rounded-xl border border-nova-border bg-white/5 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none"
                     >
                       <option value="Claim Yield & Mint PT/YT">Claim Yield &amp; Mint PT/YT</option>
                       <option value="Claim Yield & Reinvest into Same Vault">Claim Yield &amp; Reinvest into Same Vault</option>
@@ -912,17 +992,17 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
           {/* Execution Settings */}
           <div className="px-6 flex gap-4">
             {initialTemplate?.id === 's4' && (
-              <div className="flex-1 rounded-xl border border-white/5 bg-white/[0.02] p-4">
+              <div className="flex-1 rounded-xl border border-nova-border bg-white/[0.02] p-4">
                 <div className="mb-1 text-xs text-white/40">Estimated Receive</div>
                 <div className="text-sm font-medium text-white">≈ {((parseFloat(s4Amount) || 0) * currentYtPrice).toFixed(4)} XLM</div>
               </div>
             )}
-            <div className="flex-1 rounded-xl border border-white/5 bg-white/[0.02] p-4">
+            <div className="flex-1 rounded-xl border border-nova-border bg-white/[0.02] p-4">
               <div className="mb-1 text-xs text-white/40">Network Fee</div>
               <div className="text-sm font-medium text-white">~0.0001 XLM</div>
             </div>
             {(!initialTemplate?.id || initialTemplate?.id === 's3' || initialTemplate?.id === 's4') && (
-              <div className="flex-1 rounded-xl border border-white/5 bg-white/[0.02] p-4">
+              <div className="flex-1 rounded-xl border border-nova-border bg-white/[0.02] p-4">
                 <div className="mb-1 text-xs text-white/40">Slippage Tolerance</div>
                 <div className="text-sm font-medium text-white">{slippage}%</div>
               </div>
@@ -930,11 +1010,11 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
           </div>
 
           {/* Footer Actions */}
-          <div className="mt-8 border-t border-white/10 p-6">
+          <div className="mt-8 border-t border-nova-border p-6">
             <div className="flex items-center justify-end gap-3">
               <button
                 onClick={onClose}
-                className="rounded-xl border border-white/10 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-white/5"
+                className="rounded-xl border border-nova-border px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-white/5"
               >
                 Cancel
               </button>
@@ -971,7 +1051,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
                     return !isConnected || isNaN(parsedAmount) || parsedAmount <= 0 || isNaN(parsedTarget) || parsedTarget <= 0 || parsedAmount > availableXlm;
                   })())
                 }
-                className="flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-medium text-black transition-all hover:bg-white/90 disabled:opacity-50"
+                className="flex items-center gap-2 rounded-xl bg-nova-accent px-5 py-2.5 text-sm font-medium text-black transition-all duration-200 hover:brightness-110 hover:-translate-y-[1px] shadow-sm disabled:opacity-50 active:scale-[0.98]"
               >
                 {isSubmitting ? (
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-black border-t-transparent" />

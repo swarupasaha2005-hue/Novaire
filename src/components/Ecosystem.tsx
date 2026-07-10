@@ -11,7 +11,7 @@ export default function Ecosystem() {
     <>
       <section className="ecosystem-section" id="ecosystem">
         <div className="container">
-          <div className="eco-header reveal">
+          <div className="eco-header reveal md:gap-x-24 lg:gap-x-32">
             <div className="eco-left">
               <span className="section-label">BUILT FOR THE ECOSYSTEM</span>
               <h2 className="section-heading" style={{ marginBottom: 0 }}>
@@ -24,7 +24,7 @@ export default function Ecosystem() {
             </div>
           </div>
           
-          <div className="w-full mt-16 bg-[var(--charcoal)] border border-white/10 rounded-lg h-[64px] overflow-hidden reveal relative group">
+          <div className="w-full mt-16 bg-[var(--charcoal)] border border-nova-border rounded-lg h-[64px] overflow-hidden reveal relative group">
             <div className="flex items-center h-full w-full">
               <div className="flex w-max animate-marquee group-hover:[animation-play-state:paused]">
                 {/* 
@@ -35,7 +35,7 @@ export default function Ecosystem() {
                 {[...partners, ...partners].map((name, index) => (
                   <span 
                     key={`${name}-${index}`}
-                    className="text-white/75 hover:text-[#3ECF8E] transition-colors duration-[250ms] ease-in-out cursor-default uppercase shrink-0"
+                    className="text-white/75 hover:text-nova-accent transition-colors duration-[250ms] ease-in-out cursor-default uppercase shrink-0"
                     style={{
                       fontFamily: "'Antic Didone', serif",
                       fontSize: "20px",

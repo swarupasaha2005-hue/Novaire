@@ -65,15 +65,15 @@ export function PositionsTable() {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.55, ease: 'easeOut' }}
-      className="flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#111111]"
+      className="flex flex-col overflow-hidden rounded-2xl border border-nova-border bg-nova-surface"
     >
-      <div className="border-b border-white/10 p-6 flex justify-between items-center">
+      <div className="border-b border-nova-border p-6 flex justify-between items-center">
         <h3 className="font-sans font-medium ">My Active Positions</h3>
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
-          <thead className="bg-[#050505]/50 text-xs text-[#9A9A9A]">
+          <thead className="bg-nova-bg/50 text-xs text-nova-muted">
             <tr>
               <th className="px-6 py-4 font-medium">Vault Name</th>
               <th className="px-6 py-4 font-medium">Asset</th>
@@ -103,7 +103,7 @@ export function PositionsTable() {
 
             {isDisconnected && (
               <tr>
-                <td colSpan={11} className="px-6 py-12 text-center text-[#8E8E8E]">
+                <td colSpan={11} className="px-6 py-12 text-center text-nova-muted">
                   Connect Wallet to view positions
                 </td>
               </tr>
@@ -111,7 +111,7 @@ export function PositionsTable() {
 
             {isEmpty && (
               <tr>
-                <td colSpan={11} className="px-6 py-12 text-center text-[#8E8E8E]">
+                <td colSpan={11} className="px-6 py-12 text-center text-nova-muted">
                   No Active Positions
                 </td>
               </tr>
@@ -125,31 +125,31 @@ export function PositionsTable() {
                 transition={{ duration: 0.4, delay: 0.2 + i * 0.05 }}
                 className="group transition-colors hover:bg-white/5"
               >
-                <td className="whitespace-nowrap px-6 py-4 font-medium text-[#F5F5F2]">
+                <td className="whitespace-nowrap px-6 py-4 font-medium text-nova-text">
                   {pos.vaultName}
                 </td>
-                <td className="whitespace-nowrap px-6 py-4 font-medium text-[#9A9A9A]">
+                <td className="whitespace-nowrap px-6 py-4 font-medium text-nova-muted">
                   {pos.underlyingAsset}
                 </td>
-                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#F5F5F2]">
+                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-nova-text">
                   {pos.ptBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </td>
-                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#F5F5F2]">
+                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-nova-text">
                   {pos.ytBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </td>
-                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#F5F5F2]">
+                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-nova-text">
                   ${pos.currentValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </td>
-                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#3ECF8E]">
+                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-nova-accent">
                   {pos.claimableYield === 0 ? '--' : `+${pos.claimableYield.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`}
                 </td>
-                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#3ECF8E]">
+                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-nova-accent">
                   {pos.fixedApy.toFixed(1)}%
                 </td>
-                <td className="whitespace-nowrap px-6 py-4 text-right text-[#9A9A9A]">
+                <td className="whitespace-nowrap px-6 py-4 text-right text-nova-muted">
                   {pos.maturityDate}
                 </td>
-                <td className="whitespace-nowrap px-6 py-4 text-right text-[#F5F5F2]">
+                <td className="whitespace-nowrap px-6 py-4 text-right text-nova-text">
                   {pos.daysRemaining}
                 </td>
                 <td className="whitespace-nowrap px-6 py-4">
@@ -158,20 +158,20 @@ export function PositionsTable() {
                       Matured
                     </span>
                   ) : (
-                    <span className="inline-flex rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-[#3ECF8E]/10 text-[#3ECF8E]">
+                    <span className="inline-flex rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-nova-accent/10 text-nova-accent">
                       Active
                     </span>
                   )}
                 </td>
                 <td className="whitespace-nowrap px-6 py-4 text-right">
                   <div className="flex justify-end gap-2">
-                    <button className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-[#9A9A9A] transition-all hover:bg-white/10 hover:text-white">
+                    <button className="rounded-lg border border-nova-border px-3 py-1.5 text-xs font-medium text-nova-muted transition-all hover:bg-white/10 hover:text-white">
                       Trade PT
                     </button>
-                    <button className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-[#9A9A9A] transition-all hover:bg-white/10 hover:text-white">
+                    <button className="rounded-lg border border-nova-border px-3 py-1.5 text-xs font-medium text-nova-muted transition-all hover:bg-white/10 hover:text-white">
                       Trade YT
                     </button>
-                    <button disabled={pos.status !== 'Matured'} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-[#9A9A9A] disabled:opacity-30 disabled:cursor-not-allowed transition-all hover:border-[#3ECF8E] hover:bg-[#3ECF8E] hover:text-black">
+                    <button disabled={pos.status !== 'Matured'} className="rounded-lg border border-nova-border px-3 py-1.5 text-xs font-medium text-nova-muted disabled:opacity-30 disabled:cursor-not-allowed transition-all hover:border-nova-accent hover:bg-nova-accent hover:text-black">
                       Redeem
                     </button>
                   </div>

@@ -60,31 +60,31 @@ export default function Stats() {
   return (
     <section className="relative z-30 -mt-[820px] pb-12">
       <div className="container reveal" id="stats" ref={statsRef}>
-        <div className="flex h-[116px] w-full max-w-[860px] items-center justify-between rounded-[16px] border border-white/10 bg-[#0B0B0B] px-[56px] shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
+        <div className="flex h-[116px] w-full max-w-[860px] items-center justify-between rounded-[16px] border border-nova-border bg-[#0B0B0B] px-[56px] shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
           
           <div className="flex flex-col items-start justify-center">
-            <div className="stat-number font-serif text-[44px] leading-none tracking-tight text-[#3ECF8E]" data-target="7">0</div>
+            <div className="stat-number font-serif text-[44px] leading-none tracking-tight text-nova-accent" data-target="7">0</div>
             <div className="mt-2 text-[15px] font-medium text-[#A1A1AA]">Core Contracts</div>
           </div>
           
           <div className="h-[48px] w-[1px] bg-white/10"></div>
           
           <div className="flex flex-col items-start justify-center">
-            <div className="stat-number font-serif text-[44px] leading-none tracking-tight text-[#3ECF8E]" data-target="100" data-suffix="+">0</div>
+            <div className="stat-number font-serif text-[44px] leading-none tracking-tight text-nova-accent" data-target="100" data-suffix="+">0</div>
             <div className="mt-2 text-[15px] font-medium text-[#A1A1AA]">Test Cases</div>
           </div>
           
           <div className="h-[48px] w-[1px] bg-white/10"></div>
           
           <div className="flex flex-col items-start justify-center">
-            <div className="stat-number font-serif text-[44px] leading-none tracking-tight text-[#3ECF8E]" data-target="3">0</div>
+            <div className="stat-number font-serif text-[44px] leading-none tracking-tight text-nova-accent" data-target="3">0</div>
             <div className="mt-2 text-[15px] font-medium text-[#A1A1AA]">Protocol Layers</div>
           </div>
           
           <div className="h-[48px] w-[1px] bg-white/10"></div>
           
           <div className="flex flex-col items-start justify-center">
-            <div className="font-serif text-[44px] leading-none tracking-tight text-[#3ECF8E]">PT &bull; YT</div>
+            <div className="font-serif text-[44px] leading-none tracking-tight text-nova-accent">PT &bull; YT</div>
             <div className="mt-2 text-[15px] font-medium text-[#A1A1AA]">Yield Primitive</div>
           </div>
           

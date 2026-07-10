@@ -23,12 +23,12 @@ export function YieldBreakdown() {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.45, ease: 'easeOut' }}
-      className="flex h-[320px] flex-col rounded-2xl border border-white/10 bg-[#111111] p-6 transition-colors hover:border-[#3ECF8E]/50"
+      className="flex h-[320px] flex-col rounded-2xl border border-nova-border bg-nova-surface p-6 transition-colors hover:border-nova-accent/50"
     >
       <h3 className="font-sans font-medium ">Yield Breakdown</h3>
       
       {!hasVault ? (
-        <div className="mt-6 flex flex-1 flex-col items-center justify-center text-[#8E8E8E] text-sm">
+        <div className="mt-6 flex flex-1 flex-col items-center justify-center text-nova-muted text-sm">
           Coming Soon
         </div>
       ) : (
@@ -58,8 +58,8 @@ export function YieldBreakdown() {
             </svg>
             {/* Inner Total APY */}
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="font-serif text-[22px] text-[#3ECF8E]">{totalApy}%</span>
-              <span className="text-[9px] text-[#9A9A9A] uppercase tracking-wider mt-0.5">Total APY</span>
+              <span className="font-serif text-[22px] text-nova-accent">{totalApy}%</span>
+              <span className="text-[9px] text-nova-muted uppercase tracking-wider mt-0.5">Total APY</span>
             </div>
           </div>
 
@@ -72,10 +72,10 @@ export function YieldBreakdown() {
               transition={{ duration: 0.4, delay: 0.9 }}
             >
               <div className="flex items-center gap-2 mb-1">
-                <div className="h-1.5 w-1.5 rounded-full bg-[#3ECF8E]" />
-                <span className="text-xs text-[#9A9A9A]">Fixed Base APY</span>
+                <div className="h-1.5 w-1.5 rounded-full bg-nova-accent" />
+                <span className="text-xs text-nova-muted">Fixed Base APY</span>
               </div>
-              <div className="pl-3.5 font-medium text-[#F5F5F2] text-sm">{fixedApy}%</div>
+              <div className="pl-3.5 font-medium text-nova-text text-sm">{fixedApy}%</div>
             </motion.div>
 
             <motion.div
@@ -85,9 +85,9 @@ export function YieldBreakdown() {
             >
               <div className="flex items-center gap-2 mb-1">
                 <div className="h-1.5 w-1.5 rounded-full bg-[#F5F5F2]" />
-                <span className="text-xs text-[#9A9A9A]">Est. Variable Yield</span>
+                <span className="text-xs text-nova-muted">Est. Variable Yield</span>
               </div>
-              <div className="pl-3.5 font-medium text-[#F5F5F2] text-sm">Coming Soon</div>
+              <div className="pl-3.5 font-medium text-nova-text text-sm">Coming Soon</div>
             </motion.div>
 
           </div>

@@ -13,8 +13,8 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const baseStyles = "inline-flex items-center justify-center font-medium font-sans rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#0A0A0C]";
     
     const variants = {
-      primary: "bg-[#43D18C] text-black hover:bg-[#32BA7A] focus:ring-[#43D18C]",
-      secondary: "bg-transparent border border-white/10 text-white hover:bg-white/5 hover:border-white/20 focus:ring-white/20",
+      primary: "bg-nova-accent-hover text-black hover:bg-[#32BA7A] focus:ring-nova-accent-hover",
+      secondary: "bg-transparent border border-nova-border text-white hover:bg-white/5 hover:border-white/20 focus:ring-white/20",
       danger: "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 focus:ring-red-500/50",
       success: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 focus:ring-emerald-500/50",
     };

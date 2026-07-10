@@ -7,6 +7,7 @@ import { useWallet } from '../../hooks/useWallet';
 import { signTransaction } from '@stellar/freighter-api';
 import { YieldService } from '../../services/yieldService';
 import { CONTRACTS, RPC_URL, NETWORK_PASSPHRASE } from '../../config/contracts';
+import { NotificationService } from '../../services/notificationService';
 
 interface MintModalProps {
   isOpen: boolean;
@@ -46,9 +47,7 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
 
           if (balances && balances.length > 0) {
             const hasXlm = balances.some(b => b.assetCode === 'XLM' && parseFloat(b.amount) > 0);
-            const hasUsdc = balances.some(b => b.assetCode === 'USDC' && parseFloat(b.amount) > 0);
-
-            if (hasXlm && !hasUsdc) {
+            if (hasXlm) {
               const xlmVault = v.find(vault => vault.asset === 'XLM');
               if (xlmVault) defaultVaultId = xlmVault.id;
             }
@@ -164,6 +163,7 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
       console.error(e);
       setErrorMessage(e.message || 'Transaction failed');
       setStep('error');
+      NotificationService.addNotification('network', 'Contract Interaction Failed', e.message || 'Failed to simulate mint transaction.');
     }
   };
 
@@ -180,6 +180,7 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
 
       if (result) {
         setStep('success');
+        NotificationService.addNotification('transaction', 'Mint Successful', `Successfully minted ${ptEstimate.toFixed(4)} PT and ${ytToKeep.toFixed(4)} YT.`);
       } else {
         throw new Error('Transaction failed on-chain');
       }
@@ -187,6 +188,7 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
       console.error(e);
       setErrorMessage(e.message || 'Transaction failed');
       setStep('error');
+      NotificationService.addNotification('network', 'Contract Interaction Failed', e.message || 'Failed to execute mint transaction.');
     }
   };
 
@@ -241,11 +243,11 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
           initial={{ opacity: 0, scale: 0.95, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-white/10 bg-[#0A0A0A] shadow-2xl max-h-[92vh] flex flex-col"
+          className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-nova-border bg-nova-bg shadow-2xl max-h-[92vh] flex flex-col"
         >
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-white/10 p-5 shrink-0">
-            <h2 className="text-xl font-semibold text-[#F5F5F2]">Mint PT &amp; YT</h2>
+          <div className="flex items-center justify-between border-b border-nova-border p-5 shrink-0">
+            <h2 className="text-xl font-semibold text-nova-text">Mint PT &amp; YT</h2>
             <button onClick={handleClose} className="rounded-lg p-2 text-white/50 hover:bg-white/5 hover:text-white transition-colors">
               <X className="h-5 w-5" />
             </button>
@@ -256,9 +258,9 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
             {step === 'idle' || step === 'error' ? (
               <>
                 {/* Wallet Info */}
-                <div className="flex items-center justify-between rounded-xl border border-white/5 bg-white/5 p-4">
+                <div className="flex items-center justify-between rounded-xl border border-nova-border bg-white/5 p-4">
                   <div className="flex items-center gap-3">
-                    <Wallet className="h-5 w-5 text-[#3ECF8E]" />
+                    <Wallet className="h-5 w-5 text-nova-accent" />
                     <div className="flex flex-col">
                       <span className="text-xs text-white/50">Connected</span>
                       <span className="text-sm font-medium text-white">
@@ -279,7 +281,7 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
                     <select
                       value={selectedVault}
                       onChange={(e) => setSelectedVault(e.target.value)}
-                      className="w-full rounded-xl border border-white/10 bg-black p-3 text-sm text-white focus:border-[#3ECF8E] focus:outline-none focus:ring-1 focus:ring-[#3ECF8E]"
+                      className="w-full rounded-xl border border-nova-border bg-black p-3 text-sm text-white focus:border-nova-accent focus:outline-none focus:ring-1 focus:ring-nova-accent"
                     >
                       {vaults.map(v => {
                         const assetName = Array.isArray(v.asset) ? v.asset.join('/') : v.asset;
@@ -293,7 +295,7 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-medium text-white/60">Amount to Deposit</label>
-                      <button onClick={handleMax} className="text-xs text-[#3ECF8E] hover:underline">Max</button>
+                      <button onClick={handleMax} className="text-xs text-nova-accent hover:underline">Max</button>
                     </div>
                     <div className="relative">
                       <input
@@ -301,7 +303,7 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
                         value={amount}
                         onChange={(e) => setAmount(e.target.value)}
                         placeholder="0.00"
-                        className="w-full rounded-xl border border-white/10 bg-black p-3 pr-24 text-lg text-white focus:border-[#3ECF8E] focus:outline-none focus:ring-1 focus:ring-[#3ECF8E]"
+                        className="w-full rounded-xl border border-nova-border bg-black p-3 pr-24 text-lg text-white focus:border-nova-accent focus:outline-none focus:ring-1 focus:ring-nova-accent"
                       />
                       <div className="absolute inset-y-0 right-3 flex items-center">
                         {availableAssets.length > 1 ? (
@@ -339,30 +341,30 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
                         onClick={() => setYieldPreference(opt.key)}
                         className={`w-full text-left rounded-xl border p-4 transition-all duration-150 relative ${
                           opt.disabled 
-                            ? 'border-white/5 bg-white/5 opacity-60 cursor-not-allowed'
+                            ? 'border-nova-border bg-white/5 opacity-60 cursor-not-allowed'
                             : yieldPreference === opt.key
-                              ? 'border-[#3ECF8E]/60 bg-[#3ECF8E]/8'
+                              ? 'border-nova-accent/60 bg-nova-accent/8'
                               : 'border-white/8 bg-white/3 hover:border-white/20'
                         }`}
                       >
                         <div className="flex items-start gap-3">
                           {/* Radio */}
                           <div className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
-                            opt.disabled ? 'border-white/20' : yieldPreference === opt.key ? 'border-[#3ECF8E]' : 'border-white/30'
+                            opt.disabled ? 'border-white/20' : yieldPreference === opt.key ? 'border-nova-accent' : 'border-white/30'
                           }`}>
                             {yieldPreference === opt.key && !opt.disabled && (
-                              <div className="h-2 w-2 rounded-full bg-[#3ECF8E]" />
+                              <div className="h-2 w-2 rounded-full bg-nova-accent" />
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between flex-wrap gap-2">
                               <span className={`text-sm font-medium flex items-center gap-1.5 ${yieldPreference === opt.key && !opt.disabled ? 'text-white' : 'text-white/70'}`}>
-                                <span className={opt.disabled ? 'text-white/40' : yieldPreference === opt.key ? 'text-[#3ECF8E]' : 'text-white/40'}>{opt.icon}</span>
+                                <span className={opt.disabled ? 'text-white/40' : yieldPreference === opt.key ? 'text-nova-accent' : 'text-white/40'}>{opt.icon}</span>
                                 {opt.title}
                               </span>
                               {opt.badge && (
                                 <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                                  opt.badgeActive ? 'bg-[#3ECF8E]/15 text-[#3ECF8E]' : 'bg-white/10 text-white/50'
+                                  opt.badgeActive ? 'bg-nova-accent/15 text-nova-accent' : 'bg-white/10 text-white/50'
                                 }`}>
                                   {opt.badge}
                                 </span>
@@ -373,7 +375,7 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
                               <ul className="mt-2 space-y-1">
                                 {opt.bullets.map((b, i) => (
                                   <li key={i} className="flex items-center gap-1.5 text-xs text-white/60">
-                                    <span className="h-1 w-1 rounded-full bg-[#3ECF8E]/60 shrink-0" />
+                                    <span className="h-1 w-1 rounded-full bg-nova-accent/60 shrink-0" />
                                     {b}
                                   </li>
                                 ))}
@@ -390,7 +392,7 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
                                   value={customYtPct}
                                   onClick={(e) => e.stopPropagation()}
                                   onChange={(e) => setCustomYtPct(e.target.value)}
-                                  className="w-16 rounded-lg border border-white/10 bg-black px-2 py-1 text-center text-sm text-white focus:border-[#3ECF8E] focus:outline-none"
+                                  className="w-16 rounded-lg border border-nova-border bg-black px-2 py-1 text-center text-sm text-white focus:border-nova-accent focus:outline-none"
                                 />
                                 <span className="text-xs text-white/50">% of YT immediately</span>
                               </div>
@@ -416,7 +418,7 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
                           onClick={() => setSlippageBps(bps)}
                           className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                             slippageBps === bps
-                              ? 'bg-[#3ECF8E] text-black'
+                              ? 'bg-nova-accent text-black'
                               : 'bg-white/5 text-white/70 hover:bg-white/10'
                           }`}
                         >
@@ -428,7 +430,7 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
                 )}
 
                 {/* Live Preview */}
-                <div className="rounded-xl border border-[#3ECF8E]/20 bg-[#3ECF8E]/5 p-4 space-y-2.5">
+                <div className="rounded-xl border border-nova-accent/20 bg-nova-accent/5 p-4 space-y-2.5">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-white/70">You receive PT</span>
                     <span className="text-sm font-medium text-white">{ptEstimate.toFixed(4)}</span>
@@ -442,13 +444,13 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
                   {ytToSell > 0 && (
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-white/70">YT sold for {currentAsset}</span>
-                      <span className="text-sm font-medium text-[#3ECF8E]">~{ytToSell.toFixed(4)} YT → {currentAsset}</span>
+                      <span className="text-sm font-medium text-nova-accent">~{ytToSell.toFixed(4)} YT → {currentAsset}</span>
                     </div>
                   )}
-                  <div className="h-px w-full bg-[#3ECF8E]/20" />
+                  <div className="h-px w-full bg-nova-accent/20" />
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-white/70">Fixed APY</span>
-                    <span className="text-sm font-medium text-[#3ECF8E]">{fixedApy}%</span>
+                    <span className="text-sm font-medium text-nova-accent">{fixedApy}%</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-white/70">Maturity Date</span>
@@ -456,7 +458,7 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-white/70">PT Redemption Value</span>
-                    <span className="text-sm font-medium text-[#3ECF8E]">{estimatedRedemption.toFixed(4)} {currentAsset}</span>
+                    <span className="text-sm font-medium text-nova-accent">{estimatedRedemption.toFixed(4)} {currentAsset}</span>
                   </div>
                 </div>
 
@@ -474,7 +476,7 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
                   <p className="text-sm text-white/60">Confirm the estimated outputs before signing.</p>
                 </div>
                 
-                <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
+                <div className="rounded-xl border border-nova-border bg-white/5 p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-white/70">PT to Receive</span>
                     <span className="text-sm font-medium text-white">{ptEstimate.toFixed(4)}</span>
@@ -496,7 +498,7 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-white/70">Minimum Underlying Output</span>
-                        <span className="text-sm font-medium text-[#3ECF8E]">
+                        <span className="text-sm font-medium text-nova-accent">
                           {(Number(simulationData.minOut) / 1e7).toFixed(4)} {currentAsset}
                         </span>
                       </div>
@@ -510,7 +512,7 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
 
                 <button
                   onClick={handleConfirm}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#3ECF8E] py-4 font-semibold text-black hover:bg-[#3ECF8E]/90 transition-colors"
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#3ECF8E] py-4 font-semibold text-black transition-all duration-200 hover:brightness-110 hover:-translate-y-[1px] shadow-sm disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
                 >
                   Confirm and Mint
                   <ArrowRight className="h-5 w-5" />
@@ -524,8 +526,8 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
               </div>
             ) : step === 'success' ? (
               <div className="flex flex-col items-center justify-center py-8 text-center space-y-4">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#3ECF8E]/20">
-                  <CheckCircle2 className="h-8 w-8 text-[#3ECF8E]" />
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-nova-accent/20">
+                  <CheckCircle2 className="h-8 w-8 text-nova-accent" />
                 </div>
                 <div className="space-y-1">
                   <h3 className="text-lg font-semibold text-white">Mint Successful</h3>
@@ -538,7 +540,7 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-12 text-center space-y-6">
-                <Loader2 className="h-10 w-10 animate-spin text-[#3ECF8E]" />
+                <Loader2 className="h-10 w-10 animate-spin text-nova-accent" />
                 <div className="space-y-2">
                   <h3 className="text-lg font-semibold text-white">
                     {step === 'simulating' && 'Simulating Transaction'}
@@ -559,7 +561,7 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
               <button
                 onClick={handleMint}
                 disabled={isConnected && (isInvalidAmount || isInsufficientBalance || !activeVault)}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#3ECF8E] py-4 font-semibold text-black hover:bg-[#3ECF8E]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#3ECF8E] py-4 font-semibold text-black transition-all duration-200 hover:brightness-110 hover:-translate-y-[1px] shadow-sm disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
               >
                 {!isConnected ? 'Connect Wallet' : isInvalidAmount ? 'Enter Amount' : isInsufficientBalance ? 'Insufficient Balance' : 'Review Transaction'}
                 <ArrowRight className="h-5 w-5" />
@@ -568,7 +570,7 @@ export function MintModal({ isOpen, onClose, defaultAsset = 'XLM', onSuccess }: 
             {step === 'success' && (
               <button
                 onClick={handleClose}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#3ECF8E] py-4 font-semibold text-black hover:bg-[#3ECF8E]/90 transition-colors"
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#3ECF8E] py-4 font-semibold text-black transition-all duration-200 hover:brightness-110 hover:-translate-y-[1px] shadow-sm disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
               >
                 Done
               </button>

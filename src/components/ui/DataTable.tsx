@@ -20,7 +20,7 @@ export function DataTable<T>({ data, columns, keyExtractor, emptyState }: DataTa
     <div className="w-full overflow-x-auto">
       <table className="w-full text-left border-collapse">
         <thead>
-          <tr className="border-b border-white/5">
+          <tr className="border-b border-nova-border">
             {columns.map((col, index) => (
               <th 
                 key={index} 
@@ -43,7 +43,7 @@ export function DataTable<T>({ data, columns, keyExtractor, emptyState }: DataTa
             data.map((row, rowIndex) => (
               <tr 
                 key={keyExtractor(row, rowIndex)} 
-                className="border-b border-white/5 hover:bg-white/5 transition-colors group"
+                className="border-b border-nova-border hover:bg-white/5 transition-colors group"
               >
                 {columns.map((col, colIndex) => (
                   <td 

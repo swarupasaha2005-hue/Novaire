@@ -31,7 +31,7 @@ export function YieldAnalytics() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="rounded-2xl border border-white/5 bg-white/5 p-6 backdrop-blur-xl"
+        className="rounded-2xl border border-nova-border bg-white/5 p-6 backdrop-blur-xl"
       >
         <h3 className="text-lg font-semibold text-white mb-6">Portfolio Allocation</h3>
         <div className="h-64">
@@ -66,11 +66,11 @@ export function YieldAnalytics() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.1 }}
-        className="rounded-2xl border border-white/5 bg-white/5 p-6 backdrop-blur-xl"
+        className="rounded-2xl border border-nova-border bg-white/5 p-6 backdrop-blur-xl"
       >
         <h3 className="text-lg font-semibold text-white mb-6">Yield Sources</h3>
         <div className="flex flex-col gap-4">
-          <div className="p-4 rounded-xl bg-white/5 border border-white/5">
+          <div className="p-4 rounded-xl bg-white/5 border border-nova-border">
             <div className="flex justify-between items-center mb-2">
               <span className="text-sm text-gray-300">Fixed Yield (PT)</span>
               <span className="text-sm font-medium text-emerald-400">
@@ -82,7 +82,7 @@ export function YieldAnalytics() {
             </div>
           </div>
           
-          <div className="p-4 rounded-xl bg-white/5 border border-white/5">
+          <div className="p-4 rounded-xl bg-white/5 border border-nova-border">
             <div className="flex justify-between items-center mb-2">
               <span className="text-sm text-gray-300">Variable Yield (YT)</span>
               <span className="text-sm font-medium text-blue-400">Variable</span>

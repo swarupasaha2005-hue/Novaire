@@ -54,7 +54,7 @@ graph TD
       </section>
 
       {/* --- Smart Contracts --- */}
-      <hr className="border-white/10 my-16" />
+      <hr className="border-nova-border my-16" />
       <section id="smart-contracts" className="mb-16 scroll-mt-24">
         <h2 className="text-3xl font-bold text-white mb-8">Smart Contracts API</h2>
 
@@ -63,7 +63,7 @@ graph TD
           Novaire's contracts are deployed on the Stellar Testnet. TypeScript bindings are automatically generated into the <code>/packages</code> directory upon deployment using the <code>stellar-cli</code>.
         </p>
         
-        <div className="overflow-x-auto my-8 border border-white/10 rounded-xl max-h-[400px] overflow-y-auto">
+        <div className="overflow-x-auto my-8 border border-nova-border rounded-xl max-h-[400px] overflow-y-auto">
           <table className="min-w-full divide-y divide-white/10 text-sm">
             <thead className="bg-gray-900 sticky top-0 z-10 shadow-sm">
               <tr>
@@ -73,23 +73,23 @@ graph TD
             </thead>
             <tbody className="divide-y divide-white/10 bg-transparent text-gray-300">
               <tr>
-                <td className="px-4 py-3 font-mono text-[#3ECF8E]">Vault</td>
+                <td className="px-4 py-3 font-mono text-nova-accent">Vault</td>
                 <td className="px-4 py-3">Custodies underlying assets. Issues SY shares.</td>
               </tr>
               <tr>
-                <td className="px-4 py-3 font-mono text-[#3ECF8E]">SY Wrapper</td>
+                <td className="px-4 py-3 font-mono text-nova-accent">SY Wrapper</td>
                 <td className="px-4 py-3">Standardizes accounting and yield exchange rates.</td>
               </tr>
               <tr>
-                <td className="px-4 py-3 font-mono text-[#3ECF8E]">Tokenizer</td>
+                <td className="px-4 py-3 font-mono text-nova-accent">Tokenizer</td>
                 <td className="px-4 py-3">Mints and burns PT and YT. Handles redemptions.</td>
               </tr>
               <tr>
-                <td className="px-4 py-3 font-mono text-[#3ECF8E]">Marketplace</td>
+                <td className="px-4 py-3 font-mono text-nova-accent">Marketplace</td>
                 <td className="px-4 py-3">Yield-Space AMM for swap routing and price discovery.</td>
               </tr>
               <tr>
-                <td className="px-4 py-3 font-mono text-[#3ECF8E]">Intent Engine</td>
+                <td className="px-4 py-3 font-mono text-nova-accent">Intent Engine</td>
                 <td className="px-4 py-3">Abstract transaction router with TWAP protection.</td>
               </tr>
             </tbody>
@@ -103,7 +103,7 @@ graph TD
       </section>
 
       {/* --- FAQ --- */}
-      <hr className="border-white/10 my-16" />
+      <hr className="border-nova-border my-16" />
       <section id="faq" className="mb-32 scroll-mt-24">
         <h2 className="text-3xl font-bold text-white mb-8">FAQ</h2>
         

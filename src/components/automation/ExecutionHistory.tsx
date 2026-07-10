@@ -5,7 +5,7 @@ interface ExecutionHistoryProps {
   upcoming?: any[];
 }
 
-const MOCK_HISTORY: any[] = [];
+const executionHistory: any[] = [];
 
 export function ExecutionHistory({ upcoming = [] }: ExecutionHistoryProps) {
   return (
@@ -16,7 +16,7 @@ export function ExecutionHistory({ upcoming = [] }: ExecutionHistoryProps) {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
-        className="rounded-2xl border border-white/5 bg-white/[0.02] p-6 backdrop-blur-xl"
+        className="rounded-2xl border border-nova-border bg-white/[0.02] p-6 backdrop-blur-xl"
       >
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -32,7 +32,7 @@ export function ExecutionHistory({ upcoming = [] }: ExecutionHistoryProps) {
 
         <div className="space-y-4">
           {upcoming.length > 0 ? upcoming.map((item) => (
-            <div key={item.id} className="flex items-center justify-between rounded-xl border border-white/5 bg-white/5 p-4 transition-colors hover:bg-white/10">
+            <div key={item.id} className="flex items-center justify-between rounded-xl border border-nova-border bg-white/5 p-4 transition-colors hover:bg-white/10">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-white">{item.strategy}</span>
@@ -45,14 +45,19 @@ export function ExecutionHistory({ upcoming = [] }: ExecutionHistoryProps) {
                   IF {item.trigger}
                 </p>
               </div>
-              <div className="text-right">
-                <span className="text-sm font-medium text-orange-400">Pending Automation Engine</span>
+              <div className="text-right flex flex-col items-end gap-1">
+                <span className="text-sm font-medium text-orange-400">{item.eta || 'Registered'}</span>
+                {item.txHash && (
+                  <button className="flex items-center gap-1 text-xs text-white/40 hover:text-blue-400 transition-colors">
+                    {item.txHash.slice(0, 8)}...{item.txHash.slice(-4)} <ArrowUpRight className="h-3 w-3" />
+                  </button>
+                )}
               </div>
             </div>
           )) : (
-            <div className="flex flex-col items-center justify-center rounded-xl border border-white/5 bg-white/[0.01] py-8 text-center">
-              <span className="rounded-full bg-white/5 px-3 py-1 text-xs font-medium text-white/50 mb-3">Automation backend coming soon</span>
-              <p className="text-sm text-white/40">No scheduled automations yet.</p>
+            <div className="flex flex-col items-center justify-center rounded-xl border border-nova-border bg-white/[0.01] py-8 text-center">
+              <span className="rounded-full bg-white/5 px-3 py-1 text-xs font-medium text-white/50 mb-3">No active automations yet</span>
+              <p className="text-sm text-white/40">Register an Auto Roll strategy to begin automated execution.</p>
             </div>
           )}
         </div>
@@ -63,7 +68,7 @@ export function ExecutionHistory({ upcoming = [] }: ExecutionHistoryProps) {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}
-        className="rounded-2xl border border-white/5 bg-white/[0.02] p-6 backdrop-blur-xl"
+        className="rounded-2xl border border-nova-border bg-white/[0.02] p-6 backdrop-blur-xl"
       >
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -81,8 +86,8 @@ export function ExecutionHistory({ upcoming = [] }: ExecutionHistoryProps) {
         </div>
 
         <div className="space-y-4">
-          {MOCK_HISTORY.length > 0 ? MOCK_HISTORY.map((item) => (
-            <div key={item.id} className="flex items-center justify-between rounded-xl border border-white/5 bg-white/5 p-4 transition-colors hover:bg-white/10">
+          {executionHistory.length > 0 ? executionHistory.map((item) => (
+            <div key={item.id} className="flex items-center justify-between rounded-xl border border-nova-border bg-white/5 p-4 transition-colors hover:bg-white/10">
               <div className="flex items-center gap-4">
                 {item.status === 'Success' ? (
                   <CheckCircle2 className="h-5 w-5 text-emerald-500" />
@@ -103,8 +108,7 @@ export function ExecutionHistory({ upcoming = [] }: ExecutionHistoryProps) {
               </div>
             </div>
           )) : (
-            <div className="flex flex-col items-center justify-center rounded-xl border border-white/5 bg-white/[0.01] py-8 text-center">
-              <span className="rounded-full bg-white/5 px-3 py-1 text-xs font-medium text-white/50 mb-3">Automation backend coming soon</span>
+            <div className="flex flex-col items-center justify-center rounded-xl border border-nova-border bg-white/[0.01] py-8 text-center">
               <p className="text-sm text-white/40">No automation history yet.</p>
             </div>
           )}

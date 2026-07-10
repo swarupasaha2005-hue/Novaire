@@ -82,37 +82,13 @@ async function deploy() {
     const server = new rpc.Server(RPC_URL, { allowHttp: true });
 
     if (!deployments['underlying_token']) {
-        console.log("Setting up Mock USDC Asset...");
-        const usdcAsset = new Asset('USDC', issuer.publicKey());
-        let adminAcc = await server.getAccount(admin.publicKey());
-        
-        let tx = new TransactionBuilder(adminAcc, { fee: BASE_FEE, networkPassphrase: NETWORK_PASSPHRASE })
-            .addOperation(Operation.changeTrust({ asset: usdcAsset }))
-            .setTimeout(60)
-            .build();
-        tx.sign(admin);
-        try {
-            let res = await server.sendTransaction(tx);
-            if (res.status === 'ERROR') console.warn(`Trustline may already exist or failed: ${JSON.stringify(res)}`);
-        } catch(e) { console.warn("Trustline error caught (likely exists)."); }
-
-        let issuerAcc = await server.getAccount(issuer.publicKey());
-        tx = new TransactionBuilder(issuerAcc, { fee: BASE_FEE, networkPassphrase: NETWORK_PASSPHRASE })
-            .addOperation(Operation.payment({ destination: admin.publicKey(), asset: usdcAsset, amount: '1000000' }))
-            .setTimeout(60)
-            .build();
-        tx.sign(issuer);
-        try {
-            await server.sendTransaction(tx);
-        } catch(e) { console.warn("Payment error caught (likely exists)."); }
-
-        console.log("Wrapping USDC to Soroban contract...");
-        const underlying_token = runCmd(`stellar contract asset deploy --asset USDC:${issuer.publicKey()} --source-account ${admin.secret()} --rpc-url ${RPC_URL} --network-passphrase "${NETWORK_PASSPHRASE}"`);
-        console.log(`Mock Underlying Token ID: ${underlying_token}`);
-        deployments['underlying_token'] = underlying_token;
+        console.log(`Setting underlying token to Native XLM SAC...`);
+        const XLM_NATIVE_SAC = Asset.native().contractId(NETWORK_PASSPHRASE);
+        deployments['underlying_token'] = XLM_NATIVE_SAC;
         saveDeployments(__dirname, deployments);
+        console.log(`Native XLM SAC Token ID: ${XLM_NATIVE_SAC}`);
     } else {
-        console.log(`Mock Token already deployed: ${deployments['underlying_token']}`);
+        console.log(`Token already configured: ${deployments['underlying_token']}`);
     }
 
     console.log('Building contracts...');
@@ -164,7 +140,7 @@ async function deploy() {
     if (!deployments['epoch_deployed']) {
         console.log("Invoking Factory.deploy_epoch()...");
         const ledger = await server.getLatestLedger();
-        const maturity_ledger = ledger.sequence + 5000;
+        const maturity_ledger = ledger.sequence + 50000;
         const grace_period_ledgers = 1000;
         const keeper = admin.publicKey();
 
@@ -222,6 +198,17 @@ async function deploy() {
         }
     }
     console.log("Deployment and Wiring Complete!");
+
+    console.log("\nStarting Automatic Protocol Bootstrap...");
+    try {
+        const bootstrapCmd = `npx ts-node scripts/bootstrap_liquidity.ts`;
+        console.log(`Executing: ${bootstrapCmd}`);
+        execSync(`npx tsx ${path.resolve(__dirname, 'bootstrap_liquidity.ts')}`, { stdio: 'inherit' });
+        console.log("Bootstrap completed successfully!");
+    } catch (e) {
+        console.error("Bootstrap failed during deployment:", e);
+        throw e;
+    }
 }
 
 deploy().catch((err) => {

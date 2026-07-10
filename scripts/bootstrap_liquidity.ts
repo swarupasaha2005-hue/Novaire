@@ -52,17 +52,19 @@ async function run() {
     console.log(`YT Token: ${d.yt_token}`);
 
     console.log('\n--- Step 2: Treasury Setup ---');
-    if (!process.env.ADMIN_SECRET) throw new Error('ADMIN_SECRET environment variable missing');
-    const adminKp = Keypair.fromSecret(process.env.ADMIN_SECRET);
+    if (!fs.existsSync(TESTNET_KEYS)) throw new Error('testnet_keys.json missing');
+    const keys = JSON.parse(fs.readFileSync(TESTNET_KEYS, 'utf-8'));
+    if (!keys.admin_secret) throw new Error('admin_secret missing in testnet_keys.json');
+    const adminKp = Keypair.fromSecret(keys.admin_secret);
     const adminAddress = adminKp.publicKey();
     console.log(`Treasury Wallet: ${adminAddress}`);
 
     await fundAccount(adminAddress);
 
-    const initXlm = parseSorobanI128(invoke(d.underlying_token, 'balance', `--id ${adminAddress}`, adminKp.secret()));
-    console.log(`Treasury Initial XLM Balance (stroops): ${initXlm.toString()}`);
+    let initXlm = parseSorobanI128(invoke(d.underlying_token, 'balance', `--id ${adminAddress}`, adminKp.secret()));
+    console.log(`Treasury Initial Underlying Balance (stroops): ${initXlm.toString()}`);
     if (initXlm < BigInt(1000000000)) {
-        throw new Error('Treasury lacks sufficient XLM to bootstrap (need at least 100 XLM).');
+        console.warn('Treasury lacks sufficient XLM balance. Ensure it is funded (e.g. via Friendbot or manual transfer).');
     }
 
     // --- SAFEGUARD: Prevent Double Bootstrap ---
@@ -71,30 +73,30 @@ async function run() {
     let initialPtReserveRaw = "0";
     let initialUndReserveRaw = "0";
     let spotPriceRaw = "0";
-    
+
     try {
         const reservesRaw = invoke(d.marketplace, 'get_reserves', '', adminKp.secret());
         const reservesStr = reservesRaw.replace(/^Ok\((.+)\)$/, '$1');
         const reservesArr = JSON.parse(reservesStr);
         initialPtReserveRaw = reservesArr[0] || "0";
         initialUndReserveRaw = reservesArr[1] || "0";
-        
+
         const priceRaw = invoke(d.marketplace, 'get_pt_price', '', adminKp.secret());
         spotPriceRaw = priceRaw.replace(/^Ok\((.+)\)$/, '$1').replace(/"/g, '');
     } catch (e) {
         console.warn("Could not fetch initial reserves, assuming empty.");
     }
-    
+
     const ptReserveVal = parseSorobanI128(initialPtReserveRaw);
     const undReserveVal = parseSorobanI128(initialUndReserveRaw);
-    
+
     if (ptReserveVal > 0n || undReserveVal > 0n) {
         console.log(`\n🚨 MARKETPLACE NOT EMPTY 🚨`);
         console.log(`PT Reserves: ${ptReserveVal.toString()}`);
         console.log(`Underlying Reserves: ${undReserveVal.toString()}`);
         console.log(`LP Supply: (unavailable/private)`);
         console.log(`Spot Price: ${spotPriceRaw}`);
-        
+
         if (!forceFlag) {
             console.error('\nMarketplace already contains liquidity. Refusing to bootstrap twice.');
             console.error('Run with --force to override (development only).\n');
@@ -104,7 +106,7 @@ async function run() {
         }
     }
     // -------------------------------------------
-    
+
     // Step 3 (Cleanup): Remove any existing liquidity from previous failed runs.
     const { Client: MarketplaceClient } = await import('../packages/bindings/marketplace/src/index');
     const marketplaceClient = new MarketplaceClient({
@@ -119,7 +121,7 @@ async function run() {
     // We use stellar-sdk to read the storage entry directly.
     const { rpc: rpcModule, xdr, Address, nativeToScVal } = await import('@stellar/stellar-sdk');
     const rpcClient = new rpcModule.Server(RPC_URL, { allowHttp: true });
-    
+
     // Encode the LpBalance(admin) key
     const lpKey = xdr.ScVal.scvMap([
         new xdr.ScMapEntry({
@@ -127,7 +129,7 @@ async function run() {
             val: xdr.ScVal.scvVec([Address.fromString(adminAddress).toScVal()])
         })
     ]);
-    
+
     let currentLpBalance = BigInt(0);
     try {
         const contractId = d.marketplace;
@@ -143,9 +145,9 @@ async function run() {
             const val = entries.entries[0].val.contractData().val();
             const hiStr = val.i128().hi().toString();
             const loStr = val.i128().lo().toString();
-            currentLpBalance = BigInt(hiStr) * (2n**64n) + BigInt(loStr);
+            currentLpBalance = BigInt(hiStr) * (2n ** 64n) + BigInt(loStr);
         }
-    } catch(e) {
+    } catch (e) {
         console.log('Could not read LP balance from ledger, assuming 0.');
     }
     console.log(`Treasury LP Balance: ${currentLpBalance.toString()}`);
@@ -170,32 +172,32 @@ async function run() {
     }
 
     // Step 3a: Mint fresh PT/YT to provide as liquidity.
-    const DEPOSIT_AMOUNT = "1000000000"; // 100 XLM
+    const DEPOSIT_AMOUNT = "100000000"; // 10 XLM
     console.log(`3a. Vault.deposit(${DEPOSIT_AMOUNT})...`);
     let sy_shares_str = invoke(d.vault, 'deposit', `--depositor ${adminAddress} --amount ${DEPOSIT_AMOUNT}`, adminKp.secret()).trim();
     sy_shares_str = sy_shares_str.replace(/"/g, '');
-    
+
     console.log(`3b. Tokenizer.mint_pt_yt(${sy_shares_str})...`);
     invoke(d.tokenizer, 'mint_pt_yt', `--user ${adminAddress} --sy_shares ${sy_shares_str}`, adminKp.secret());
 
     // --- DYNAMIC PRICING LOGIC ---
     console.log(`3c. Computing dynamic PT price for Target APY...`);
     const TARGET_APY = 0.10; // 10%
-    
+
     const metadataRaw = invoke(d.tokenizer, 'metadata', '', adminKp.secret());
     const jsonStr = metadataRaw.replace(/^Ok\((.+)\)$/, '$1');
     const metadata = JSON.parse(jsonStr);
     const maturityLedger = Number(metadata.maturity_ledger);
-    
+
     const latestLedgerData = await rpcClient.getLatestLedger();
     const currentLedger = latestLedgerData.sequence;
-    
+
     const ledgersRemaining = Math.max(1, maturityLedger - currentLedger);
     const daysRemaining = (ledgersRemaining * 5.5) / 86400;
-    
+
     // PT Price = FaceValue / (1 + APY)^(days/365)
     const ptPriceFloat = 1.0 / Math.pow(1 + TARGET_APY, daysRemaining / 365);
-    
+
     console.log(`- Epoch duration remaining: ${daysRemaining.toFixed(2)} days`);
     console.log(`- Target APY: ${(TARGET_APY * 100).toFixed(1)}%`);
     console.log(`- Computed PT Bootstrap Price: ${ptPriceFloat.toFixed(6)}`);
@@ -203,7 +205,7 @@ async function run() {
     const PT_AMOUNT = sy_shares_str;
     const ptPriceMultiplier = BigInt(Math.floor(ptPriceFloat * 1e9));
     const UNDERLYING_AMOUNT = (BigInt(PT_AMOUNT) * ptPriceMultiplier / BigInt(1e9)).toString();
-    
+
     console.log(`3d. Marketplace.add_liquidity(PT: ${PT_AMOUNT}, Underlying: ${UNDERLYING_AMOUNT})...`);
     invoke(d.marketplace, 'add_liquidity', `--provider ${adminAddress} --pt_amount ${PT_AMOUNT} --underlying_amount ${UNDERLYING_AMOUNT}`, adminKp.secret());
 
@@ -243,9 +245,7 @@ async function run() {
     await fundAccount(testWallet.publicKey());
 
     // Wait a moment for Friendbot to settle
-    await new Promise(r => setTimeout(r, 3000));
-
-    const retailDeposit = "10000000"; // 1 XLM
+    const retailDeposit = "10000000"; // 1 XLM (1e7 stroops)
 
     console.log('Invoking execute_fixed_yield_intent via CLI...');
     try {

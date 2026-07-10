@@ -41,13 +41,13 @@ export function MarketStatisticsPanel() {
       initial={{ opacity: 0, x: 10 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.4 }}
-      className="rounded-2xl border border-white/5 bg-white/5 p-6 backdrop-blur-xl flex flex-col gap-6"
+      className="rounded-2xl border border-nova-border bg-white/5 p-6 backdrop-blur-xl flex flex-col gap-6"
     >
       <h3 className="text-lg font-semibold text-white">Market Statistics</h3>
       
       <div className="flex flex-col gap-4">
         {stats.map((stat, i) => (
-          <div key={i} className="flex justify-between items-center pb-3 border-b border-white/5 last:border-0 last:pb-0">
+          <div key={i} className="flex justify-between items-center pb-3 border-b border-nova-border last:border-0 last:pb-0">
             <span className="text-sm text-gray-400">{stat.label}</span>
             <div className="text-right">
               <div className={`text-sm font-medium ${stat.highlight ? 'text-emerald-400' : 'text-white'}`}>

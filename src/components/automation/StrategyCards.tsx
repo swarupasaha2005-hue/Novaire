@@ -70,32 +70,50 @@ export function StrategyCards({ onSelect }: StrategyCardsProps) {
             transition={{ delay: i * 0.1 }}
             onMouseEnter={() => setHoveredId(strategy.id)}
             onMouseLeave={() => setHoveredId(null)}
-            className="group relative cursor-pointer overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02] p-6 backdrop-blur-xl transition-all hover:border-white/10 hover:bg-white/[0.04]"
-            onClick={() => onSelect(strategy)}
+            className={`group relative overflow-hidden rounded-2xl border border-nova-border bg-white/[0.02] p-6 backdrop-blur-xl transition-all ${
+              strategy.id === 's1'
+                ? 'cursor-pointer hover:border-nova-border hover:bg-white/[0.04]'
+                : 'cursor-not-allowed opacity-40'
+            }`}
+            onClick={() => {
+              if (strategy.id === 's1') {
+                onSelect(strategy);
+              }
+            }}
+            title={strategy.id !== 's1' ? 'This automation will be available in a future protocol upgrade.' : undefined}
           >
-            <div className="mb-4 flex items-center justify-between">
-              <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${strategy.bg} ${strategy.color}`}>
-                <Icon className="h-6 w-6" />
+              {strategy.id !== 's1' && (
+                <div className="absolute top-4 right-4 rounded bg-white/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-white/50">
+                  Coming Soon
+                </div>
+              )}
+              <div className="mb-4 flex items-center justify-between">
+                <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${strategy.bg} ${strategy.color}`}>
+                  <Icon className="h-6 w-6" />
+                </div>
+                {strategy.id === 's1' && (
+                  <span className="rounded-full bg-white/5 px-3 py-1 text-xs font-medium text-white/70">
+                    {strategy.risk}
+                  </span>
+                )}
               </div>
-              <span className="rounded-full bg-white/5 px-3 py-1 text-xs font-medium text-white/70">
-                {strategy.risk}
-              </span>
-            </div>
-            
-            <h3 className="mb-2 text-lg font-medium text-white">{strategy.title}</h3>
-            <p className="mb-6 text-sm text-white/50">{strategy.description}</p>
-            
-            <div className="flex items-center justify-between border-t border-white/5 pt-4">
-              <span className="text-xs text-white/40">Template</span>
               
-              <div className="flex items-center gap-1 text-sm font-medium text-white/70 transition-colors group-hover:text-white">
-                Use Template
-                <ChevronRight className={`h-4 w-4 transition-transform ${hoveredId === strategy.id ? 'translate-x-1' : ''}`} />
+              <h3 className="mb-2 text-lg font-medium text-white">{strategy.title}</h3>
+              <p className="mb-6 text-sm text-white/50">{strategy.description}</p>
+              
+              <div className="flex items-center justify-between border-t border-nova-border pt-4">
+                <span className="text-xs text-white/40">Template</span>
+                
+                <div className={`flex items-center gap-1 text-sm font-medium transition-colors ${strategy.id === 's1' ? 'text-white/70 group-hover:text-white' : 'text-white/30'}`}>
+                  Use Template
+                  {strategy.id === 's1' && (
+                    <ChevronRight className={`h-4 w-4 transition-transform ${hoveredId === strategy.id ? 'translate-x-1' : ''}`} />
+                  )}
+                </div>
               </div>
-            </div>
-          </motion.div>
-        );
-      })}
-    </div>
-  );
-}
+            </motion.div>
+          );
+        })}
+      </div>
+    );
+  }

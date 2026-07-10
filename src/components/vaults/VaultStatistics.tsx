@@ -26,7 +26,7 @@ export function VaultStatistics({ vaults, protocolState }: VaultStatisticsProps)
     { label: 'PT Supply', value: protocolState ? `${formatNumber(protocolState.ptSupplyXlm)} PT` : 'Loading...', icon: HandCoins, color: 'text-purple-400' },
     { label: 'YT Supply', value: protocolState ? `${formatNumber(protocolState.ytSupplyXlm)} YT` : 'Loading...', icon: Layers, color: 'text-orange-400' },
     { label: 'DEX Liquidity', value: protocolState ? (protocolState.dexLiquidityXlm > 0 ? `${formatNumber(protocolState.dexLiquidityXlm)} XLM` : 'No Active Liquidity Pool') : 'Loading...', icon: Zap, color: 'text-cyan-400' },
-    { label: 'Avg Fixed APY', value: `${avgFixedApy.toFixed(2)}%`, icon: TrendingUp, color: 'text-[#3ECF8E]' },
+    { label: 'Avg Fixed APY', value: `${avgFixedApy.toFixed(2)}%`, icon: TrendingUp, color: 'text-nova-accent' },
   ];
 
   return (

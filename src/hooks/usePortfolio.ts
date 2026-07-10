@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { PortfolioService, PortfolioSummary } from '../services/portfolioService';
 import { WalletService } from '../services/walletService';
+import { NotificationService } from '../services/notificationService';
 
 export interface UsePortfolioResult {
   portfolio: PortfolioSummary | null;
@@ -46,6 +47,17 @@ const fetchGlobalPortfolio = async () => {
     if (data && !(data as any)._instanceId) {
       (data as any)._instanceId = Math.random().toString(36).substring(7);
     }
+    
+    if (data && data.metrics && data.metrics.totalClaimableYieldUsd > 0) {
+      const lastNotified = localStorage.getItem('novaire_last_yield_notification');
+      const now = Date.now();
+      // Notify once every 24 hours if yield > 0
+      if (!lastNotified || (now - parseInt(lastNotified)) > 24 * 60 * 60 * 1000) {
+        NotificationService.addNotification('yield', 'Claimable Yield Available', `${data.metrics.totalClaimableYieldXlm.toFixed(2)} XLM is ready to claim.`);
+        localStorage.setItem('novaire_last_yield_notification', now.toString());
+      }
+    }
+    
     globalPortfolio = data;
   } catch (err: any) {
     console.error("[usePortfolio] Fetch Error:", err);

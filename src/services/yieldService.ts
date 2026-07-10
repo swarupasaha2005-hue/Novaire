@@ -63,6 +63,29 @@ export class YieldService {
     return maturityMs;
   }
 
+  static async getActiveMaturityLedger(): Promise<number> {
+    try {
+      const { Client: TokenizerClient } = await import('../../packages/bindings/tokenizer/src/index');
+      const { CONTRACTS, RPC_URL, NETWORK_PASSPHRASE } = await import('../config/contracts');
+
+      const tokenizerClient = new TokenizerClient({ 
+        rpcUrl: RPC_URL,
+        networkPassphrase: NETWORK_PASSPHRASE,
+        contractId: CONTRACTS.TOKENIZER 
+      });
+      
+      const metaTx = await tokenizerClient.metadata();
+      const metadata = this.unwrapResult(metaTx?.result);
+      
+      if (metadata && typeof metadata === 'object') {
+        return Number(metadata.maturity_ledger || 0);
+      }
+    } catch (e) {
+      console.warn("Could not fetch tokenizer maturity_ledger", e);
+    }
+    return 0;
+  }
+
   static async getEpochStartIndex(): Promise<number> {
     try {
       const { Client: TokenizerClient } = await import('../../packages/bindings/tokenizer/src/index');

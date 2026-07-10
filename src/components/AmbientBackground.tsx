@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 
 export function AmbientBackground() {
   return (
-    <div className="pointer-events-none fixed inset-0 z-[-1] overflow-hidden bg-[#050505]">
+    <div className="pointer-events-none fixed inset-0 z-[-1] overflow-hidden bg-nova-bg">
       
       {/* Layer 1: Soft Atmospheric Depth (Emerald gradients) */}
       <div className="absolute inset-0">
@@ -24,7 +24,7 @@ export function AmbientBackground() {
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.01)_0%,transparent_100%)] blur-[80px]" />
 
       {/* Layer 5: Ambient Light (Upper Right) */}
-      <div className="absolute -top-[20%] -right-[10%] h-[1200px] w-[1200px] rounded-full bg-[#3ECF8E] opacity-[0.03] blur-[180px]" />
+      <div className="absolute -top-[20%] -right-[10%] h-[1200px] w-[1200px] rounded-full bg-nova-accent opacity-[0.03] blur-[180px]" />
 
       {/* Layer 2 & 3: Orbital Curves & Constellations with subtle motion */}
       <motion.div 

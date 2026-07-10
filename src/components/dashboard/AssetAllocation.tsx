@@ -10,10 +10,10 @@ export function AssetAllocation() {
 
   if (loading) {
     return (
-      <div className="flex h-[320px] flex-col rounded-2xl border border-white/10 bg-[#111111] p-6">
+      <div className="flex h-[320px] flex-col rounded-2xl border border-nova-border bg-nova-surface p-6">
         <h3 className="font-sans font-medium ">Asset Allocation</h3>
         <div className="mt-6 flex flex-1 items-center justify-center">
-          <div className="h-40 w-40 animate-pulse rounded-full border-4 border-white/10" />
+          <div className="h-40 w-40 animate-pulse rounded-full border-4 border-nova-border" />
         </div>
       </div>
     );
@@ -21,9 +21,9 @@ export function AssetAllocation() {
 
   if (error === 'Wallet not connected' || portfolio?.error === 'Wallet not connected') {
     return (
-      <div className="flex h-[320px] flex-col rounded-2xl border border-white/10 bg-[#111111] p-6">
+      <div className="flex h-[320px] flex-col rounded-2xl border border-nova-border bg-nova-surface p-6">
         <h3 className="font-sans font-medium ">Asset Allocation</h3>
-        <div className="mt-6 flex flex-1 items-center justify-center text-[#8E8E8E] text-sm">
+        <div className="mt-6 flex flex-1 items-center justify-center text-nova-muted text-sm">
           Connect Wallet
         </div>
       </div>
@@ -33,9 +33,9 @@ export function AssetAllocation() {
   const allocations = portfolio?.allocation || [];
   if (allocations.length === 0) {
     return (
-      <div className="flex h-[320px] flex-col rounded-2xl border border-white/10 bg-[#111111] p-6">
+      <div className="flex h-[320px] flex-col rounded-2xl border border-nova-border bg-nova-surface p-6">
         <h3 className="font-sans font-medium ">Asset Allocation</h3>
-        <div className="mt-6 flex flex-1 items-center justify-center text-[#8E8E8E] text-sm">
+        <div className="mt-6 flex flex-1 items-center justify-center text-nova-muted text-sm">
           No Assets
         </div>
       </div>
@@ -63,7 +63,7 @@ export function AssetAllocation() {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.4, ease: 'easeOut' }}
-      className="flex h-[320px] flex-col rounded-2xl border border-white/10 bg-[#111111] p-6 transition-colors hover:border-[#3ECF8E]/50"
+      className="flex h-[320px] flex-col rounded-2xl border border-nova-border bg-nova-surface p-6 transition-colors hover:border-nova-accent/50"
     >
       <h3 className="font-sans font-medium ">Asset Allocation</h3>
       
@@ -96,8 +96,8 @@ export function AssetAllocation() {
           </svg>
           {/* Inner Total */}
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-[10px] text-[#9A9A9A] uppercase tracking-wider">Portfolio</span>
-            <span className="font-serif text-[15px] text-[#F5F5F2] mt-0.5">
+            <span className="text-[10px] text-nova-muted uppercase tracking-wider">Portfolio</span>
+            <span className="font-serif text-[15px] text-nova-text mt-0.5">
               ${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
@@ -118,13 +118,13 @@ export function AssetAllocation() {
                   className="h-2.5 w-2.5 shrink-0 rounded-sm"
                   style={{ backgroundColor: item.color }}
                 />
-                <span className="text-xs text-[#9A9A9A] truncate">{item.assetCode}</span>
+                <span className="text-xs text-nova-muted truncate">{item.assetCode}</span>
               </div>
               <div className="flex items-center gap-3 shrink-0">
-                <span className="text-xs font-medium text-[#F5F5F2]">
+                <span className="text-xs font-medium text-nova-text">
                   ${item.valueUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
-                <span className="w-8 text-right text-[10px] text-[#9A9A9A]">{item.percentage.toFixed(0)}%</span>
+                <span className="w-8 text-right text-[10px] text-nova-muted">{item.percentage.toFixed(0)}%</span>
               </div>
             </motion.div>
           ))}

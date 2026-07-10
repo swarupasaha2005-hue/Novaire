@@ -31,7 +31,12 @@ if (typeof window !== "undefined") {
 }
 
 
-
+export const networks = {
+  testnet: {
+    networkPassphrase: "Test SDF Network ; September 2015",
+    contractId: "CAXOWPAFBXEJVLYGSDNROEDMF5VVWKGYU7BTANF23PABIQ7BDL4BZ2O7",
+  }
+} as const
 
 export type DataKey = {tag: "Admin", values: void} | {tag: "PendingAdmin", values: void} | {tag: "Tokenizer", values: void} | {tag: "SyWrapper", values: void} | {tag: "TotalSupply", values: void} | {tag: "YieldIndex", values: void} | {tag: "MaturityLedger", values: void} | {tag: "Paused", values: void} | {tag: "Balance", values: readonly [string]} | {tag: "Allowance", values: readonly [string, string]} | {tag: "UserYieldIndex", values: readonly [string]} | {tag: "AccruedYield", values: readonly [string]};
 

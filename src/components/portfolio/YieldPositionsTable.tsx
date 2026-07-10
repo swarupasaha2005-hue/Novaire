@@ -23,7 +23,7 @@ export function YieldPositionsTable() {
   // Group PT and YT by underlying asset / issuer for rows
   const positionsMap = new Map();
   yieldAssets.forEach(asset => {
-    // Determine underlying from assetCode like "PT-USDC"
+    // Determine underlying from assetCode like "PT-XLM"
     const isPT = asset.assetType === 'pt';
     const isYT = asset.assetType === 'yt';
     let underlying = asset.assetCode.split('-')[1] || 'Unknown';
@@ -69,15 +69,15 @@ export function YieldPositionsTable() {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.2, ease: 'easeOut' }}
-      className="flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#111111]"
+      className="flex flex-col overflow-hidden rounded-2xl border border-nova-border bg-nova-surface"
     >
-      <div className="border-b border-white/10 p-6 flex justify-between items-center">
+      <div className="border-b border-nova-border p-6 flex justify-between items-center">
         <h3 className="font-sans font-medium ">Yield Positions</h3>
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
-          <thead className="bg-[#050505]/50 text-xs text-[#9A9A9A]">
+          <thead className="bg-nova-bg/50 text-xs text-nova-muted">
             <tr>
               <th className="px-6 py-4 font-medium">Vault Name</th>
               <th className="px-6 py-4 font-medium">Underlying</th>
@@ -102,7 +102,7 @@ export function YieldPositionsTable() {
 
             {isDisconnected && (
               <tr>
-                <td colSpan={8} className="px-6 py-12 text-center text-[#8E8E8E]">
+                <td colSpan={8} className="px-6 py-12 text-center text-nova-muted">
                   Connect Wallet to view yield positions
                 </td>
               </tr>
@@ -112,10 +112,10 @@ export function YieldPositionsTable() {
               <tr>
                 <td colSpan={8} className="px-6 py-12 text-center">
                   <div className="flex flex-col items-center justify-center space-y-4">
-                    <span className="text-[#8E8E8E]">No Yield Positions Yet</span>
+                    <span className="text-nova-muted">No Yield Positions Yet</span>
                     <button
                       onClick={() => setIsMintModalOpen(true)}
-                      className="rounded-xl bg-[#3ECF8E] px-5 py-2 text-sm font-semibold text-black transition-transform hover:scale-105 active:scale-95"
+                      className="rounded-xl bg-nova-accent px-5 py-2 text-sm font-semibold text-black transition-transform hover:scale-105 active:scale-95"
                     >
                       Mint PT & YT
                     </button>
@@ -132,29 +132,29 @@ export function YieldPositionsTable() {
                 transition={{ duration: 0.4, delay: 0.2 + i * 0.05 }}
                 className="group transition-colors hover:bg-white/5"
               >
-                <td className="whitespace-nowrap px-6 py-4 font-medium text-[#F5F5F2]">
+                <td className="whitespace-nowrap px-6 py-4 font-medium text-nova-text">
                   {pos.vaultName}
                 </td>
-                <td className="whitespace-nowrap px-6 py-4 text-[#9A9A9A]">
+                <td className="whitespace-nowrap px-6 py-4 text-nova-muted">
                   {pos.underlying}
                 </td>
-                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#F5F5F2]">
+                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-nova-text">
                   {pos.ptBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                 </td>
-                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#F5F5F2]">
+                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-nova-text">
                   {pos.ytBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                 </td>
-                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#3ECF8E]">
+                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-nova-accent">
                   {pos.fixedApy}%
                 </td>
-                <td className="whitespace-nowrap px-6 py-4 text-[#F5F5F2]">
+                <td className="whitespace-nowrap px-6 py-4 text-nova-text">
                   {pos.maturityDate}
                 </td>
-                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#F5F5F2]">
+                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-nova-text">
                   ${pos.currentValueUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </td>
                 <td className="whitespace-nowrap px-6 py-4">
-                  <span className={`inline-flex rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${pos.status === 'Active' ? 'bg-[#3ECF8E]/10 text-[#3ECF8E]' : 'bg-white/10 text-[#9A9A9A]'}`}>
+                  <span className={`inline-flex rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${pos.status === 'Active' ? 'bg-nova-accent/10 text-nova-accent' : 'bg-white/10 text-nova-muted'}`}>
                     {pos.status}
                   </span>
                 </td>

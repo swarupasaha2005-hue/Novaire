@@ -11,15 +11,15 @@ export function Callout({ type, title, children }: CalloutProps) {
   const styles = {
     info: {
       bg: 'bg-white/5',
-      border: 'border-[#3ECF8E]/30',
-      text: 'text-[#3ECF8E]',
+      border: 'border-nova-accent/30',
+      text: 'text-nova-accent',
       icon: <Info className="w-5 h-5" />,
       defaultTitle: 'Info',
     },
     success: {
-      bg: 'bg-[#3ECF8E]/10',
-      border: 'border-[#3ECF8E]/50',
-      text: 'text-[#3ECF8E]',
+      bg: 'bg-nova-accent/10',
+      border: 'border-nova-accent/50',
+      text: 'text-nova-accent',
       icon: <CheckCircle2 className="w-5 h-5" />,
       defaultTitle: 'Success',
     },
@@ -47,7 +47,7 @@ export function Callout({ type, title, children }: CalloutProps) {
         {config.icon}
         {title || config.defaultTitle}
       </h4>
-      <div className="text-sm text-gray-300 m-0 prose-p:m-0 prose-a:text-[#3ECF8E]">
+      <div className="text-sm text-gray-300 m-0 prose-p:m-0 prose-a:text-nova-accent">
         {children}
       </div>
     </div>

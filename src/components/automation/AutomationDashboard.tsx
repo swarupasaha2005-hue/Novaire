@@ -7,12 +7,12 @@ import { AutomationBuilderModal } from './AutomationBuilderModal';
 import { YieldService } from '@/services/yieldService';
 import { PageContainer } from '@/components/ui/PageContainer';
 import { MetricCard } from '@/components/ui/MetricCard';
-import { Button } from '@/components/ui/Button';
+import { WalletService } from '@/services/walletService';
+import { NotificationService } from '@/services/notificationService';
 
 export function AutomationDashboard() {
   const [isBuilderOpen, setIsBuilderOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
-  const [showNotification, setShowNotification] = useState(false);
   const [activeStrategies, setActiveStrategies] = useState<any[]>([]);
   const [isClient, setIsClient] = useState(false);
   const [vaults, setVaults] = useState<any[]>([]);
@@ -20,10 +20,21 @@ export function AutomationDashboard() {
   // Load from localStorage on mount
   useEffect(() => {
     setIsClient(true);
+    
+    // One-time migration: wipe legacy storage keys
     try {
-      const saved = localStorage.getItem('novaire_automation_strategies');
+      localStorage.removeItem('novaire_automation_strategies');
+      localStorage.removeItem('novaire_automations');
+    } catch (e) {
+      console.error('Failed to wipe legacy storage', e);
+    }
+    
+    try {
+      const saved = localStorage.getItem('novaire_automations_v2');
       if (saved) {
-        setActiveStrategies(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        const validStrategies = parsed.filter((s: any) => s.strategy === 'Auto Roll at Maturity' && s.isReal);
+        setActiveStrategies(validStrategies);
       }
     } catch (e) {
       console.error('Failed to parse saved strategies', e);
@@ -37,8 +48,65 @@ export function AutomationDashboard() {
   // Save to localStorage on change
   useEffect(() => {
     if (isClient) {
-      localStorage.setItem('novaire_automation_strategies', JSON.stringify(activeStrategies));
+      localStorage.setItem('novaire_automations_v2', JSON.stringify(activeStrategies));
     }
+  }, [activeStrategies, isClient]);
+
+  // Polling for on-chain status
+  useEffect(() => {
+    if (!isClient || activeStrategies.length === 0) return;
+    
+    let isMounted = true;
+    
+    const checkStatuses = async () => {
+      try {
+        const address = await WalletService.getWalletAddress();
+        if (!address) return;
+        
+        const hasRealStrategies = activeStrategies.some(s => s.isReal && (s.eta === 'Registered' || s.eta === 'Executing'));
+        if (!hasRealStrategies) return;
+        
+        const { Client: RolloverClient } = await import('../../../packages/bindings/rollover/src/index');
+        const { CONTRACTS, RPC_URL, NETWORK_PASSPHRASE } = await import('../../config/contracts');
+        
+        const client = new RolloverClient({
+          rpcUrl: RPC_URL,
+          networkPassphrase: NETWORK_PASSPHRASE,
+          contractId: CONTRACTS.ROLLOVER,
+          publicKey: address,
+        });
+        
+        const posTx = await client.get_position({ user: address });
+        let position = null;
+        if (posTx.result) {
+          const unwrapped = typeof (posTx.result as any).unwrap === 'function' ? (posTx.result as any).unwrap() : posTx.result;
+          position = unwrapped;
+        }
+        
+        if (position && isMounted) {
+          setActiveStrategies(prev => prev.map(s => {
+            if (s.isReal && s.eta !== 'Executed') {
+              const lastRolled = Number(position.last_rolled_ledger);
+              const created = Number(position.created_ledger);
+              
+              if (lastRolled > created) {
+                return { ...s, eta: 'Executed' };
+              }
+            }
+            return s;
+          }));
+        }
+      } catch (e) {
+        console.warn('Failed to poll rollover position status:', e);
+      }
+    };
+    
+    checkStatuses();
+    const interval = setInterval(checkStatuses, 10000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [activeStrategies, isClient]);
 
   const handleCreateStrategy = (template?: any) => {
@@ -51,24 +119,26 @@ export function AutomationDashboard() {
     
     // Locally save the strategy to reflect in the UI
     const newStrategy = {
-      id: Date.now().toString(),
+      id: strategy.id || Date.now().toString(),
       strategy: selectedTemplate?.title || 'Custom Strategy',
       risk: selectedTemplate?.risk || 'Moderate',
       trigger: strategy.condition,
-      eta: 'Pending Automation Engine'
+      action: strategy.action,
+      eta: strategy.status || 'Registering',
+      txHash: strategy.txHash,
+      isReal: strategy.isReal
     };
     
     setActiveStrategies(prev => [newStrategy, ...prev]);
     
-    setShowNotification(true);
-    setTimeout(() => setShowNotification(false), 5000);
+    NotificationService.addNotification('automation', 'Auto Roll Registered', `Successfully registered strategy: ${newStrategy.strategy}`);
   };
 
   const renderNextExecution = () => {
     if (activeStrategies.length === 0) {
       return (
         <div className="mt-1">
-          <p className="text-[17px] font-semibold text-white">No Pending Executions</p>
+          <p className="text-[17px] font-semibold text-white">No upcoming executions</p>
         </div>
       );
     }
@@ -109,7 +179,7 @@ export function AutomationDashboard() {
     else if (oldestMarket.trigger.includes('Claimable Yield')) metric = 'Claimable Yield';
     else if (oldestMarket.trigger.includes('APY')) metric = 'Vault APY';
     
-    let waitingFor = oldestMarket.trigger.replace('IF ', '');
+    let waitingFor = oldestMarket.trigger?.replace('IF ', '') || '';
     // Clean up generic vault names from trigger for better fit
     waitingFor = waitingFor.replace('Selected Vault ', '').replace('Novaire XLM Vault ', '');
 
@@ -126,12 +196,6 @@ export function AutomationDashboard() {
     <PageContainer
       title="Intent Automation"
       description="Configure conditional strategies and automate your yield execution."
-      actions={
-        <Button onClick={() => handleCreateStrategy()}>
-          <Plus className="h-4 w-4 mr-2" />
-          Create Strategy
-        </Button>
-      }
     >
       <div className="mb-8">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -149,16 +213,16 @@ export function AutomationDashboard() {
           />
           <MetricCard
             label="Extra Yield Earned"
-            value="$0.00"
+            value="0 XLM"
             icon={TrendingUp}
             index={2}
           />
-          <div className="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-white/10 bg-[#111111] p-4 transition-all duration-200 hover:border-[#43D18C] hover:shadow-[0_0_18px_rgba(67,209,140,0.15)] hover:-translate-y-[3px]">
+          <div className="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-nova-border bg-nova-surface p-4 transition-all duration-200 hover:border-nova-accent-hover hover:shadow-[0_0_18px_var(--accent-hover)] hover:-translate-y-[3px]">
             <div className="flex items-center gap-2">
-              <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg bg-white/5 text-orange-400 transition-colors duration-200 group-hover:bg-[#43D18C]/10 group-hover:text-[#43D18C]">
+              <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg bg-white/5 text-orange-400 transition-colors duration-200 group-hover:bg-nova-accent-hover/10 group-hover:text-nova-accent-hover">
                 <Calendar className="h-3 w-3" />
               </div>
-              <span className="text-[10px] font-medium uppercase tracking-wider text-[#9A9A9A] font-sans leading-none">
+              <span className="text-[10px] font-medium uppercase tracking-wider text-nova-muted font-sans leading-none">
                 Next Execution
               </span>
             </div>
@@ -167,7 +231,7 @@ export function AutomationDashboard() {
               {renderNextExecution()}
             </div>
             
-            <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#43D18C]/30 to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+            <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-nova-accent-hover/30 to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
           </div>
         </div>
       </div>
@@ -188,21 +252,6 @@ export function AutomationDashboard() {
         onSubmit={handleStrategySubmit}
         initialTemplate={selectedTemplate}
       />
-
-      {/* Success Notification */}
-      <AnimatePresence>
-        {showNotification && (
-          <motion.div
-            initial={{ opacity: 0, y: 50, x: '-50%' }}
-            animate={{ opacity: 1, y: 0, x: '-50%' }}
-            exit={{ opacity: 0, y: 50, x: '-50%' }}
-            className="fixed bottom-8 left-1/2 z-50 flex items-center gap-3 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-6 py-3 text-emerald-400 backdrop-blur-md"
-          >
-            <CheckCircle2 className="h-5 w-5" />
-            <span className="text-sm font-medium">Strategy Deployed Successfully</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </PageContainer>
   );
 }

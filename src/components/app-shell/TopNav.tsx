@@ -1,16 +1,19 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { Search, Bell, Settings } from 'lucide-react';
+import { Bell, Settings } from 'lucide-react';
+import { SettingsDropdown } from './SettingsDropdown';
+import { NotificationCenter } from '../notifications/NotificationCenter';
+import { useNotifications } from '../../hooks/useNotifications';
 
 const TOP_LINKS = [
   { label: 'Dashboard', href: '/app' },
   { label: 'Portfolio', href: '/app/portfolio' },
   { label: 'Vaults', href: '/app/vaults' },
-  { label: 'Trade', href: '/app/trade' },
   { label: 'Automation', href: '/app/automation' },
   { label: 'Analytics', href: '/app/analytics' },
   { label: 'Resources', href: '/docs' },
@@ -18,6 +21,15 @@ const TOP_LINKS = [
 
 export function TopNav() {
   const pathname = usePathname();
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const { unreadCount } = useNotifications();
+
+  useEffect(() => {
+    const handleOpen = () => setIsSettingsOpen(true);
+    window.addEventListener('novaire:open_settings', handleOpen);
+    return () => window.removeEventListener('novaire:open_settings', handleOpen);
+  }, []);
 
   return (
     <motion.header
@@ -61,34 +73,41 @@ export function TopNav() {
         </nav>
       </div>
 
-      {/* Center: Search */}
-      <div className="hidden lg:flex flex-1 max-w-md mx-8">
-        <div className="relative w-full">
-          <Search className="absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#8E8E8E]" />
-          <input
-            type="text"
-            placeholder="Search vaults, PT, YT..."
-            className="h-10 w-full rounded-full border border-white/10 bg-[#111111] pl-10 pr-4 text-sm text-[#F5F5F2] outline-none transition-all placeholder:text-[#8E8E8E] focus:border-[#3ECF8E]/50 focus:bg-[#0A0A0A]"
-          />
-        </div>
-      </div>
-
       {/* Right: Actions */}
       <div className="flex items-center gap-2">
         {/* Notification & Settings */}
-        <motion.button 
-          whileHover={{ scale: 1.05 }}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-[#8E8E8E] transition-all hover:border-white/10 hover:bg-[#111111] hover:text-[#F5F5F2]"
-        >
-          <Bell className="h-[18px] w-[18px]" />
-        </motion.button>
+        <div className="relative">
+          <motion.button 
+            whileHover={{ scale: 1.05 }}
+            onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-[#8E8E8E] transition-all hover:border-white/10 hover:bg-[#111111] hover:text-[#F5F5F2]"
+          >
+            <Bell className="h-[18px] w-[18px]" />
+            {unreadCount > 0 && (
+              <span className="absolute top-1.5 right-1.5 flex h-2 w-2 items-center justify-center rounded-full bg-[#3ECF8E] text-[10px] font-bold text-black ring-2 ring-[#0A0A0A]">
+              </span>
+            )}
+          </motion.button>
+          
+          <NotificationCenter 
+            isOpen={isNotificationsOpen} 
+            onClose={() => setIsNotificationsOpen(false)} 
+          />
+        </div>
         
-        <motion.button 
-          whileHover={{ scale: 1.05 }}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-[#8E8E8E] transition-all hover:border-white/10 hover:bg-[#111111] hover:text-[#F5F5F2]"
-        >
-          <Settings className="h-[18px] w-[18px]" />
-        </motion.button>
+        <div className="relative">
+          <motion.button 
+            whileHover={{ scale: 1.05 }}
+            onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-[#8E8E8E] transition-all hover:border-white/10 hover:bg-[#111111] hover:text-[#F5F5F2]"
+          >
+            <Settings className="h-[18px] w-[18px]" />
+          </motion.button>
+          <SettingsDropdown 
+            isOpen={isSettingsOpen} 
+            onClose={() => setIsSettingsOpen(false)} 
+          />
+        </div>
 
         {/* Stellar Network Icon */}
         <button 

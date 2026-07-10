@@ -17,9 +17,9 @@ export default function DocsLayout({ children, sidebarNav, tableOfContents }: Do
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-black text-white selection:bg-[#3ECF8E]/30">
+    <div className="min-h-screen bg-black text-white selection:bg-nova-accent/30">
       {/* Top Navbar */}
-      <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-black/80 backdrop-blur-md">
+      <header className="sticky top-0 z-50 w-full border-b border-nova-border bg-black/80 backdrop-blur-md">
         <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8 max-w-screen-2xl mx-auto">
           <div className="flex items-center gap-4">
             <Link href="/" className="flex items-center gap-2">
@@ -31,7 +31,7 @@ export default function DocsLayout({ children, sidebarNav, tableOfContents }: Do
                 className="h-8 w-auto object-contain"
               />
             </Link>
-            <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-xs font-medium text-[#3ECF8E] border border-[#3ECF8E]/20 hidden sm:block">
+            <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-xs font-medium text-nova-accent border border-nova-accent/20 hidden sm:block">
               Docs
             </span>
           </div>
@@ -69,7 +69,7 @@ export default function DocsLayout({ children, sidebarNav, tableOfContents }: Do
 
           {/* Main Content */}
           <main className="flex-1 min-w-0 py-10 md:px-8 lg:px-12">
-            <article className="prose prose-invert max-w-4xl mx-auto prose-a:text-[#3ECF8E] prose-a:no-underline hover:prose-a:underline prose-headings:scroll-mt-24">
+            <article className="prose prose-invert max-w-4xl mx-auto prose-a:text-nova-accent prose-a:no-underline hover:prose-a:underline prose-headings:scroll-mt-24">
               {children}
             </article>
           </main>
@@ -91,7 +91,7 @@ export default function DocsLayout({ children, sidebarNav, tableOfContents }: Do
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm md:hidden"
           >
-            <div className="fixed inset-y-0 right-0 z-50 w-full overflow-y-auto bg-gray-900 px-6 py-6 sm:max-w-sm border-l border-white/10 shadow-2xl">
+            <div className="fixed inset-y-0 right-0 z-50 w-full overflow-y-auto bg-gray-900 px-6 py-6 sm:max-w-sm border-l border-nova-border shadow-2xl">
               <div className="flex items-center justify-between">
                 <Link href="/" className="-m-1.5 p-1.5 flex items-center gap-2" onClick={() => setMobileMenuOpen(false)}>
                   <Image 
@@ -115,10 +115,10 @@ export default function DocsLayout({ children, sidebarNav, tableOfContents }: Do
                 <div onClick={() => setMobileMenuOpen(false)}>
                   {sidebarNav}
                 </div>
-                <div className="mt-8 pt-8 border-t border-white/10">
+                <div className="mt-8 pt-8 border-t border-nova-border">
                   <Link
                     href="/app"
-                    className="block rounded-lg px-3 py-2 text-base font-semibold leading-7 text-white hover:bg-white/10 text-center bg-[#3ECF8E] hover:bg-[#3ECF8E]/90 transition-colors"
+                    className="block rounded-lg px-3 py-2 text-base font-semibold leading-7 text-white hover:bg-white/10 text-center bg-nova-accent hover:bg-nova-accent/90 transition-colors"
                   >
                     Launch App
                   </Link>

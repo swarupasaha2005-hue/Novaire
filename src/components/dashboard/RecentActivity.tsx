@@ -38,19 +38,19 @@ export function RecentActivity() {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.5, ease: 'easeOut' }}
-      className="flex h-[320px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#111111]"
+      className="flex h-[320px] flex-col overflow-hidden rounded-2xl border border-nova-border bg-nova-surface"
     >
-      <div className="border-b border-white/10 p-6">
+      <div className="border-b border-nova-border p-6">
         <h3 className="font-sans font-medium ">Recent Activity</h3>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 pr-2">
         {loading ? (
-           <div className="flex justify-center py-10 text-[#9A9A9A] text-sm">Loading activity...</div>
+           <div className="flex justify-center py-10 text-nova-muted text-sm">Loading activity...</div>
         ) : activities.length === 0 ? (
-           <div className="flex justify-center py-10 text-[#9A9A9A] text-sm">No recent activity</div>
+           <div className="flex justify-center py-10 text-nova-muted text-sm">No recent activity</div>
         ) : (
-          <div className="relative border-l border-white/10 ml-4 space-y-6 pb-2">
+          <div className="relative border-l border-nova-border ml-4 space-y-6 pb-2">
             {activities.map((item, i) => (
               <motion.div
                 key={item.id}
@@ -60,26 +60,26 @@ export function RecentActivity() {
                 className="relative pl-6 group"
               >
                 {/* Timeline Dot/Icon */}
-                <div className="absolute -left-[13px] top-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-[#111111] border border-white/10 text-[#9A9A9A] transition-colors group-hover:text-[#3ECF8E] group-hover:border-[#3ECF8E]/30">
+                <div className="absolute -left-[13px] top-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-nova-surface border border-nova-border text-nova-muted transition-colors group-hover:text-nova-accent group-hover:border-nova-accent/30">
                   {(() => { const Icon = getActivityIcon(item.type); return <Icon className="h-3 w-3" />; })()}
                 </div>
                 
                 <div className="flex flex-col w-full">
                   <div className="flex justify-between items-start">
                     <div>
-                      <div className="text-sm font-medium text-[#F5F5F2]">{item.type}</div>
-                      <div className="text-xs text-[#9A9A9A] mt-0.5">{item.vault}</div>
+                      <div className="text-sm font-medium text-nova-text">{item.type}</div>
+                      <div className="text-xs text-nova-muted mt-0.5">{item.vault}</div>
                     </div>
                     <div className="text-right">
-                      <div className="text-sm text-[#F5F5F2]">{item.amount}</div>
+                      <div className="text-sm text-nova-text">{item.amount}</div>
                       <div className="flex items-center gap-1 justify-end mt-0.5">
-                        <span className="text-xs text-[#9A9A9A]">{item.time}</span>
+                        <span className="text-xs text-nova-muted">{item.time}</span>
                         {item.explorerUrl && (
                           <a
                             href={item.explorerUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-[#3ECF8E] opacity-50 hover:opacity-100 transition-opacity"
+                            className="text-nova-accent opacity-50 hover:opacity-100 transition-opacity"
                             title="View on Stellar Expert"
                           >
                             <ExternalLink className="h-2.5 w-2.5" />
@@ -90,10 +90,10 @@ export function RecentActivity() {
                   </div>
                   
                   {item.details && item.details.length > 0 && (
-                    <div className="mt-3 pl-3 border-l-2 border-[#3ECF8E]/20 space-y-1.5">
+                    <div className="mt-3 pl-3 border-l-2 border-nova-accent/20 space-y-1.5">
                       {item.details.map((detail, idx) => (
-                        <div key={idx} className="flex items-center text-xs text-[#9A9A9A]">
-                          <div className="w-1.5 h-1.5 rounded-full bg-[#3ECF8E]/40 mr-2"></div>
+                        <div key={idx} className="flex items-center text-xs text-nova-muted">
+                          <div className="w-1.5 h-1.5 rounded-full bg-nova-accent/40 mr-2"></div>
                           {detail}
                         </div>
                       ))}

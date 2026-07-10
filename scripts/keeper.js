@@ -1,5 +1,7 @@
 require('dotenv').config();
 const { rpc, Keypair, Contract, Networks, TransactionBuilder, BASE_FEE } = require('@stellar/stellar-sdk');
+const fs = require('fs');
+const path = require('path');
 
 const KEEPER_SECRET = process.env.KEEPER_SECRET;
 const ROLLOVER_CONTRACT_ID = process.env.ROLLOVER_CONTRACT_ID;
@@ -76,8 +78,20 @@ async function executeRollover(userAddress) {
 }
 
 // In a real production keeper, you would read all registered users from an indexer 
-// or from the contract's events. For simplicity in this script, we assume we have a list of users.
-const registeredUsers = process.env.REGISTERED_USERS ? process.env.REGISTERED_USERS.split(',') : [];
+// or from the contract's events. For simplicity in this script, we read from a local file 
+// populated by the frontend, falling back to environment variables.
+function getRegisteredUsers() {
+    try {
+        const filePath = path.join(__dirname, '..', 'registered_users.json');
+        if (fs.existsSync(filePath)) {
+            const data = fs.readFileSync(filePath, 'utf8');
+            return JSON.parse(data);
+        }
+    } catch (e) {
+        console.error('Failed to read registered_users.json', e);
+    }
+    return process.env.REGISTERED_USERS ? process.env.REGISTERED_USERS.split(',') : [];
+}
 
 async function pollMaturities() {
     console.log(`[${new Date().toISOString()}] Polling maturities...`);
@@ -86,6 +100,12 @@ async function pollMaturities() {
     if (currentLedger === 0) return;
     
     console.log(`Current Ledger: ${currentLedger}`);
+
+    const registeredUsers = getRegisteredUsers();
+    if (registeredUsers.length === 0) {
+        console.log('No registered users found.');
+        return;
+    }
 
     for (const userAddress of registeredUsers) {
         try {

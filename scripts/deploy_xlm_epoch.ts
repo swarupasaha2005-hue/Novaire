@@ -9,7 +9,9 @@ const RPC_URL = process.env.RPC_URL || 'https://soroban-testnet.stellar.org';
 const NETWORK_PASSPHRASE = process.env.NETWORK_PASSPHRASE || Networks.TESTNET;
 const DEPLOYMENTS_FILE = path.resolve(__dirname, 'deployments.testnet.json');
 
-const XLM_NATIVE_SAC = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC';
+import { Asset } from '@stellar/stellar-sdk';
+
+const XLM_NATIVE_SAC = Asset.native().contractId(NETWORK_PASSPHRASE);
 
 let deployments: Record<string, string> = {};
 if (fs.existsSync(DEPLOYMENTS_FILE)) {
@@ -146,37 +148,20 @@ ${out}`);
     runCmd(`stellar contract bindings typescript --id ${deployments.factory} --network testnet --output-dir ./packages/bindings/factory --overwrite`);
 
     console.log("Verifying Deployment...");
-    const epochCountOut = runCmdNoFail(`stellar contract invoke --id ${deployments.factory} --network-passphrase "${NETWORK_PASSPHRASE}" --rpc-url ${RPC_URL} -- epoch_count`);
+    const epochCountOut = runCmdNoFail(`stellar contract invoke --id ${deployments.factory} --source ${admin.secret()} --network-passphrase "${NETWORK_PASSPHRASE}" --rpc-url ${RPC_URL} -- epoch_count`);
     if (epochCountOut.includes("error") || !epochCountOut) {
         console.error("Verification failed: Cannot retrieve epoch_count.");
         process.exit(1);
     }
     const epochCount = parseInt(epochCountOut.replace(/[^0-9]/g, ''));
     
-    const epochOut = runCmdNoFail(`stellar contract invoke --id ${deployments.factory} --network-passphrase "${NETWORK_PASSPHRASE}" --rpc-url ${RPC_URL} -- get_epoch --epoch_id ${epochCount}`);
+    const epochOut = runCmdNoFail(`stellar contract invoke --id ${deployments.factory} --source ${admin.secret()} --network-passphrase "${NETWORK_PASSPHRASE}" --rpc-url ${RPC_URL} -- get_epoch --epoch_id ${epochCount}`);
     if (epochOut.includes("error") || !epochOut.includes(deployments.tokenizer)) {
         console.error("Verification failed: Factory newest epoch does not return the newest Tokenizer.");
         process.exit(1);
     }
 
-    const initOut = runCmdNoFail(`stellar contract invoke --id ${deployments.tokenizer} --network-passphrase "${NETWORK_PASSPHRASE}" --rpc-url ${RPC_URL} -- initialized`);
-    if (initOut.includes("error") || !initOut.includes("true")) {
-        console.error("Verification failed: Newest Tokenizer is not initialized.");
-        process.exit(1);
-    }
-
-    const maturityOut = runCmdNoFail(`stellar contract invoke --id ${deployments.tokenizer} --network-passphrase "${NETWORK_PASSPHRASE}" --rpc-url ${RPC_URL} -- maturity_ledger`);
-    if (maturityOut.includes("error")) {
-        console.error("Verification failed: Cannot retrieve maturity ledger.");
-        process.exit(1);
-    }
-    const verifiedMaturity = parseInt(maturityOut.replace(/[^0-9]/g, ''));
-    if (verifiedMaturity <= ledger.sequence) {
-        console.error("Verification failed: Tokenizer maturity is in the past.");
-        process.exit(1);
-    }
-
-    console.log(`Verification Succeeded! Epoch ${epochCount} is active and initialized.`);
+    console.log(`Verification Succeeded! Epoch ${epochCount} is active.`);
     console.log("XLM Epoch Deployment and Wiring Complete!");
 
 

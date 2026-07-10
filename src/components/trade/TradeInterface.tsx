@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { ArrowDown, Info, Loader2, Settings2, Wallet } from 'lucide-react';
 import { useTrade, TradeAsset, TradeAction } from '../../hooks/useTrade';
 import { useWallet } from '../../hooks/useWallet';
+import { NotificationService } from '../../services/notificationService';
 
 export function TradeInterface() {
   const { isConnected, connect, balances, refreshBalances } = useWallet();
@@ -14,6 +15,8 @@ export function TradeInterface() {
   const [action, setAction] = useState<TradeAction>('Buy');
   const [amount, setAmount] = useState<string>('');
   const [slippage, setSlippage] = useState<number>(0.5);
+
+  const [showSlippageSettings, setShowSlippageSettings] = useState(false);
 
   const STROOP_SCALE = 10000000;
 
@@ -66,7 +69,7 @@ export function TradeInterface() {
       
       if (result && result.status && result.status !== 'SUCCESS') {
         console.error('Contract error:', result);
-        alert(`Trade transaction failed on-chain. Status: ${result.status}`);
+        NotificationService.addNotification('network', 'Trade Failed', `Trade transaction failed on-chain. Status: ${result.status}`);
         return;
       }
       
@@ -77,28 +80,28 @@ export function TradeInterface() {
       // Dispatch global event for Portfolio & Recent Activity to refresh
       window.dispatchEvent(new CustomEvent('nova:refresh'));
       
-      alert(`Trade successful! Transaction Hash: ${result?.hash || result?.id || 'Unknown'}`);
+      NotificationService.addNotification('transaction', 'Trade Successful', `Successfully executed ${action} for ${amount} ${action === 'Buy' ? 'XLM' : asset}.`);
       setAmount('');
     } catch (e: any) {
       console.error('Swap Execution Exception:', e);
-      alert(`Trade failed: ${e.message}`);
+      NotificationService.addNotification('transaction', 'Trade Failed', e.message || 'Failed to execute trade.');
     }
   };
 
   return (
-    <div className="flex flex-col rounded-2xl border border-white/10 bg-[#111111] p-6 max-w-[500px] shadow-2xl relative overflow-hidden transition-all duration-200 hover:border-[#43D18C] hover:shadow-[0_0_20px_rgba(67,209,140,0.1)] hover:-translate-y-[3px]">
+    <div className="flex flex-col rounded-2xl border border-nova-border bg-nova-surface p-6 max-w-[500px] shadow-2xl relative overflow-hidden transition-all duration-200 hover:border-nova-accent-hover hover:shadow-[0_0_20px_var(--accent-hover)] hover:-translate-y-[3px]">
       {/* Decorative gradient */}
-      <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-[#43D18C] opacity-[0.03] blur-[100px] rounded-full translate-x-1/2 -translate-y-1/2 pointer-events-none" />
+      <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-nova-accent-hover opacity-[0.03] blur-[100px] rounded-full translate-x-1/2 -translate-y-1/2 pointer-events-none" />
 
       {/* Header Tabs */}
       <div className="flex items-center justify-between mb-6 z-10 relative">
-        <div className="flex bg-[#111111] border border-white/5 p-1 rounded-xl">
+        <div className="flex bg-nova-surface border border-nova-border p-1 rounded-xl">
           <button
             onClick={() => setAction('Buy')}
             className={`px-6 py-2 text-sm font-medium rounded-lg transition-all ${
               action === 'Buy'
-                ? 'bg-[#222222] text-[#F5F5F2] shadow-sm'
-                : 'text-[#9A9A9A] hover:text-[#F5F5F2]'
+                ? 'bg-nova-surface-hover text-nova-text shadow-sm'
+                : 'text-nova-muted hover:text-nova-text'
             }`}
           >
             Buy
@@ -107,43 +110,68 @@ export function TradeInterface() {
             onClick={() => setAction('Sell')}
             className={`px-6 py-2 text-sm font-medium rounded-lg transition-all ${
               action === 'Sell'
-                ? 'bg-[#222222] text-[#F5F5F2] shadow-sm'
-                : 'text-[#9A9A9A] hover:text-[#F5F5F2]'
+                ? 'bg-nova-surface-hover text-nova-text shadow-sm'
+                : 'text-nova-muted hover:text-nova-text'
             }`}
           >
             Sell
           </button>
         </div>
         
-        <button className="p-2 text-[#9A9A9A] hover:text-[#F5F5F2] transition-colors rounded-xl hover:bg-white/5">
-          <Settings2 className="w-5 h-5" />
-        </button>
+        <div className="relative">
+          <button 
+            onClick={() => setShowSlippageSettings(!showSlippageSettings)}
+            className={`p-2 transition-colors rounded-xl ${showSlippageSettings ? 'bg-white/10 text-nova-text' : 'text-nova-muted hover:text-nova-text hover:bg-white/5'}`}
+          >
+            <Settings2 className="w-5 h-5" />
+          </button>
+          
+          {/* Local Slippage Dropdown */}
+          {showSlippageSettings && (
+            <div className="absolute right-0 top-12 z-50 w-64 rounded-xl border border-white/10 bg-[#111111] p-4 shadow-2xl">
+              <h3 className="mb-3 text-sm font-medium text-white">Slippage Tolerance</h3>
+              <div className="flex gap-2">
+                {[0.1, 0.5, 1.0].map(val => (
+                  <button
+                    key={val}
+                    onClick={() => { setSlippage(val); setShowSlippageSettings(false); }}
+                    className={`flex-1 rounded-lg py-1.5 text-xs font-medium transition-colors ${
+                      slippage === val ? 'bg-[#3ECF8E]/20 text-[#3ECF8E] border border-[#3ECF8E]/30' : 'bg-white/5 text-white/70 hover:bg-white/10 border border-transparent'
+                    }`}
+                  >
+                    {val}%
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Input Section */}
       <div className="flex flex-col gap-1 z-10 relative">
-        <div className="flex justify-between text-sm text-[#9A9A9A] mb-1 px-1">
+        <div className="flex justify-between text-sm text-nova-muted mb-1 px-1">
           <span>{action === 'Buy' ? 'You pay' : 'You sell'}</span>
-          <span className="flex items-center gap-1 cursor-pointer hover:text-[#F5F5F2] transition-colors" onClick={handleMax}>
+          <span className="flex items-center gap-1 cursor-pointer hover:text-nova-text transition-colors" onClick={handleMax}>
             <Wallet className="w-3 h-3" />
             {currentBalance.toFixed(4)} {action === 'Buy' ? 'XLM' : asset}
           </span>
         </div>
         
-        <div className="flex items-center bg-[#111111] border border-white/10 rounded-2xl p-4 focus-within:border-[#3ECF8E]/50 transition-colors">
+        <div className="flex items-center bg-nova-surface border border-nova-border rounded-2xl p-4 focus-within:border-nova-accent/50 transition-colors">
           <input
             type="number"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder="0.0"
-            className="bg-transparent text-3xl text-[#F5F5F2] font-semibold outline-none w-full placeholder:text-white/20"
+            className="bg-transparent text-3xl text-nova-text font-semibold outline-none w-full placeholder:text-white/20"
           />
           <div className="flex items-center gap-2">
-            <button onClick={handleMax} className="text-[10px] uppercase font-bold tracking-wider text-[#3ECF8E] bg-[#3ECF8E]/10 px-2 py-1 rounded-md">
+            <button onClick={handleMax} className="text-[10px] uppercase font-bold tracking-wider text-nova-accent bg-nova-accent/10 px-2 py-1 rounded-md">
               Max
             </button>
-            <div className="flex items-center gap-2 bg-[#222222] border border-white/10 px-3 py-1.5 rounded-xl ml-2">
-              <span className="text-sm font-medium text-[#F5F5F2]">{action === 'Buy' ? 'XLM' : asset}</span>
+            <div className="flex items-center gap-2 bg-nova-surface-hover border border-nova-border px-3 py-1.5 rounded-xl ml-2">
+              <span className="text-sm font-medium text-nova-text">{action === 'Buy' ? 'XLM' : asset}</span>
             </div>
           </div>
         </div>
@@ -151,21 +179,21 @@ export function TradeInterface() {
 
       {/* Direction Arrow */}
       <div className="flex justify-center -my-3 z-20 relative pointer-events-none">
-        <div className="bg-[#1A1A1A] border-4 border-[#0A0A0A] p-2 rounded-xl text-[#9A9A9A]">
+        <div className="bg-nova-surface-hover border-4 border-[#0A0A0A] p-2 rounded-xl text-nova-muted">
           <ArrowDown className="w-4 h-4" />
         </div>
       </div>
 
       {/* Output Section */}
       <div className="flex flex-col gap-1 z-10 relative">
-        <div className="flex justify-between text-sm text-[#9A9A9A] mb-1 px-1">
+        <div className="flex justify-between text-sm text-nova-muted mb-1 px-1">
           <span>You receive</span>
         </div>
         
-        <div className="flex items-center bg-[#111111] border border-white/5 rounded-2xl p-4 opacity-70">
-          <div className="text-3xl text-[#F5F5F2] font-semibold w-full overflow-hidden text-ellipsis">
+        <div className="flex items-center bg-nova-surface border border-nova-border rounded-2xl p-4 opacity-70">
+          <div className="text-3xl text-nova-text font-semibold w-full overflow-hidden text-ellipsis">
             {isQuoting ? (
-              <Loader2 className="w-6 h-6 animate-spin text-[#9A9A9A] mt-2" />
+              <Loader2 className="w-6 h-6 animate-spin text-nova-muted mt-2" />
             ) : quote ? (
               quote.expectedOutput.toFixed(4)
             ) : (
@@ -173,13 +201,13 @@ export function TradeInterface() {
             )}
           </div>
           
-          <div className="flex bg-[#222222] border border-white/10 p-1 rounded-xl shrink-0">
+          <div className="flex bg-nova-surface-hover border border-nova-border p-1 rounded-xl shrink-0">
             <button
               onClick={() => setAsset('PT')}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
                 asset === 'PT' && action === 'Buy'
-                  ? 'bg-[#3ECF8E]/20 text-[#3ECF8E]'
-                  : (asset === 'PT' ? 'bg-white/10 text-[#F5F5F2]' : 'text-[#9A9A9A] hover:text-[#F5F5F2]')
+                  ? 'bg-nova-accent/20 text-nova-accent'
+                  : (asset === 'PT' ? 'bg-white/10 text-nova-text' : 'text-nova-muted hover:text-nova-text')
               }`}
             >
               PT
@@ -188,8 +216,8 @@ export function TradeInterface() {
               onClick={() => setAsset('YT')}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
                 asset === 'YT' && action === 'Buy'
-                  ? 'bg-[#3ECF8E]/20 text-[#3ECF8E]'
-                  : (asset === 'YT' ? 'bg-white/10 text-[#F5F5F2]' : 'text-[#9A9A9A] hover:text-[#F5F5F2]')
+                  ? 'bg-nova-accent/20 text-nova-accent'
+                  : (asset === 'YT' ? 'bg-white/10 text-nova-text' : 'text-nova-muted hover:text-nova-text')
               }`}
             >
               YT
@@ -207,20 +235,20 @@ export function TradeInterface() {
       {/* Trade Info / Slippage */}
       <div className="mt-6 flex flex-col gap-3 px-2 z-10 relative">
         <div className="flex justify-between items-center text-sm">
-          <span className="text-[#9A9A9A] flex items-center gap-1">Price Impact <Info className="w-3 h-3" /></span>
-          <span className={`font-medium ${quote && Math.abs(quote.priceImpact) > 2 ? 'text-orange-400' : 'text-[#F5F5F2]'}`}>
+          <span className="text-nova-muted flex items-center gap-1">Price Impact <Info className="w-3 h-3" /></span>
+          <span className={`font-medium ${quote && Math.abs(quote.priceImpact) > 2 ? 'text-orange-400' : 'text-nova-text'}`}>
             {quote ? `${quote.priceImpact.toFixed(2)}%` : '---'}
           </span>
         </div>
         <div className="flex justify-between items-center text-sm">
-          <span className="text-[#9A9A9A] flex items-center gap-1">Minimum Received <Info className="w-3 h-3" /></span>
-          <span className="font-medium text-[#F5F5F2]">
+          <span className="text-nova-muted flex items-center gap-1">Minimum Received <Info className="w-3 h-3" /></span>
+          <span className="font-medium text-nova-text">
             {quote ? `${quote.minimumReceived.toFixed(4)} ${action === 'Buy' ? asset : 'XLM'}` : '---'}
           </span>
         </div>
         <div className="flex justify-between items-center text-sm">
-          <span className="text-[#9A9A9A] flex items-center gap-1">Implied Yield <Info className="w-3 h-3" /></span>
-          <span className="font-medium text-[#3ECF8E]">
+          <span className="text-nova-muted flex items-center gap-1">Implied Yield <Info className="w-3 h-3" /></span>
+          <span className="font-medium text-nova-accent">
             {marketData ? `${marketData.impliedYield.toFixed(2)}%` : '---'}
           </span>
         </div>
@@ -230,10 +258,10 @@ export function TradeInterface() {
       <button
         onClick={!isConnected ? connect : handleSwapExecute}
         disabled={isExecuting || (isConnected && (!quote || !!quoteError))}
-        className={`mt-6 w-full py-4 rounded-xl font-semibold text-lg transition-all shadow-[0_0_20px_rgba(62,207,142,0.1)] hover:shadow-[0_0_30px_rgba(62,207,142,0.2)] disabled:opacity-50 disabled:cursor-not-allowed ${
+        className={`mt-6 w-full flex items-center justify-center gap-2 py-4 rounded-xl font-semibold text-lg transition-all duration-200 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
           !isConnected 
-            ? 'bg-[#111111] text-[#F5F5F2] border border-white/10 hover:bg-[#1A1A1A]' 
-            : 'bg-[#3ECF8E] text-black hover:scale-[1.02] active:scale-[0.98]'
+            ? 'bg-nova-surface text-nova-text border border-nova-border hover:bg-nova-surface-hover hover:-translate-y-[1px]' 
+            : 'bg-nova-accent text-black hover:brightness-110 hover:-translate-y-[1px] active:scale-[0.98]'
         }`}
       >
         {!isConnected ? (

@@ -59,15 +59,15 @@ export function MyVaultPositions({ vaults }: MyVaultPositionsProps) {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.2, ease: 'easeOut' }}
-      className="flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#111111]"
+      className="flex flex-col overflow-hidden rounded-2xl border border-nova-border bg-nova-surface"
     >
-      <div className="border-b border-white/10 p-6 flex justify-between items-center">
+      <div className="border-b border-nova-border p-6 flex justify-between items-center">
         <h3 className="font-sans font-medium ">My Vault Positions</h3>
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
-          <thead className="bg-[#050505]/50 text-xs text-[#9A9A9A]">
+          <thead className="bg-nova-bg/50 text-xs text-nova-muted">
             <tr>
               <th className="px-6 py-4 font-medium">Vault Name</th>
               <th className="px-6 py-4 font-medium text-right">Deposit</th>
@@ -93,7 +93,7 @@ export function MyVaultPositions({ vaults }: MyVaultPositionsProps) {
             {isDisconnected && (
               <tr>
                 <td colSpan={8} className="px-6 py-16 text-center">
-                  <p className="text-[#8E8E8E]">Connect Wallet to view your active vault positions.</p>
+                  <p className="text-nova-muted">Connect Wallet to view your active vault positions.</p>
                 </td>
               </tr>
             )}
@@ -101,8 +101,8 @@ export function MyVaultPositions({ vaults }: MyVaultPositionsProps) {
             {isEmpty && (
               <tr>
                 <td colSpan={8} className="px-6 py-20 text-center">
-                  <p className="text-[#8E8E8E] text-base mb-2">You don't have any active vault positions.</p>
-                  <p className="text-[#9A9A9A] text-sm">Deposit into a vault to begin earning fixed or variable yield.</p>
+                  <p className="text-nova-muted text-base mb-2">You don't have any active vault positions.</p>
+                  <p className="text-nova-muted text-sm">Deposit into a vault to begin earning fixed or variable yield.</p>
                 </td>
               </tr>
             )}
@@ -115,30 +115,30 @@ export function MyVaultPositions({ vaults }: MyVaultPositionsProps) {
                 transition={{ duration: 0.4, delay: 0.3 + i * 0.05 }}
                 className="group transition-colors hover:bg-white/5"
               >
-                <td className="whitespace-nowrap px-6 py-4 font-medium text-[#F5F5F2]">
+                <td className="whitespace-nowrap px-6 py-4 font-medium text-nova-text">
                   {pos.vaultName}
                 </td>
-                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#F5F5F2]">
+                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-nova-text">
                   {pos.depositAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                 </td>
-                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#F5F5F2]">
+                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-nova-text">
                   {pos.ptBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                 </td>
-                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#F5F5F2]">
+                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-nova-text">
                   {pos.ytBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                 </td>
-                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#3ECF8E]">
+                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-nova-accent">
                   +{pos.claimableYield.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                 </td>
-                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-[#F5F5F2]">
+                <td className="whitespace-nowrap px-6 py-4 text-right font-medium text-nova-text">
                   ${pos.currentValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </td>
-                <td className="whitespace-nowrap px-6 py-4 text-[#F5F5F2]">
+                <td className="whitespace-nowrap px-6 py-4 text-nova-text">
                   {pos.maturityDate}
                 </td>
                 <td className="whitespace-nowrap px-6 py-4 text-right">
                   <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                    pos.status === 'Active' ? 'bg-[#3ECF8E]/10 text-[#3ECF8E]' : 'bg-white/10 text-white/70'
+                    pos.status === 'Active' ? 'bg-nova-accent/10 text-nova-accent' : 'bg-white/10 text-white/70'
                   }`}>
                     {pos.status}
                   </span>

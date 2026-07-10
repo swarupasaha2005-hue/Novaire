@@ -30,7 +30,7 @@ export default function BuiltOnStellar() {
       <div className="relative z-20 container flex flex-col">
         <div className="w-full md:w-[40%] flex flex-col">
           
-          <span className="block text-[12px] font-medium uppercase tracking-[0.28em] text-[#3ECF8E] mb-6">
+          <span className="block text-[12px] font-medium uppercase tracking-[0.28em] text-nova-accent mb-6">
             BUILT ON STELLAR
           </span>
           
@@ -40,13 +40,13 @@ export default function BuiltOnStellar() {
             Soroban
           </h2>
 
-          <p className="text-[18px] leading-[1.8] text-[#9A9A9A] mb-12 max-w-md">
+          <p className="text-[18px] leading-[1.8] text-nova-muted mb-12 max-w-md">
             Secure. Scalable. Decentralized.<br />
             Powering the future of autonomous rate infrastructure on Stellar.
           </p>
 
           <div>
-            <a href="https://developers.stellar.org/docs/learn/fundamentals" target="_blank" rel="noopener noreferrer" className="group flex items-center gap-2 text-white text-[15px] font-medium transition-colors duration-300 hover:text-[#3ECF8E] bg-transparent border-none w-fit">
+            <a href="https://developers.stellar.org/docs/learn/fundamentals" target="_blank" rel="noopener noreferrer" className="group flex items-center gap-2 text-white text-[15px] font-medium transition-colors duration-300 hover:text-nova-accent bg-transparent border-none w-fit">
               Explore Soroban
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="transition-transform duration-300 group-hover:translate-x-[4px]"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
             </a>

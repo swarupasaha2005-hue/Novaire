@@ -34,7 +34,7 @@ if (typeof window !== "undefined") {
 export const networks = {
   testnet: {
     networkPassphrase: "Test SDF Network ; September 2015",
-    contractId: "CA4EXH2ABUBHI44WUXOD5V5BZ5ZACZRWNYLSMTF5YN7Z4ML6GEKGRCBN",
+    contractId: "CABTLNRGF22CLNEA5HMYDKJG2MLSVRQJ2QGHAQGP37RUKA4PUN65J4S5",
   }
 } as const
 
@@ -94,6 +94,11 @@ export interface Client {
   accept_admin: (options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
 
   /**
+   * Construct and simulate a refresh_rate transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  refresh_rate: (options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
+
+  /**
    * Construct and simulate a total_shares transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
   total_shares: (options?: MethodOptions) => Promise<AssembledTransaction<i128>>
@@ -121,7 +126,7 @@ export interface Client {
   /**
    * Construct and simulate a underlying_asset transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
-  underlying_asset: (options?: MethodOptions) => Promise<AssembledTransaction<string>>
+  underlying_asset: (options?: MethodOptions) => Promise<AssembledTransaction<Result<string>>>
 
   /**
    * Construct and simulate a get_exchange_rate transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
@@ -154,12 +159,13 @@ export class Client extends ContractClient {
         "AAAAAgAAAAAAAAAAAAAAB0RhdGFLZXkAAAAABwAAAAAAAAAAAAAABUFkbWluAAAAAAAAAAAAAAAAAAAMUGVuZGluZ0FkbWluAAAAAAAAAAAAAAAKVW5kZXJseWluZwAAAAAAAAAAAAAAAAALWWllbGRTb3VyY2UAAAAAAAAAAAAAAAALVG90YWxTaGFyZXMAAAAAAAAAAAAAAAAPVG90YWxVbmRlcmx5aW5nAAAAAAAAAAAAAAAABlBhdXNlZAAA",
         "AAAAAAAAAAAAAAAKaW5pdGlhbGl6ZQAAAAAAAwAAAAAAAAAFYWRtaW4AAAAAAAATAAAAAAAAAAp1bmRlcmx5aW5nAAAAAAATAAAAAAAAAAx5aWVsZF9zb3VyY2UAAAATAAAAAQAAA+kAAAPtAAAAAAAAB9AAAAAOTm92YWlyZVN5RXJyb3IAAA==",
         "AAAAAAAAAAAAAAAMYWNjZXB0X2FkbWluAAAAAAAAAAEAAAPpAAAD7QAAAAAAAAfQAAAADk5vdmFpcmVTeUVycm9yAAA=",
+        "AAAAAAAAAAAAAAAMcmVmcmVzaF9yYXRlAAAAAAAAAAEAAAPpAAAD7QAAAAAAAAfQAAAADk5vdmFpcmVTeUVycm9yAAA=",
         "AAAAAAAAAAAAAAAMdG90YWxfc2hhcmVzAAAAAAAAAAEAAAAL",
         "AAAAAAAAAAAAAAANaGFydmVzdF95aWVsZAAAAAAAAAAAAAABAAAD6QAAA+0AAAAAAAAH0AAAAA5Ob3ZhaXJlU3lFcnJvcgAA",
         "AAAAAAAAAAAAAAAOdHJhbnNmZXJfYWRtaW4AAAAAAAEAAAAAAAAACW5ld19hZG1pbgAAAAAAABMAAAABAAAD6QAAA+0AAAAAAAAH0AAAAA5Ob3ZhaXJlU3lFcnJvcgAA",
         "AAAAAAAAAAAAAAAPcHJldmlld19kZXBvc2l0AAAAAAEAAAAAAAAABmFtb3VudAAAAAAACwAAAAEAAAAL",
         "AAAAAAAAAAAAAAAQcHJldmlld193aXRoZHJhdwAAAAEAAAAAAAAABnNoYXJlcwAAAAAACwAAAAEAAAAL",
-        "AAAAAAAAAAAAAAAQdW5kZXJseWluZ19hc3NldAAAAAAAAAABAAAAEw==",
+        "AAAAAAAAAAAAAAAQdW5kZXJseWluZ19hc3NldAAAAAAAAAABAAAD6QAAABMAAAfQAAAADk5vdmFpcmVTeUVycm9yAAA=",
         "AAAABAAAAAAAAAAAAAAADk5vdmFpcmVTeUVycm9yAAAAAAAOAAAAAAAAABJBbHJlYWR5SW5pdGlhbGl6ZWQAAAAAAAEAAAAAAAAADk5vdEluaXRpYWxpemVkAAAAAAACAAAAAAAAAAxVbmF1dGhvcml6ZWQAAAADAAAAAAAAAA1JbnZhbGlkQW1vdW50AAAAAAAABAAAAAAAAAASUmF0ZUNhbm5vdERlY3JlYXNlAAAAAAAFAAAAAAAAABJJbnN1ZmZpY2llbnRTaGFyZXMAAAAAAAYAAAAAAAAADE1hdGhPdmVyZmxvdwAAAAcAAAAAAAAADU1hdGhVbmRlcmZsb3cAAAAAAAAIAAAAAAAAAA5TdG9yYWdlTWlzc2luZwAAAAAACQAAAAAAAAAGUGF1c2VkAAAAAAAKAAAAAAAAABRJbnZhbGlkQWRtaW5UcmFuc2ZlcgAAAAsAAAAAAAAAFFJhdGVJbmNyZWFzZVRvb0xhcmdlAAAADAAAAAAAAAAUTWluaW11bURlcG9zaXROb3RNZXQAAAANAAAAAAAAABBaZXJvU2hhcmVzTWludGVkAAAADg==",
         "AAAAAAAAAAAAAAARZ2V0X2V4Y2hhbmdlX3JhdGUAAAAAAAAAAAAAAQAAAAs=" ]),
       options
@@ -173,12 +179,13 @@ export class Client extends ContractClient {
         withdraw: this.txFromJSON<Result<i128>>,
         initialize: this.txFromJSON<Result<void>>,
         accept_admin: this.txFromJSON<Result<void>>,
+        refresh_rate: this.txFromJSON<Result<void>>,
         total_shares: this.txFromJSON<i128>,
         harvest_yield: this.txFromJSON<Result<void>>,
         transfer_admin: this.txFromJSON<Result<void>>,
         preview_deposit: this.txFromJSON<i128>,
         preview_withdraw: this.txFromJSON<i128>,
-        underlying_asset: this.txFromJSON<string>,
+        underlying_asset: this.txFromJSON<Result<string>>,
         get_exchange_rate: this.txFromJSON<i128>
   }
 }

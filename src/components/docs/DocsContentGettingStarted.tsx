@@ -52,7 +52,7 @@ graph TD
       </section>
 
       {/* --- Core Concepts --- */}
-      <hr className="border-white/10 my-16" />
+      <hr className="border-nova-border my-16" />
       <section id="core-concepts" className="mb-16 scroll-mt-24">
         <h2 className="text-3xl font-bold text-white mb-8">Core Concepts</h2>
 
@@ -62,7 +62,7 @@ graph TD
         <p className="text-gray-300 mb-4"><strong>How it works:</strong> Assets deposited into the Vault are minted as SY shares based on the current internal exchange rate. As yield accrues, the exchange rate grows, increasing the underlying value of each SY share.</p>
 
         <h3 id="vaults" className="text-2xl font-semibold text-white mt-12 mb-4 scroll-mt-24">Vaults</h3>
-        <p className="text-gray-300 mb-4"><strong>Definition:</strong> The central treasury that secures underlying assets (like XLM or USDC) and issues SY shares to depositors.</p>
+        <p className="text-gray-300 mb-4"><strong>Definition:</strong> The central treasury that secures underlying assets (like XLM) and issues SY shares to depositors.</p>
         <p className="text-gray-300 mb-4"><strong>Why it exists:</strong> To isolate custody from tokenization and market-making, significantly reducing the attack surface of the protocol.</p>
         
         <h3 id="principal-tokens" className="text-2xl font-semibold text-white mt-12 mb-4 scroll-mt-24">Principal Tokens (PT)</h3>

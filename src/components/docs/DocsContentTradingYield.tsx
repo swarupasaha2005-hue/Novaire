@@ -19,15 +19,15 @@ export default function DocsContentTradingYield() {
         <h2 className="text-3xl font-bold text-white mb-8">Investment Strategies</h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+          <div className="bg-white/5 border border-nova-border rounded-2xl p-6">
             <h3 id="keep-all-yield" className="text-xl font-bold text-white mb-2 flex items-center justify-between">
               Keep All Yield
-              <span className="text-[10px] uppercase font-bold px-2 py-1 rounded-full bg-[#3ECF8E]/20 text-[#3ECF8E]">V1 Active</span>
+              <span className="text-[10px] uppercase font-bold px-2 py-1 rounded-full bg-nova-accent/20 text-nova-accent">V1 Active</span>
             </h3>
             <p className="text-gray-400 text-sm">Deposit underlying assets to mint PT and YT, holding both to maturity to retain principal and all accrued variable yield.</p>
           </div>
           
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 opacity-60">
+          <div className="bg-white/5 border border-nova-border rounded-2xl p-6 opacity-60">
             <h3 id="fixed-yield" className="text-xl font-bold text-white mb-2 flex items-center justify-between">
               Fixed Yield
               <span className="text-[10px] uppercase font-bold px-2 py-1 rounded-full bg-gray-800 text-gray-400">Coming Soon (V2)</span>
@@ -35,7 +35,7 @@ export default function DocsContentTradingYield() {
             <p className="text-gray-400 text-sm">Automatically mint PT/YT and instantly sell YT to buy more PT, locking in a guaranteed fixed APY at maturity.</p>
           </div>
           
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 opacity-60">
+          <div className="bg-white/5 border border-nova-border rounded-2xl p-6 opacity-60">
             <h3 id="custom-yield-split" className="text-xl font-bold text-white mb-2 flex items-center justify-between">
               Custom Split
               <span className="text-[10px] uppercase font-bold px-2 py-1 rounded-full bg-gray-800 text-gray-400">Coming Soon (V2)</span>
@@ -46,7 +46,7 @@ export default function DocsContentTradingYield() {
       </section>
 
       {/* --- Yield Lifecycle & Market Mechanics --- */}
-      <hr className="border-white/10 my-16" />
+      <hr className="border-nova-border my-16" />
       <section id="yield-lifecycle-mechanics" className="mb-16 scroll-mt-24">
         <h2 className="text-3xl font-bold text-white mb-8">Lifecycle & Mechanics</h2>
 
@@ -62,7 +62,7 @@ export default function DocsContentTradingYield() {
       </section>
 
       {/* --- Marketplace Deep Dive --- */}
-      <hr className="border-white/10 my-16" />
+      <hr className="border-nova-border my-16" />
       <section id="marketplace-deep-dive" className="mb-16 scroll-mt-24">
         <h2 className="text-3xl font-bold text-white mb-8">Marketplace Deep Dive</h2>
 
@@ -84,7 +84,7 @@ export default function DocsContentTradingYield() {
       </section>
 
       {/* --- Portfolio & Analytics --- */}
-      <hr className="border-white/10 my-16" />
+      <hr className="border-nova-border my-16" />
       <section id="portfolio-analytics" className="mb-16 scroll-mt-24">
         <h2 className="text-3xl font-bold text-white mb-8">Portfolio & Analytics</h2>
 
@@ -101,7 +101,7 @@ export default function DocsContentTradingYield() {
       </section>
 
       {/* --- Automation Features --- */}
-      <hr className="border-white/10 my-16" />
+      <hr className="border-nova-border my-16" />
       <section id="automation-features" className="mb-16 scroll-mt-24">
         <h2 className="text-3xl font-bold text-white mb-8">Automation Features</h2>
 

@@ -1,37 +1,4 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -70,22 +37,20 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 var stellar_sdk_1 = require("@stellar/stellar-sdk");
-var fs = __importStar(require("fs"));
-var path = __importStar(require("path"));
+var fs = require("fs");
+var path = require("path");
 var child_process_1 = require("child_process");
+var utils_1 = require("./utils");
 var RPC_URL = process.env.RPC_URL || 'https://soroban-testnet.stellar.org';
 var NETWORK_PASSPHRASE = process.env.NETWORK_PASSPHRASE || stellar_sdk_1.Networks.TESTNET;
 var DEPLOYMENTS_FILE = path.resolve(__dirname, 'deployments.testnet.json');
-var XLM_NATIVE_SAC = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC';
+var XLM_NATIVE_SAC = stellar_sdk_1.Asset.native().contractId(NETWORK_PASSPHRASE);
 var deployments = {};
 if (fs.existsSync(DEPLOYMENTS_FILE)) {
     deployments = JSON.parse(fs.readFileSync(DEPLOYMENTS_FILE, 'utf-8'));
 }
 else {
     throw new Error('deployments.testnet.json not found! Must have initial deployment and WASM hashes.');
-}
-function saveDeployments() {
-    fs.writeFileSync(DEPLOYMENTS_FILE, JSON.stringify(deployments, null, 2));
 }
 function runCmd(cmd, retries) {
     if (retries === void 0) { retries = 5; }
@@ -125,7 +90,7 @@ function deployXlmEpoch() {
             console.log("".concat(name, " deployed -> ").concat(result));
             return result;
         }
-        var KEYS_FILE, keys, admin, server, contractsToDeploy, _i, contractsToDeploy_1, name_1, wasmId, contractId, ledger, maturity_ledger, grace_period_ledgers, keeper, paramsJson, invokeArgs, out, _a, contractsToDeploy_2, name_2, bootstrapCmd;
+        var KEYS_FILE, keys, admin, server, contractsToDeploy, _i, contractsToDeploy_1, name_1, wasmId, contractId, ledger, maturity_ledger, grace_period_ledgers, keeper, paramsJson, invokeArgs, out, _a, contractsToDeploy_2, name_2, epochCountOut, epochCount, epochOut, initOut, maturityOut, verifiedMaturity, bootstrapCmd;
         return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
@@ -143,7 +108,7 @@ function deployXlmEpoch() {
                     }
                     console.log("Setting underlying token to Native XLM SAC: ".concat(XLM_NATIVE_SAC));
                     deployments['underlying_token'] = XLM_NATIVE_SAC;
-                    saveDeployments();
+                    (0, utils_1.saveDeployments)(__dirname, deployments);
                     contractsToDeploy = [
                         'sy_wrapper', 'vault', 'tokenizer', 'pt_token', 'yt_token',
                         'marketplace', 'intent_engine', 'rollover'
@@ -157,7 +122,7 @@ function deployXlmEpoch() {
                         }
                         contractId = deployWasm(name_1, wasmId);
                         deployments[name_1] = contractId;
-                        saveDeployments();
+                        (0, utils_1.saveDeployments)(__dirname, deployments);
                     }
                     console.log("Invoking Factory.deploy_epoch()...");
                     return [4 /*yield*/, server.getLatestLedger()];
@@ -193,19 +158,52 @@ function deployXlmEpoch() {
                     if (out.includes("AlreadyInitialized")) {
                         console.log("Epoch already deployed.");
                     }
-                    else if (!out.includes("error") && out.trim() !== '') {
+                    else if (out.includes("error")) {
+                        console.error("Epoch deploy failed:\n".concat(out));
+                        process.exit(1);
+                    }
+                    else if (out.trim() !== '') {
                         console.log("Epoch Deployed! Epoch ID: ".concat(out.trim()));
                     }
                     else {
-                        console.warn("Epoch deploy failed: ".concat(out));
+                        console.error("Epoch deploy failed with empty output.");
+                        process.exit(1);
                     }
                     console.log("Generating TypeScript Bindings for new XLM Epoch...");
                     for (_a = 0, contractsToDeploy_2 = contractsToDeploy; _a < contractsToDeploy_2.length; _a++) {
                         name_2 = contractsToDeploy_2[_a];
-                        runCmd("stellar contract bindings typescript --id ".concat(deployments[name_2], " --network testnet --output-dir ../packages/bindings/").concat(name_2, " --overwrite"));
+                        runCmd("stellar contract bindings typescript --id ".concat(deployments[name_2], " --network testnet --output-dir ./packages/bindings/").concat(name_2, " --overwrite"));
                     }
                     // Also regenerate factory just in case
-                    runCmd("stellar contract bindings typescript --id ".concat(deployments.factory, " --network testnet --output-dir ../packages/bindings/factory --overwrite"));
+                    runCmd("stellar contract bindings typescript --id ".concat(deployments.factory, " --network testnet --output-dir ./packages/bindings/factory --overwrite"));
+                    console.log("Verifying Deployment...");
+                    epochCountOut = runCmdNoFail("stellar contract invoke --id ".concat(deployments.factory, " --network-passphrase \"").concat(NETWORK_PASSPHRASE, "\" --rpc-url ").concat(RPC_URL, " -- epoch_count"));
+                    if (epochCountOut.includes("error") || !epochCountOut) {
+                        console.error("Verification failed: Cannot retrieve epoch_count.");
+                        process.exit(1);
+                    }
+                    epochCount = parseInt(epochCountOut.replace(/[^0-9]/g, ''));
+                    epochOut = runCmdNoFail("stellar contract invoke --id ".concat(deployments.factory, " --network-passphrase \"").concat(NETWORK_PASSPHRASE, "\" --rpc-url ").concat(RPC_URL, " -- get_epoch --epoch_id ").concat(epochCount));
+                    if (epochOut.includes("error") || !epochOut.includes(deployments.tokenizer)) {
+                        console.error("Verification failed: Factory newest epoch does not return the newest Tokenizer.");
+                        process.exit(1);
+                    }
+                    initOut = runCmdNoFail("stellar contract invoke --id ".concat(deployments.tokenizer, " --network-passphrase \"").concat(NETWORK_PASSPHRASE, "\" --rpc-url ").concat(RPC_URL, " -- initialized"));
+                    if (initOut.includes("error") || !initOut.includes("true")) {
+                        console.error("Verification failed: Newest Tokenizer is not initialized.");
+                        process.exit(1);
+                    }
+                    maturityOut = runCmdNoFail("stellar contract invoke --id ".concat(deployments.tokenizer, " --network-passphrase \"").concat(NETWORK_PASSPHRASE, "\" --rpc-url ").concat(RPC_URL, " -- maturity_ledger"));
+                    if (maturityOut.includes("error")) {
+                        console.error("Verification failed: Cannot retrieve maturity ledger.");
+                        process.exit(1);
+                    }
+                    verifiedMaturity = parseInt(maturityOut.replace(/[^0-9]/g, ''));
+                    if (verifiedMaturity <= ledger.sequence) {
+                        console.error("Verification failed: Tokenizer maturity is in the past.");
+                        process.exit(1);
+                    }
+                    console.log("Verification Succeeded! Epoch ".concat(epochCount, " is active and initialized."));
                     console.log("XLM Epoch Deployment and Wiring Complete!");
                     console.log("\nStarting Automatic Protocol Bootstrap...");
                     try {

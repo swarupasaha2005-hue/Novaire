@@ -26,7 +26,7 @@ export function CodeBlock({ code, language = 'text' }: CodeBlockProps) {
           className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
           aria-label="Copy code"
         >
-          {copied ? <Check className="w-4 h-4 text-[#3ECF8E]" /> : <Copy className="w-4 h-4" />}
+          {copied ? <Check className="w-4 h-4 text-nova-accent" /> : <Copy className="w-4 h-4" />}
         </button>
       </div>
       <div className="p-4 overflow-x-auto text-sm font-mono text-gray-300">

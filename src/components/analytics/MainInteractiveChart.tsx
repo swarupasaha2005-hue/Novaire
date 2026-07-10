@@ -61,7 +61,7 @@ export function MainInteractiveChart() {
   const hasData = snapshots.length > 0;
 
   return (
-    <div className="rounded-2xl border border-white/5 bg-white/5 p-6 backdrop-blur-xl relative overflow-hidden h-[500px] flex flex-col">
+    <div className="rounded-2xl border border-nova-border bg-white/5 p-6 backdrop-blur-xl relative overflow-hidden h-[500px] flex flex-col">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
         <div className="flex flex-wrap gap-2 p-1 bg-black/20 rounded-lg w-full md:w-auto">
           {dataModes.map((mode) => (
@@ -99,10 +99,10 @@ export function MainInteractiveChart() {
       </div>
       
       <div className="mb-2 flex items-baseline gap-3">
-        <h2 className="font-serif text-[32px] leading-none text-[#F5F5F2] tracking-tight">
+        <h2 className="font-serif text-[32px] leading-none text-nova-text tracking-tight">
           {dataMode === 'Fixed APY' ? `${currentVal.toFixed(2)}%` : `$${currentVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`}
         </h2>
-        <span className={`text-sm font-medium ${percentChange === null ? 'text-[#9A9A9A]' : isPositive ? 'text-[#3ECF8E]' : 'text-red-400'}`}>
+        <span className={`text-sm font-medium ${percentChange === null ? 'text-nova-muted' : isPositive ? 'text-nova-accent' : 'text-red-400'}`}>
           {percentChange === null ? '--' : `${isPositive ? '+' : ''}${percentChange.toFixed(2)}%`}
         </span>
       </div>

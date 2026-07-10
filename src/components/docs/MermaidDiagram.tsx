@@ -33,5 +33,5 @@ export function MermaidDiagram({ chart }: MermaidDiagramProps) {
     }
   }, [chart]);
 
-  return <div ref={ref} className="flex justify-center my-8 p-4 bg-white/5 rounded-xl border border-white/10" />;
+  return <div ref={ref} className="flex justify-center my-8 p-4 bg-white/5 rounded-xl border border-nova-border" />;
 }

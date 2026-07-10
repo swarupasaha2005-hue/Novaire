@@ -62,13 +62,13 @@ export function TradingAnalytics() {
       initial={{ opacity: 0, x: 10 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.4, delay: 0.2 }}
-      className="rounded-2xl border border-white/5 bg-white/5 p-6 backdrop-blur-xl"
+      className="rounded-2xl border border-nova-border bg-white/5 p-6 backdrop-blur-xl"
     >
       <h3 className="text-lg font-semibold text-white mb-6">Trading Analytics</h3>
       
       <div className="space-y-4">
         {metrics.map((metric, i) => (
-          <div key={i} className="flex justify-between items-center pb-3 border-b border-white/5 last:border-0 last:pb-0">
+          <div key={i} className="flex justify-between items-center pb-3 border-b border-nova-border last:border-0 last:pb-0">
             <div className="flex items-center gap-3">
               <div className={`p-1.5 rounded-md bg-white/5 ${metric.color || 'text-gray-400'}`}>
                 <metric.icon className="h-4 w-4" />

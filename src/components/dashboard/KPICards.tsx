@@ -91,7 +91,7 @@ export function KPICards() {
       return (
         <div className="flex items-baseline gap-2">
           <span>{xlmStr} XLM</span>
-          <span className="font-sans text-[20px] text-[#9A9A9A] tracking-normal">
+          <span className="font-sans text-[20px] text-nova-muted tracking-normal">
             ({formatCurrency(usd)})
           </span>
         </div>
@@ -106,7 +106,7 @@ export function KPICards() {
       case 'positions':
         return portfolio.metrics.activePositions.toString();
       case 'yield':
-        return <span className="text-[20px] text-[#9A9A9A]">Unavailable on Testnet</span>;
+        return <span className="text-[20px] text-nova-muted">Unavailable on Testnet</span>;
       case 'claimable':
         return formatXlmAndUsd(portfolio.metrics.totalClaimableYieldXlm, portfolio.metrics.totalClaimableYieldUsd);
       case 'tvl':

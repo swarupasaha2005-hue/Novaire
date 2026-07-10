@@ -71,8 +71,8 @@ export default function TableOfContents() {
             <Link
               href={`#${heading.id}`}
               onClick={(e) => handleClick(e, heading.id)}
-              className={`block hover:text-[#3ECF8E] transition-colors ${
-                activeId === heading.id ? 'text-[#3ECF8E] font-medium' : 'text-gray-400'
+              className={`block hover:text-nova-accent transition-colors ${
+                activeId === heading.id ? 'text-nova-accent font-medium' : 'text-gray-400'
               }`}
             >
               {heading.text}

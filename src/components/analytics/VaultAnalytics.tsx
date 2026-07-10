@@ -15,7 +15,7 @@ export function VaultAnalytics() {
   
   if (!activeVault) {
     return (
-      <div className="rounded-2xl border border-white/5 bg-white/5 p-6 h-48 flex items-center justify-center">
+      <div className="rounded-2xl border border-nova-border bg-white/5 p-6 h-48 flex items-center justify-center">
         <div className="animate-pulse flex space-x-4">
           <div className="flex-1 space-y-4 py-1">
             <div className="h-4 bg-white/10 rounded w-3/4"></div>
@@ -37,7 +37,7 @@ export function VaultAnalytics() {
       initial={{ opacity: 0, x: 10 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.4, delay: 0.1 }}
-      className="rounded-2xl border border-white/5 bg-white/5 p-6 backdrop-blur-xl"
+      className="rounded-2xl border border-nova-border bg-white/5 p-6 backdrop-blur-xl"
     >
       <div className="flex justify-between items-center mb-6">
         <h3 className="text-lg font-semibold text-white">Vault Analytics</h3>

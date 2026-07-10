@@ -22,7 +22,7 @@ export function VaultPositionsTable() {
   const vaultAssets = portfolio?.assets.filter(a => a.assetType === 'vault') || [];
   
   const positions = vaultAssets.map(asset => {
-    // Attempt to extract underlying asset, e.g., "Novaire Vault (USDC)" -> "USDC"
+    // Attempt to extract underlying asset, e.g., "Novaire Vault (XLM)" -> "XLM"
     const match = asset.assetCode.match(/\((.*?)\)/);
     const underlying = match ? match[1] : 'Unknown';
     
@@ -58,9 +58,9 @@ export function VaultPositionsTable() {
 
   const columns = [
     { header: 'Vault Name', accessor: (row: any) => row.vaultName },
-    { header: 'Underlying', accessor: (row: any) => <span className="text-[#9A9A9A]">{row.underlying}</span> },
+    { header: 'Underlying', accessor: (row: any) => <span className="text-nova-muted">{row.underlying}</span> },
     { header: 'Deposit Amount', accessor: (row: any) => row.depositAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 }), align: 'right' as const },
-    { header: 'Claimable Yield', accessor: (row: any) => <span className="text-[#3ECF8E]">+{row.claimableYield.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>, align: 'right' as const },
+    { header: 'Claimable Yield', accessor: (row: any) => <span className="text-nova-accent">+{row.claimableYield.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>, align: 'right' as const },
     { header: 'Fixed APY', accessor: (row: any) => `${row.fixedApy}%`, align: 'right' as const },
     { header: 'Days Remaining', accessor: (row: any) => `${row.daysRemaining} days`, align: 'right' as const },
     { header: 'Maturity Date', accessor: (row: any) => row.maturityDate },
@@ -74,7 +74,7 @@ export function VaultPositionsTable() {
 
   return (
     <SectionCard className="p-0">
-      <div className="border-b border-white/10 p-6 flex justify-between items-center">
+      <div className="border-b border-nova-border p-6 flex justify-between items-center">
         <h3 className="font-sans font-medium ">Vault Positions</h3>
       </div>
       <DataTable

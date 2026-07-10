@@ -12,7 +12,7 @@
     "start": "next start",
     "lint": "eslint",
     "deploy": "tsx --env-file=.env scripts/deploy.ts",
-    "deploy:epoch": "tsx --env-file=.env scripts/deploy_xlm_epoch.ts",
+    "deploy:epoch": "tsx --env-file=.env scripts/deploy.ts",
     "bootstrap": "tsx --env-file=.env scripts/bootstrap_liquidity.ts"
   },
   "dependencies": {
