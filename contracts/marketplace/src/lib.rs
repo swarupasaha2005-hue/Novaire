@@ -493,6 +493,9 @@ impl NovaireMarketplace {
         yt_reserves = yt_reserves.checked_sub(actual_yt_out).ok_or(NovaireMarketError::MathOverflow)?;
         storage::set_i128(&env, DataKey::YtReserves, yt_reserves);
 
+        let a_pool = compute_a_pool(&env, maturity, underlying_reserves, pt_reserves)?;
+        Self::update_twap(&env, a_pool, pt_reserves, underlying_reserves)?;
+
         // C1 fix: credit underlying reserves with incoming amount
         storage::set_i128(&env, DataKey::UnderlyingReserves,
             underlying_reserves.checked_add(underlying_in).ok_or(NovaireMarketError::MathOverflow)?);
@@ -568,6 +571,9 @@ impl NovaireMarketplace {
 
         yt_client.transfer(&seller, &env.current_contract_address(), &yt_in);
         underlying_client.transfer(&env.current_contract_address(), &seller, &actual_underlying_out);
+
+        let a_pool = compute_a_pool(&env, maturity, underlying_reserves, pt_reserves)?;
+        Self::update_twap(&env, a_pool, pt_reserves, underlying_reserves)?;
 
         let new_underlying_reserves = underlying_reserves.checked_sub(actual_underlying_out).ok_or(NovaireMarketError::MathOverflow)?;
         storage::set_i128(&env, DataKey::UnderlyingReserves, new_underlying_reserves);
