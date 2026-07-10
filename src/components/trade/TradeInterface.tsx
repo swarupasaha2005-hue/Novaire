@@ -89,9 +89,9 @@ export function TradeInterface() {
   };
 
   return (
-    <div className="flex flex-col rounded-2xl border border-nova-border bg-nova-surface p-6 max-w-[500px] shadow-2xl relative overflow-hidden transition-all duration-200 hover:border-nova-accent-hover hover:shadow-[0_0_20px_var(--accent-hover)] hover:-translate-y-[3px]">
+    <div className="flex flex-col w-full h-full rounded-2xl border border-nova-border bg-nova-surface p-6 shadow-2xl relative overflow-hidden transition-all duration-200 hover:border-[#3ECF8E]/50 hover:shadow-[0_0_20px_rgba(62,207,142,0.15)] hover:-translate-y-[3px]">
       {/* Decorative gradient */}
-      <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-nova-accent-hover opacity-[0.03] blur-[100px] rounded-full translate-x-1/2 -translate-y-1/2 pointer-events-none" />
+      <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-[#3ECF8E] opacity-[0.03] blur-[100px] rounded-full translate-x-1/2 -translate-y-1/2 pointer-events-none" />
 
       {/* Header Tabs */}
       <div className="flex items-center justify-between mb-6 z-10 relative">
@@ -167,7 +167,7 @@ export function TradeInterface() {
             className="bg-transparent text-3xl text-nova-text font-semibold outline-none w-full placeholder:text-white/20"
           />
           <div className="flex items-center gap-2">
-            <button onClick={handleMax} className="text-[10px] uppercase font-bold tracking-wider text-nova-accent bg-nova-accent/10 px-2 py-1 rounded-md">
+            <button onClick={handleMax} className="text-[10px] uppercase font-bold tracking-wider text-[#3ECF8E] bg-[#3ECF8E]/10 px-2 py-1 rounded-md">
               Max
             </button>
             <div className="flex items-center gap-2 bg-nova-surface-hover border border-nova-border px-3 py-1.5 rounded-xl ml-2">
@@ -177,12 +177,7 @@ export function TradeInterface() {
         </div>
       </div>
 
-      {/* Direction Arrow */}
-      <div className="flex justify-center -my-3 z-20 relative pointer-events-none">
-        <div className="bg-nova-surface-hover border-4 border-[#0A0A0A] p-2 rounded-xl text-nova-muted">
-          <ArrowDown className="w-4 h-4" />
-        </div>
-      </div>
+
 
       {/* Output Section */}
       <div className="flex flex-col gap-1 z-10 relative">
@@ -206,7 +201,7 @@ export function TradeInterface() {
               onClick={() => setAsset('PT')}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
                 asset === 'PT' && action === 'Buy'
-                  ? 'bg-nova-accent/20 text-nova-accent'
+                  ? 'bg-[#3ECF8E]/20 text-[#3ECF8E]'
                   : (asset === 'PT' ? 'bg-white/10 text-nova-text' : 'text-nova-muted hover:text-nova-text')
               }`}
             >
@@ -216,7 +211,7 @@ export function TradeInterface() {
               onClick={() => setAsset('YT')}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
                 asset === 'YT' && action === 'Buy'
-                  ? 'bg-nova-accent/20 text-nova-accent'
+                  ? 'bg-[#3ECF8E]/20 text-[#3ECF8E]'
                   : (asset === 'YT' ? 'bg-white/10 text-nova-text' : 'text-nova-muted hover:text-nova-text')
               }`}
             >
@@ -248,20 +243,19 @@ export function TradeInterface() {
         </div>
         <div className="flex justify-between items-center text-sm">
           <span className="text-nova-muted flex items-center gap-1">Implied Yield <Info className="w-3 h-3" /></span>
-          <span className="font-medium text-nova-accent">
+          <span className="font-medium text-[#3ECF8E]">
             {marketData ? `${marketData.impliedYield.toFixed(2)}%` : '---'}
           </span>
         </div>
       </div>
 
-      {/* Action Button */}
       <button
         onClick={!isConnected ? connect : handleSwapExecute}
         disabled={isExecuting || (isConnected && (!quote || !!quoteError))}
         className={`mt-6 w-full flex items-center justify-center gap-2 py-4 rounded-xl font-semibold text-lg transition-all duration-200 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
           !isConnected 
             ? 'bg-nova-surface text-nova-text border border-nova-border hover:bg-nova-surface-hover hover:-translate-y-[1px]' 
-            : 'bg-nova-accent text-black hover:brightness-110 hover:-translate-y-[1px] active:scale-[0.98]'
+            : 'bg-[#3ECF8E] text-black hover:brightness-110 hover:-translate-y-[1px] active:scale-[0.98]'
         }`}
       >
         {!isConnected ? (

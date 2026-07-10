@@ -11,6 +11,7 @@ import { MyVaultPositions } from '@/components/vaults/MyVaultPositions';
 import { VaultStatistics } from '@/components/vaults/VaultStatistics';
 import { RecentActivity } from '@/components/dashboard/RecentActivity';
 import { PageContainer } from '@/components/ui/PageContainer';
+import { TradeInterface } from '@/components/trade/TradeInterface';
 
 export default function VaultsPage() {
   const [vaults, setVaults] = useState<Vault[]>([]);
@@ -55,18 +56,29 @@ export default function VaultsPage() {
         <VaultStatistics vaults={vaults} protocolState={protocolState} />
       </motion.div>
 
-      {/* Vault Grid */}
-      <div className="mb-12">
-        <h2 className="mb-6 text-xl font-medium text-[#F5F5F2] tracking-tight">Available Vaults</h2>
-        {loading ? (
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {[1, 2].map((i) => (
-              <div key={i} className="h-64 animate-pulse rounded-2xl bg-[#111111] border border-white/10" />
-            ))}
+      {/* Main Grid: Vaults & Trade */}
+      <div className="mb-12 grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+        {/* Left: Available Vaults */}
+        <div className="flex flex-col h-full">
+          <h2 className="mb-6 text-xl font-medium text-[#F5F5F2] tracking-tight">Available Vaults</h2>
+          {loading ? (
+            <div className="grid grid-cols-1 gap-6">
+              {[1, 2].map((i) => (
+                <div key={i} className="h-64 animate-pulse rounded-2xl bg-[#111111] border border-white/10" />
+              ))}
+            </div>
+          ) : (
+            <VaultGrid vaults={vaults} protocolState={protocolState} onDeposit={handleDepositClick} />
+          )}
+        </div>
+
+        {/* Right: Trade PT & YT */}
+        <div className="flex flex-col h-full">
+          <h2 className="mb-6 text-xl font-medium text-[#F5F5F2] tracking-tight">Trade PT & YT</h2>
+          <div className="flex-grow">
+            <TradeInterface />
           </div>
-        ) : (
-          <VaultGrid vaults={vaults} protocolState={protocolState} onDeposit={handleDepositClick} />
-        )}
+        </div>
       </div>
 
       {/* My Vault Positions */}

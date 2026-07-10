@@ -23,10 +23,10 @@ export function VaultGrid({ vaults, protocolState, onDeposit }: VaultGridProps) 
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: i * 0.1 }}
-            className="flex flex-col rounded-2xl border border-nova-border bg-nova-surface p-6 shadow-2xl relative overflow-hidden transition-all duration-200 hover:border-nova-accent-hover hover:shadow-[0_0_20px_var(--accent-hover)] hover:-translate-y-[3px]"
+            className="flex flex-col rounded-2xl border border-nova-border bg-nova-surface p-6 shadow-2xl relative overflow-hidden transition-all duration-200 hover:border-[#3ECF8E]/50 hover:shadow-[0_0_20px_rgba(62,207,142,0.15)] hover:-translate-y-[3px]"
           >
             {/* Decorative gradient to match TradeInterface */}
-            <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-nova-accent-hover opacity-[0.03] blur-[100px] rounded-full translate-x-1/2 -translate-y-1/2 pointer-events-none" />
+            <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-[#3ECF8E] opacity-[0.03] blur-[100px] rounded-full translate-x-1/2 -translate-y-1/2 pointer-events-none" />
 
             <div className="z-10 relative">
               {/* Vault Name and Epoch */}
@@ -84,7 +84,7 @@ export function VaultGrid({ vaults, protocolState, onDeposit }: VaultGridProps) 
               <div className="grid grid-cols-2 gap-3">
                 <button 
                   onClick={() => onDeposit(vault.asset)}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-nova-accent py-4 text-base font-semibold text-black transition-all duration-200 hover:brightness-110 hover:-translate-y-[1px] shadow-sm active:scale-[0.98]"
+                  className="flex items-center justify-center gap-2 rounded-xl bg-[#3ECF8E] py-4 text-base font-semibold text-black transition-all duration-200 hover:brightness-110 hover:-translate-y-[1px] shadow-sm active:scale-[0.98]"
                 >
                   Deposit
                 </button>
