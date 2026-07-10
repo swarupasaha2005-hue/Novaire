@@ -79,8 +79,10 @@ async function deploy() {
         console.log(`Created new Admin: ${admin.publicKey()}`);
     }
 
-    await fundAccount(admin.publicKey());
-    await fundAccount(issuer.publicKey());
+    if (!isMainnet) {
+        await fundAccount(admin.publicKey());
+        await fundAccount(issuer.publicKey());
+    }
 
     const server = new rpc.Server(RPC_URL, { allowHttp: true });
 
