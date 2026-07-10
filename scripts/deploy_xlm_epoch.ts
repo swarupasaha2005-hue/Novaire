@@ -98,7 +98,7 @@ async function deployXlmEpoch() {
 
     console.log("Invoking Factory.deploy_epoch()...");
     const ledger = await server.getLatestLedger();
-    const maturity_ledger = ledger.sequence + 50000;
+    const maturity_ledger = ledger.sequence + (isMainnet ? 518400 : 50000);
     const grace_period_ledgers = 1000;
     const keeper = admin.publicKey();
 
@@ -130,12 +130,16 @@ async function deployXlmEpoch() {
     const out = runCmdNoFail(`stellar contract invoke ${invokeArgs}`);
     if (out.includes("AlreadyInitialized")) {
         console.log("Epoch already deployed.");
+        deployments['maturity_ledger'] = maturity_ledger.toString();
+        saveDeployments(__dirname, deployments);
     } else if (out.includes("error")) {
         console.error(`Epoch deploy failed:
 ${out}`);
         process.exit(1);
     } else if (out.trim() !== '') {
         console.log(`Epoch Deployed! Epoch ID: ${out.trim()}`);
+        deployments['maturity_ledger'] = maturity_ledger.toString();
+        saveDeployments(__dirname, deployments);
     } else {
         console.error(`Epoch deploy failed with empty output.`);
         process.exit(1);

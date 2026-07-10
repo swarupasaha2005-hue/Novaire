@@ -143,7 +143,7 @@ async function deploy() {
     if (!deployments['epoch_deployed']) {
         console.log("Invoking Factory.deploy_epoch()...");
         const ledger = await server.getLatestLedger();
-        const maturity_ledger = ledger.sequence + 50000;
+        const maturity_ledger = ledger.sequence + (isMainnet ? 518400 : 50000);
         const grace_period_ledgers = 1000;
         const keeper = admin.publicKey();
 
@@ -176,6 +176,7 @@ async function deploy() {
         if (out.includes("AlreadyInitialized")) {
             console.log("Epoch already deployed.");
             deployments['epoch_deployed'] = "true";
+            deployments['maturity_ledger'] = maturity_ledger.toString();
             saveDeployments(__dirname, deployments);
         } else if (out.includes("error")) {
             console.error(`Epoch deploy failed:\n${out}`);
@@ -183,6 +184,7 @@ async function deploy() {
         } else if (out.trim() !== '') {
             console.log(`Epoch Deployed! Epoch ID: ${out.trim()}`);
             deployments['epoch_deployed'] = "true";
+            deployments['maturity_ledger'] = maturity_ledger.toString();
             saveDeployments(__dirname, deployments);
         } else {
             console.error(`Epoch deploy failed with empty output.`);

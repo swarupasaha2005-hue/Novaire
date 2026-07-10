@@ -245,9 +245,10 @@ async function run() {
         return;
     }
     // Compute maturity ledger for the retail intent
-    const rpcServer = new rpc.Server(RPC_URL, { allowHttp: true });
-    const latestLedger = await rpcServer.getLatestLedger();
-    const currentMaturityLedger = latestLedger.sequence + 50000;
+    const currentMaturityLedger = d['maturity_ledger'];
+    if (!currentMaturityLedger) {
+        throw new Error('maturity_ledger not found in deployments! Please run deploy.ts or deploy_xlm_epoch.ts first.');
+    }
 
     console.log('\n--- Step 5: Intent Engine Execution ---');
     const testWallet = Keypair.random();
