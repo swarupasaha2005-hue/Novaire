@@ -3,20 +3,25 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.NETWORK_PASSPHRASE = exports.RPC_URL = exports.NETWORK = exports.CONTRACTS = void 0;
+exports.NETWORK_PASSPHRASE = exports.RPC_URL = exports.CONTRACTS = exports.NETWORK = void 0;
 var deployments_testnet_json_1 = __importDefault(require("./deployments.testnet.json"));
+var deployments_mainnet_json_1 = __importDefault(require("./deployments.mainnet.json"));
+exports.NETWORK = (process.env.NEXT_PUBLIC_NETWORK || 'TESTNET').toUpperCase();
+var isMainnet = exports.NETWORK === 'MAINNET';
+var deployments = isMainnet ? deployments_mainnet_json_1.default : deployments_testnet_json_1.default;
 exports.CONTRACTS = {
-    FACTORY: deployments_testnet_json_1.default.factory,
-    VAULT: deployments_testnet_json_1.default.vault,
-    PT_TOKEN: deployments_testnet_json_1.default.pt_token,
-    YT_TOKEN: deployments_testnet_json_1.default.yt_token,
-    SY_WRAPPER: deployments_testnet_json_1.default.sy_wrapper,
-    MARKETPLACE: deployments_testnet_json_1.default.marketplace,
-    INTENT_ENGINE: deployments_testnet_json_1.default.intent_engine,
-    ROLLOVER: deployments_testnet_json_1.default.rollover,
-    TOKENIZER: deployments_testnet_json_1.default.tokenizer,
-    MOCK_USDC: deployments_testnet_json_1.default.underlying_token,
+    FACTORY: deployments.factory || '',
+    VAULT: deployments.vault || '',
+    PT_TOKEN: deployments.pt_token || '',
+    YT_TOKEN: deployments.yt_token || '',
+    SY_WRAPPER: deployments.sy_wrapper || '',
+    MARKETPLACE: deployments.marketplace || '',
+    INTENT_ENGINE: deployments.intent_engine || '',
+    ROLLOVER: deployments.rollover || '',
+    TOKENIZER: deployments.tokenizer || '',
+    MOCK_USDC: deployments.underlying_token || '',
 };
-exports.NETWORK = 'TESTNET';
-exports.RPC_URL = 'https://soroban-testnet.stellar.org';
-exports.NETWORK_PASSPHRASE = 'Test SDF Network ; September 2015';
+exports.RPC_URL = process.env.NEXT_PUBLIC_RPC_URL ||
+    (isMainnet ? 'https://soroban-mainnet.stellar.org' : 'https://soroban-testnet.stellar.org');
+exports.NETWORK_PASSPHRASE = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ||
+    (isMainnet ? 'Public Global Stellar Network ; September 2015' : 'Test SDF Network ; September 2015');

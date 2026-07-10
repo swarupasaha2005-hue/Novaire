@@ -6,7 +6,12 @@ import { PriceOracleService } from '../../services/priceOracleService';
 import { MarketService } from '../../services/marketService';
 import { usePortfolio } from '../../hooks/usePortfolio';
 
+import { notFound } from 'next/navigation';
+
 export default function DevTestPage() {
+  if (process.env.NODE_ENV === 'production') {
+    notFound();
+  }
   const [walletState, setWalletState] = useState<any>(null);
   const [pricesState, setPricesState] = useState<any>(null);
   const [marketsState, setMarketsState] = useState<any>(null);

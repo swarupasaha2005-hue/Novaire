@@ -4,11 +4,14 @@ import * as path from 'path';
 import { execSync } from 'child_process';
 import axios from 'axios';
 
-const RPC_URL = process.env.RPC_URL || 'https://soroban-testnet.stellar.org';
-const NETWORK_PASSPHRASE = process.env.NETWORK_PASSPHRASE || Networks.TESTNET;
+const NETWORK = (process.env.NETWORK || 'testnet').toLowerCase();
+const isMainnet = NETWORK === 'mainnet';
 
-const DEPLOYMENTS_FILE = path.resolve(__dirname, 'deployments.testnet.json');
-const TESTNET_KEYS = path.resolve(__dirname, 'testnet_keys.json');
+const RPC_URL = process.env.RPC_URL || (isMainnet ? 'https://soroban-mainnet.stellar.org' : 'https://soroban-testnet.stellar.org');
+const NETWORK_PASSPHRASE = process.env.NETWORK_PASSPHRASE || (isMainnet ? Networks.PUBLIC : Networks.TESTNET);
+
+const DEPLOYMENTS_FILE = path.resolve(__dirname, `deployments.${NETWORK}.json`);
+const KEYS_FILE = path.resolve(__dirname, isMainnet ? 'mainnet_keys.json' : 'testnet_keys.json');
 
 async function fundAccount(publicKey: string) {
     console.log(`Funding wallet ${publicKey} via Friendbot...`);
@@ -52,14 +55,16 @@ async function run() {
     console.log(`YT Token: ${d.yt_token}`);
 
     console.log('\n--- Step 2: Treasury Setup ---');
-    if (!fs.existsSync(TESTNET_KEYS)) throw new Error('testnet_keys.json missing');
-    const keys = JSON.parse(fs.readFileSync(TESTNET_KEYS, 'utf-8'));
-    if (!keys.admin_secret) throw new Error('admin_secret missing in testnet_keys.json');
+    if (!fs.existsSync(KEYS_FILE)) throw new Error(`${path.basename(KEYS_FILE)} missing`);
+    const keys = JSON.parse(fs.readFileSync(KEYS_FILE, 'utf-8'));
+    if (!keys.admin_secret) throw new Error(`admin_secret missing in ${path.basename(KEYS_FILE)}`);
     const adminKp = Keypair.fromSecret(keys.admin_secret);
     const adminAddress = adminKp.publicKey();
     console.log(`Treasury Wallet: ${adminAddress}`);
 
-    await fundAccount(adminAddress);
+    if (!isMainnet) {
+        await fundAccount(adminAddress);
+    }
 
     let initXlm = parseSorobanI128(invoke(d.underlying_token, 'balance', `--id ${adminAddress}`, adminKp.secret()));
     console.log(`Treasury Initial Underlying Balance (stroops): ${initXlm.toString()}`);
@@ -233,7 +238,12 @@ async function run() {
     }
     console.log(`✅ TWAP seeded successfully: ${twapValue.toString()}`);
 
-
+    if (isMainnet) {
+        console.log('\n--- Step 5 & 6: Skipped (Mainnet) ---');
+        console.log('Skipping retail transaction validation on Mainnet. Protocol bootstrap is complete.');
+        console.log('\n✅ Bootstrap and Execution Completed Successfully!');
+        return;
+    }
     // Compute maturity ledger for the retail intent
     const rpcServer = new rpc.Server(RPC_URL, { allowHttp: true });
     const latestLedger = await rpcServer.getLatestLedger();

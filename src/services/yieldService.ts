@@ -20,7 +20,11 @@ export class YieldService {
 
     try {
       const { Client: TokenizerClient } = await import('../../packages/bindings/tokenizer/src/index');
-      const { CONTRACTS, RPC_URL, NETWORK_PASSPHRASE } = await import('../config/contracts');
+      const { CONTRACTS, RPC_URL, NETWORK_PASSPHRASE, NETWORK } = await import('../config/contracts');
+      
+      const IS_DEV = process.env.NODE_ENV !== 'production';
+      const isMainnet = NETWORK === 'MAINNET';
+      const HORIZON_URL = isMainnet ? 'https://horizon.stellar.org/' : 'https://horizon-testnet.stellar.org/';
 
       const clientOptions = {
         rpcUrl: RPC_URL,
@@ -37,7 +41,7 @@ export class YieldService {
         
         if (maturityLedger > 0) {
           try {
-            const res = await fetch('https://horizon-testnet.stellar.org/');
+            const res = await fetch(HORIZON_URL);
             if (res.ok) {
               const horizonData = await res.json();
               const currentLedger = Number(horizonData.history_latest_ledger || horizonData.core_latest_ledger);
@@ -45,15 +49,17 @@ export class YieldService {
                 const ledgersRemaining = maturityLedger - currentLedger;
                 const secondsRemaining = ledgersRemaining * 5.5;
                 maturityMs = Date.now() + secondsRemaining * 1000;
-                console.log(`[Novaire Ledger Debug] 
+                if (IS_DEV) {
+                  console.log(`[Novaire Ledger Debug] 
   Current Ledger: ${currentLedger}
   Maturity Ledger: ${maturityLedger}
   Remaining Ledgers: ${ledgersRemaining}
   Calculated Seconds Remaining: ${secondsRemaining}`);
+                }
               }
             }
           } catch (e) {
-            console.warn("Failed to fetch horizon ledger for maturity calculation, using approximation");
+            if (IS_DEV) console.warn("Failed to fetch horizon ledger for maturity calculation, using approximation");
           }
         }
       }

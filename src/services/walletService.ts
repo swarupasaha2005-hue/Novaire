@@ -4,6 +4,10 @@ import {
   getNetworkDetails,
   requestAccess
 } from '@stellar/freighter-api';
+import { NETWORK } from '../config/contracts';
+
+const TARGET_NETWORK = NETWORK === 'MAINNET' ? 'PUBLIC' : 'TESTNET';
+const IS_DEV = process.env.NODE_ENV !== 'production';
 
 export interface WalletAssetBalance {
   assetCode: string;
@@ -88,11 +92,11 @@ export class WalletService {
         const network = await this.getNetwork();
         
         // Enforce network rule even on auto-connect
-        console.log("init() - Result of comparison network !== 'TESTNET':", network !== 'TESTNET');
-        if (network !== 'TESTNET') {
-           console.log("init() - Comparison failed because network is:", `"${network}"`, "expected:", `"TESTNET"`);
+        if (IS_DEV) console.log(`init() - Result of comparison network !== '${TARGET_NETWORK}':`, network !== TARGET_NETWORK);
+        if (network !== TARGET_NETWORK) {
+           if (IS_DEV) console.log("init() - Comparison failed because network is:", `"${network}"`, "expected:", `"${TARGET_NETWORK}"`);
            this.setState({ 
-             error: 'Please switch your Freighter wallet to Testnet.', 
+             error: `Please switch your Freighter wallet to ${TARGET_NETWORK}.`, 
              isConnected: false, 
              loading: false 
            });
@@ -134,16 +138,16 @@ export class WalletService {
       
       const network = await this.getNetwork();
       console.log("6. Network returned:", network);
-      console.log("Freighter network:", network);
+      if (IS_DEV) console.log("6. Network returned:", network);
 
       if (!address) {
         throw new Error('Wallet access rejected or address not found');
       }
 
-      console.log("Result of comparison network !== 'TESTNET':", network !== 'TESTNET');
-      if (network !== 'TESTNET') {
-        console.log("Comparison failed because network is:", `"${network}"`, "expected:", `"TESTNET"`);
-        throw new Error('Please switch your Freighter wallet to Testnet to continue.');
+      if (IS_DEV) console.log(`Result of comparison network !== '${TARGET_NETWORK}':`, network !== TARGET_NETWORK);
+      if (network !== TARGET_NETWORK) {
+        if (IS_DEV) console.log("Comparison failed because network is:", `"${network}"`, "expected:", `"${TARGET_NETWORK}"`);
+        throw new Error(`Please switch your Freighter wallet to ${TARGET_NETWORK} to continue.`);
       }
 
       this.setState({
@@ -155,7 +159,7 @@ export class WalletService {
 
       await this.refreshBalances();
     } catch (error: any) {
-      console.error("7. Caught error in WalletService.connectWallet:", error);
+      if (IS_DEV) console.error("7. Caught error in WalletService.connectWallet:", error);
       this.setState({
         address: null,
         network: null,
@@ -210,8 +214,10 @@ export class WalletService {
     if (!isConnected || !address) return;
 
     try {
-      console.log("1. Fetching balances for wallet address:", address);
-      console.log("2. Detected Stellar network:", network);
+      if (IS_DEV) {
+        console.log("1. Fetching balances for wallet address:", address);
+        console.log("2. Detected Stellar network:", network);
+      }
       
       let horizonUrl = 'https://horizon.stellar.org';
       if (network === 'TESTNET') {
@@ -221,12 +227,12 @@ export class WalletService {
       }
 
       const endpoint = `${horizonUrl}/accounts/${address}`;
-      console.log("3. Horizon endpoint being queried:", endpoint);
+      if (IS_DEV) console.log("3. Horizon endpoint being queried:", endpoint);
 
       const response = await fetch(endpoint);
       if (!response.ok) {
         if (response.status === 404) {
-          throw new Error('Account Not Found: This wallet has not been funded yet. Please send some XLM to this address on Testnet to initialize it.');
+          throw new Error(`Account Not Found: This wallet has not been funded yet. Please send some XLM to this address on ${network} to initialize it.`);
         }
         throw new Error(`Horizon API error: ${response.status}`);
       }

@@ -6,9 +6,13 @@ import axios from 'axios';
 
 import { saveDeployments } from './utils';
 
-const RPC_URL = process.env.RPC_URL || 'https://soroban-testnet.stellar.org';
-const NETWORK_PASSPHRASE = process.env.NETWORK_PASSPHRASE || Networks.TESTNET;
-const DEPLOYMENTS_FILE = path.resolve(__dirname, 'deployments.testnet.json');
+const NETWORK = (process.env.NETWORK || 'testnet').toLowerCase();
+const isMainnet = NETWORK === 'mainnet';
+
+const RPC_URL = process.env.RPC_URL || (isMainnet ? 'https://soroban-mainnet.stellar.org' : 'https://soroban-testnet.stellar.org');
+const NETWORK_PASSPHRASE = process.env.NETWORK_PASSPHRASE || (isMainnet ? Networks.PUBLIC : Networks.TESTNET);
+const DEPLOYMENTS_FILE = path.resolve(__dirname, `deployments.${NETWORK}.json`);
+const KEYS_FILE = path.resolve(__dirname, isMainnet ? 'mainnet_keys.json' : 'testnet_keys.json');
 
 let deployments: Record<string, string> = {};
 if (fs.existsSync(DEPLOYMENTS_FILE)) {
@@ -55,7 +59,6 @@ function runCmdNoFail(cmd: string): string {
 }
 
 async function deploy() {
-    const KEYS_FILE = path.resolve(__dirname, 'testnet_keys.json');
     let admin: Keypair;
     let issuer: Keypair;
 
@@ -192,7 +195,7 @@ async function deploy() {
     console.log("Generating TypeScript Bindings...");
     for (const name of contractsToDeploy) {
         if (!deployments[`${name}_bindings`]) {
-            runCmd(`stellar contract bindings typescript --id ${deployments[name]} --network testnet --overwrite --output-dir ./packages/bindings/${name}`);
+            runCmd(`stellar contract bindings typescript --id ${deployments[name]} --network ${NETWORK} --overwrite --output-dir ./packages/bindings/${name}`);
             deployments[`${name}_bindings`] = "true";
             saveDeployments(__dirname, deployments);
         }

@@ -5,9 +5,13 @@ import { execSync } from 'child_process';
 
 import { saveDeployments } from './utils';
 
-const RPC_URL = process.env.RPC_URL || 'https://soroban-testnet.stellar.org';
-const NETWORK_PASSPHRASE = process.env.NETWORK_PASSPHRASE || Networks.TESTNET;
-const DEPLOYMENTS_FILE = path.resolve(__dirname, 'deployments.testnet.json');
+const NETWORK = (process.env.NETWORK || 'testnet').toLowerCase();
+const isMainnet = NETWORK === 'mainnet';
+
+const RPC_URL = process.env.RPC_URL || (isMainnet ? 'https://soroban-mainnet.stellar.org' : 'https://soroban-testnet.stellar.org');
+const NETWORK_PASSPHRASE = process.env.NETWORK_PASSPHRASE || (isMainnet ? Networks.PUBLIC : Networks.TESTNET);
+const DEPLOYMENTS_FILE = path.resolve(__dirname, `deployments.${NETWORK}.json`);
+const KEYS_FILE = path.resolve(__dirname, isMainnet ? 'mainnet_keys.json' : 'testnet_keys.json');
 
 import { Asset } from '@stellar/stellar-sdk';
 
@@ -17,7 +21,7 @@ let deployments: Record<string, string> = {};
 if (fs.existsSync(DEPLOYMENTS_FILE)) {
     deployments = JSON.parse(fs.readFileSync(DEPLOYMENTS_FILE, 'utf-8'));
 } else {
-    throw new Error('deployments.testnet.json not found! Must have initial deployment and WASM hashes.');
+    throw new Error(`deployments.${NETWORK}.json not found! Must have initial deployment and WASM hashes.`);
 }
 
 function runCmd(cmd: string, retries: number = 5): string {
@@ -47,9 +51,8 @@ function runCmdNoFail(cmd: string): string {
 }
 
 async function deployXlmEpoch() {
-    const KEYS_FILE = path.resolve(__dirname, 'testnet_keys.json');
     if (!fs.existsSync(KEYS_FILE)) {
-        throw new Error('testnet_keys.json not found!');
+        throw new Error(`${path.basename(KEYS_FILE)} not found!`);
     }
     
     const keys = JSON.parse(fs.readFileSync(KEYS_FILE, 'utf-8'));
@@ -141,11 +144,11 @@ ${out}`);
 
     console.log("Generating TypeScript Bindings for new XLM Epoch...");
     for (const name of contractsToDeploy) {
-        runCmd(`stellar contract bindings typescript --id ${deployments[name]} --network testnet --output-dir ./packages/bindings/${name} --overwrite`);
+        runCmd(`stellar contract bindings typescript --id ${deployments[name]} --network ${NETWORK} --output-dir ./packages/bindings/${name} --overwrite`);
     }
     
     // Also regenerate factory just in case
-    runCmd(`stellar contract bindings typescript --id ${deployments.factory} --network testnet --output-dir ./packages/bindings/factory --overwrite`);
+    runCmd(`stellar contract bindings typescript --id ${deployments.factory} --network ${NETWORK} --output-dir ./packages/bindings/factory --overwrite`);
 
     console.log("Verifying Deployment...");
     const epochCountOut = runCmdNoFail(`stellar contract invoke --id ${deployments.factory} --source ${admin.secret()} --network-passphrase "${NETWORK_PASSPHRASE}" --rpc-url ${RPC_URL} -- epoch_count`);

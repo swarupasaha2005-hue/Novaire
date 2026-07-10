@@ -5,8 +5,11 @@ const path = require('path');
 
 const KEEPER_SECRET = process.env.KEEPER_SECRET;
 const ROLLOVER_CONTRACT_ID = process.env.ROLLOVER_CONTRACT_ID;
-const RPC_URL = process.env.RPC_URL || 'https://soroban-testnet.stellar.org';
-const NETWORK_PASSPHRASE = process.env.NETWORK_PASSPHRASE || Networks.TESTNET;
+const NETWORK = (process.env.NETWORK || 'testnet').toLowerCase();
+const isMainnet = NETWORK === 'mainnet';
+
+const RPC_URL = process.env.RPC_URL || (isMainnet ? 'https://soroban-mainnet.stellar.org' : 'https://soroban-testnet.stellar.org');
+const NETWORK_PASSPHRASE = process.env.NETWORK_PASSPHRASE || (isMainnet ? Networks.PUBLIC : Networks.TESTNET);
 
 if (!KEEPER_SECRET || !ROLLOVER_CONTRACT_ID) {
     console.error("Please set KEEPER_SECRET and ROLLOVER_CONTRACT_ID environment variables.");

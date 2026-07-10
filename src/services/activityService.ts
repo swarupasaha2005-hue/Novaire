@@ -1,4 +1,9 @@
-import { CONTRACTS } from '../config/contracts';
+import { CONTRACTS, NETWORK } from '../config/contracts';
+
+const IS_DEV = process.env.NODE_ENV !== 'production';
+const isMainnet = NETWORK === 'MAINNET';
+const HORIZON_URL = isMainnet ? 'https://horizon.stellar.org' : 'https://horizon-testnet.stellar.org';
+const EXPLORER_NETWORK = isMainnet ? 'public' : 'testnet';
 
 export interface UIActivity {
   id: string;
@@ -44,7 +49,7 @@ export class ActivityService {
     try {
       // Fetch recent operations directly from Stellar Horizon (last 20)
       const res = await fetch(
-        `https://horizon-testnet.stellar.org/accounts/${walletAddress}/operations?limit=20&order=desc`
+        `${HORIZON_URL}/accounts/${walletAddress}/operations?limit=20&order=desc`
       );
       if (!res.ok) return [];
       const data = await res.json();
@@ -60,7 +65,7 @@ export class ActivityService {
         let details: string[] | undefined = undefined;
         const txHash: string = record.transaction_hash || '';
         const explorerUrl = txHash
-          ? `https://stellar.expert/explorer/testnet/tx/${txHash}`
+          ? `https://stellar.expert/explorer/${EXPLORER_NETWORK}/tx/${txHash}`
           : undefined;
 
         if (record.type === 'invoke_host_function') {
@@ -75,6 +80,7 @@ export class ActivityService {
               try {
                 // Decode base64 to ASCII and remove null bytes
                 const decoded = atob(param.value).replace(/\0/g, '');
+                if (IS_DEV) console.log("Decoded topic:", decoded);
                 if (decoded.length > 3) {
                   fnName += decoded.toLowerCase();
                 }
@@ -157,7 +163,7 @@ export class ActivityService {
 
       return activities;
     } catch (e) {
-      console.error('Failed to fetch activity from Horizon:', e);
+      if (IS_DEV) console.error('Failed to fetch activity from Horizon:', e);
       return [];
     }
   }

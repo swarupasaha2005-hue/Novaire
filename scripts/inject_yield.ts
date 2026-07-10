@@ -3,11 +3,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 
-const RPC_URL = process.env.RPC_URL || 'https://soroban-testnet.stellar.org';
-const NETWORK_PASSPHRASE = process.env.NETWORK_PASSPHRASE || Networks.TESTNET;
+const NETWORK = (process.env.NETWORK || 'testnet').toLowerCase();
+const isMainnet = NETWORK === 'mainnet';
 
-const DEPLOYMENTS_FILE = path.resolve(__dirname, 'deployments.testnet.json');
-const TESTNET_KEYS = path.resolve(__dirname, 'testnet_keys.json');
+const RPC_URL = process.env.RPC_URL || (isMainnet ? 'https://soroban-mainnet.stellar.org' : 'https://soroban-testnet.stellar.org');
+const NETWORK_PASSPHRASE = process.env.NETWORK_PASSPHRASE || (isMainnet ? Networks.PUBLIC : Networks.TESTNET);
+
+const DEPLOYMENTS_FILE = path.resolve(__dirname, `deployments.${NETWORK}.json`);
+const KEYS_FILE = path.resolve(__dirname, isMainnet ? 'mainnet_keys.json' : 'testnet_keys.json');
 
 function invoke(contractId: string, fn: string, args: string, secret: string) {
     try {
@@ -38,8 +41,9 @@ async function run() {
     if (!fs.existsSync(DEPLOYMENTS_FILE)) throw new Error('Deployments missing.');
     const d = JSON.parse(fs.readFileSync(DEPLOYMENTS_FILE, 'utf-8'));
     
-    if (!fs.existsSync(TESTNET_KEYS)) throw new Error('testnet_keys.json missing');
-    const keys = JSON.parse(fs.readFileSync(TESTNET_KEYS, 'utf-8'));
+    if (!fs.existsSync(KEYS_FILE)) throw new Error(`${path.basename(KEYS_FILE)} missing`);
+    const keys = JSON.parse(fs.readFileSync(KEYS_FILE, 'utf-8'));
+    if (!keys.admin_secret) throw new Error(`admin_secret missing in ${path.basename(KEYS_FILE)}`);
     const adminKp = Keypair.fromSecret(keys.admin_secret);
     const adminAddress = adminKp.publicKey();
     
