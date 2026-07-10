@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { ArrowDown, Info, Loader2, Settings2, Wallet } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowDown, Info, Loader2, Settings2, Wallet, X } from 'lucide-react';
 import { useTrade, TradeAsset, TradeAction } from '../../hooks/useTrade';
 import { useWallet } from '../../hooks/useWallet';
 import { NotificationService } from '../../services/notificationService';
@@ -17,6 +18,12 @@ export function TradeInterface() {
   const [slippage, setSlippage] = useState<number>(0.5);
 
   const [showSlippageSettings, setShowSlippageSettings] = useState(false);
+  const [showMarketInfo, setShowMarketInfo] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const STROOP_SCALE = 10000000;
 
@@ -94,7 +101,7 @@ export function TradeInterface() {
       <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-[#3ECF8E] opacity-[0.03] blur-[100px] rounded-full translate-x-1/2 -translate-y-1/2 pointer-events-none" />
 
       {/* Header Tabs */}
-      <div className="flex items-center justify-between mb-6 z-10 relative">
+      <div className="flex items-center justify-between mb-6 relative z-50">
         <div className="flex bg-nova-surface border border-nova-border p-1 rounded-xl">
           <button
             onClick={() => setAction('Buy')}
@@ -118,33 +125,65 @@ export function TradeInterface() {
           </button>
         </div>
         
-        <div className="relative">
+        <div className="relative flex items-center gap-1">
           <button 
-            onClick={() => setShowSlippageSettings(!showSlippageSettings)}
-            className={`p-2 transition-colors rounded-xl ${showSlippageSettings ? 'bg-white/10 text-nova-text' : 'text-nova-muted hover:text-nova-text hover:bg-white/5'}`}
+            onClick={() => setShowMarketInfo(true)}
+            className="p-2 transition-colors rounded-xl text-nova-muted hover:text-nova-text hover:bg-white/5"
           >
-            <Settings2 className="w-5 h-5" />
+            <Info className="w-5 h-5" />
           </button>
-          
-          {/* Local Slippage Dropdown */}
-          {showSlippageSettings && (
-            <div className="absolute right-0 top-12 z-50 w-64 rounded-xl border border-white/10 bg-[#111111] p-4 shadow-2xl">
-              <h3 className="mb-3 text-sm font-medium text-white">Slippage Tolerance</h3>
-              <div className="flex gap-2">
-                {[0.1, 0.5, 1.0].map(val => (
-                  <button
-                    key={val}
-                    onClick={() => { setSlippage(val); setShowSlippageSettings(false); }}
-                    className={`flex-1 rounded-lg py-1.5 text-xs font-medium transition-colors ${
-                      slippage === val ? 'bg-[#3ECF8E]/20 text-[#3ECF8E] border border-[#3ECF8E]/30' : 'bg-white/5 text-white/70 hover:bg-white/10 border border-transparent'
-                    }`}
+          <div className="relative z-50">
+            <button 
+              onClick={() => setShowSlippageSettings(!showSlippageSettings)}
+              className={`p-2 transition-colors rounded-xl relative z-50 ${showSlippageSettings ? 'bg-white/10 text-nova-text' : 'text-nova-muted hover:text-nova-text hover:bg-white/5'}`}
+            >
+              <Settings2 className="w-5 h-5" />
+            </button>
+            
+            {/* Local Slippage Dropdown */}
+            <AnimatePresence>
+              {showSlippageSettings && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowSlippageSettings(false)} />
+                  <motion.div 
+                    initial={{ opacity: 0, y: -5, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -5, scale: 0.95 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 top-12 z-50 w-[280px] rounded-xl border border-white/10 bg-[#111111]/95 backdrop-blur-xl p-4 shadow-2xl"
                   >
-                    {val}%
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+                    <h3 className="mb-3 text-sm font-medium text-white">Slippage Tolerance</h3>
+                    <div className="flex gap-2 mb-3">
+                      {[0.1, 0.5, 1.0].map(val => (
+                        <button
+                          key={val}
+                          onClick={() => { setSlippage(val); setShowSlippageSettings(false); }}
+                          className={`flex-1 rounded-lg py-1.5 text-xs font-medium transition-colors ${
+                            slippage === val ? 'bg-[#3ECF8E]/20 text-[#3ECF8E] border border-[#3ECF8E]/30' : 'bg-white/5 text-white/70 hover:bg-white/10 border border-transparent'
+                          }`}
+                        >
+                          {val}%
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs text-nova-muted font-medium">Custom (%)</span>
+                      <input 
+                        type="number" 
+                        placeholder="0.0"
+                        value={[0.1, 0.5, 1.0].includes(slippage) ? '' : slippage}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          if (!isNaN(val) && val >= 0) setSlippage(val);
+                        }}
+                        className="w-20 bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white text-right focus:outline-none focus:border-[#3ECF8E]/50 transition-colors"
+                      />
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
 
@@ -264,12 +303,145 @@ export function TradeInterface() {
           <span className="flex items-center justify-center gap-2">
             <Loader2 className="w-5 h-5 animate-spin" /> Confirming...
           </span>
-        ) : quoteError ? (
-          'Insufficient Liquidity'
         ) : (
           `${action} ${asset}`
         )}
       </button>
+
+      {/* Market Info Modal via Portal */}
+      {mounted && typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {showMarketInfo && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md" onClick={() => setShowMarketInfo(false)}>
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                transition={{ duration: 0.2 }}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => { if (e.key === 'Escape') setShowMarketInfo(false); }}
+                tabIndex={-1}
+                ref={(el) => { if (el) el.focus(); }}
+                className="w-full max-w-2xl bg-nova-surface border border-nova-border rounded-2xl shadow-2xl overflow-hidden relative flex flex-col max-h-[70vh] outline-none"
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between p-4 md:p-5 border-b border-white/5 bg-[#0a0a0a]">
+                  <div>
+                    <h2 className="text-lg font-bold text-white">Market Information</h2>
+                    <p className="text-xs text-nova-muted font-medium">Live on-chain marketplace data</p>
+                  </div>
+                  <button onClick={() => setShowMarketInfo(false)} className="p-1.5 text-nova-muted hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                <div className="p-4 md:p-5 overflow-y-auto space-y-5 bg-[#111111] flex-1">
+                  
+                  {/* 1. Market Status */}
+                  <div>
+                    {(() => {
+                      let status = { label: '🟢 Market Healthy', color: 'text-[#3ECF8E]', bg: 'bg-[#3ECF8E]/10', border: 'border-[#3ECF8E]/20', desc: 'The marketplace is operating normally with sufficient liquidity and active trading.' };
+                      if (marketData) {
+                        if (marketData.twap >= 1.0) {
+                          status = { label: '🔴 YT Trading Unavailable', color: 'text-red-400', bg: 'bg-red-400/10', border: 'border-red-400/20', desc: 'PT TWAP has reached or exceeded 1.0. Yield Tokens (YT) currently have zero market value.' };
+                        } else if (marketData.ptPrice > 1.0) {
+                          status = { label: '🟠 High PT Premium', color: 'text-orange-400', bg: 'bg-orange-400/10', border: 'border-orange-400/20', desc: 'Principal Tokens (PT) are trading at a premium above face value (1.0). YT market value may be temporarily zero.' };
+                        } else if (marketData.ptReserve < 100 || marketData.ytReserve < 100 || marketData.underlyingReserve < 100) {
+                          status = { label: '🟡 Thin Liquidity', color: 'text-amber-400', bg: 'bg-amber-400/10', border: 'border-amber-400/20', desc: 'Market reserves are low. Trades may experience higher slippage than usual.' };
+                        }
+                      }
+                      return (
+                        <div className={`p-3 rounded-lg border flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${status.bg} ${status.border}`}>
+                          <span className={`text-sm font-bold whitespace-nowrap ${status.color}`}>{status.label}</span>
+                          <span className="text-xs text-white/70">{status.desc}</span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* 2. Live Prices */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-nova-surface-hover border border-nova-border rounded-lg p-3 flex flex-col justify-center relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-[#3ECF8E] opacity-[0.02] rounded-full translate-x-1/3 -translate-y-1/3 group-hover:opacity-[0.05] transition-opacity" />
+                      <h3 className="text-xs font-medium text-nova-muted mb-1">PT Price</h3>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-2xl font-bold text-white">{marketData ? marketData.ptPrice.toFixed(4) : '0.0000'}</span>
+                        <span className="text-sm text-nova-muted font-medium">XLM</span>
+                      </div>
+                    </div>
+                    <div className="bg-nova-surface-hover border border-nova-border rounded-lg p-3 flex flex-col justify-center relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500 opacity-[0.02] rounded-full translate-x-1/3 -translate-y-1/3 group-hover:opacity-[0.05] transition-opacity" />
+                      <h3 className="text-xs font-medium text-nova-muted mb-1">YT Price</h3>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-2xl font-bold text-white">{marketData ? marketData.ytPrice.toFixed(4) : '0.0000'}</span>
+                        <span className="text-sm text-nova-muted font-medium">XLM</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3. Oracle */}
+                  <div>
+                    <h3 className="text-xs font-semibold text-nova-muted uppercase tracking-wider mb-2">Oracle</h3>
+                    <div className="bg-nova-surface border border-nova-border rounded-lg p-3 flex flex-row items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="text-nova-muted">TWAP:</span>
+                        <span className="font-bold text-white">{marketData ? marketData.twap.toFixed(5) : '0.00000'}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-nova-muted">Spot:</span>
+                        <span className="font-bold text-white">{marketData ? marketData.ptPrice.toFixed(5) : '0.00000'}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs font-medium">
+                        <span className="w-2 h-2 rounded-full bg-[#3ECF8E] animate-pulse" />
+                        Real-time
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 4. Market Liquidity */}
+                  <div>
+                    <h3 className="text-xs font-semibold text-nova-muted uppercase tracking-wider mb-2">Market Liquidity</h3>
+                    <div className="bg-nova-surface border border-nova-border rounded-lg p-3 flex flex-row items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="text-nova-muted">PT:</span>
+                        <span className="font-bold text-white">{marketData ? marketData.ptReserve.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-nova-muted">YT:</span>
+                        <span className="font-bold text-white">{marketData ? marketData.ytReserve.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-nova-muted">XLM:</span>
+                        <span className="font-bold text-white">{marketData ? marketData.underlyingReserve.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 5. Protocol Explanation */}
+                  <div className="bg-white/5 border border-white/10 rounded-lg p-4 text-xs text-nova-muted space-y-1.5">
+                    <p>• PT price comes from the live marketplace.</p>
+                    <p>• YT price = max(0, 1 − PT).</p>
+                    <p>• Liquidity represents pool reserves, not your wallet balances.</p>
+                  </div>
+
+                </div>
+                
+                {/* 6. Footer */}
+                <div className="p-3 border-t border-white/5 bg-[#0a0a0a] flex items-center justify-between text-[10px] text-nova-muted font-medium">
+                  <span className="flex items-center gap-1.5">
+                    <Info className="w-3.5 h-3.5" /> Source: Live Soroban Marketplace Contract
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    Updates every 15 seconds <span className="w-1.5 h-1.5 rounded-full bg-[#3ECF8E] animate-pulse" />
+                  </span>
+                </div>
+                
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }

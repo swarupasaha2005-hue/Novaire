@@ -81,6 +81,21 @@ export function PortfolioKPICards() {
     },
   ];
 
+  const hasYieldPositions = totalYieldPositions > 0;
+  const isClaimableZero = claimableYield === 0;
+  const showYieldCallout = !loading && !error && portfolio && portfolio.error !== 'Wallet not connected' && hasYieldPositions && isClaimableZero;
+
+  const ClaimableYieldCallout = () => (
+    <div className="flex flex-col mt-0.5">
+      <span className="text-[11px] font-medium tracking-wide text-nova-accent-hover font-sans">
+        No yield has accrued yet.
+      </span>
+      <span className="text-[10px] leading-tight text-white/70 font-sans mt-0.5">
+        Yield becomes claimable after the protocol harvests yield and the SY exchange rate increases.
+      </span>
+    </div>
+  );
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
       {kpis.map((kpi, i) => (
@@ -94,6 +109,7 @@ export function PortfolioKPICards() {
           sparkline={kpi.sparkline}
           tooltip={kpi.tooltip}
           index={i}
+          callout={kpi.id === 'claimable' && showYieldCallout ? <ClaimableYieldCallout /> : undefined}
         />
       ))}
     </div>

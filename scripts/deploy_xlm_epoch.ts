@@ -167,11 +167,11 @@ ${out}`);
 
     console.log("\nStarting Automatic Protocol Bootstrap...");
     try {
-        const bootstrapCmd = `npx ts-node scripts/bootstrap_liquidity.ts`;
+        const bootstrapCmd = `npx tsx scripts/bootstrap_liquidity.ts`;
         console.log(`Executing: ${bootstrapCmd}`);
         // Run from the project root instead of scripts folder, so we use ../ or change cwd
         // Since we are in scripts, ts-node bootstrap_liquidity.ts should work
-        execSync(`npx ts-node ${path.resolve(__dirname, 'bootstrap_liquidity.ts')}`, { stdio: 'inherit' });
+        execSync(`npx tsx ${path.resolve(__dirname, 'bootstrap_liquidity.ts')}`, { stdio: 'inherit' });
         console.log("Bootstrap completed successfully!");
     } catch (e) {
         console.error("Bootstrap failed during deployment:", e);

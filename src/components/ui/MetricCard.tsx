@@ -13,6 +13,7 @@ export interface MetricCardProps {
   index?: number;
   delay?: number;
   tooltip?: string;
+  callout?: React.ReactNode;
 }
 
 export function MetricCard({ 
@@ -24,7 +25,8 @@ export function MetricCard({
   sparkline,
   index = 0,
   delay = 0.2,
-  tooltip
+  tooltip,
+  callout
 }: MetricCardProps) {
   return (
     <motion.div
@@ -63,6 +65,11 @@ export function MetricCard({
         {change && (
           <div className={`mt-1 text-[10px] font-medium font-sans ${isPositive ? 'text-nova-accent-hover' : 'text-red-400'}`}>
             {change}
+          </div>
+        )}
+        {callout && (
+          <div className="mt-2.5">
+            {callout}
           </div>
         )}
       </div>

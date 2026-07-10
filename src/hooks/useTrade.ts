@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { WalletService } from '../services/walletService';
 import { CONTRACTS, RPC_URL, NETWORK_PASSPHRASE } from '../config/contracts';
+import { NovaireMarketError } from '../../packages/bindings/marketplace/src/index';
 
 export type TradeAsset = 'PT' | 'YT';
 export type TradeAction = 'Buy' | 'Sell';
@@ -23,19 +24,38 @@ export interface TradeQuote {
   slippage: number;
 }
 
+function parseTradeError(e: any): string {
+  // Structured SDK error parsing
+  if (e && typeof e === 'object' && e.message) {
+    if (e.message === NovaireMarketError[8].message) return 'Pool liquidity is too low for this trade size.';
+    if (e.message === NovaireMarketError[5].message) return 'The pool does not currently have enough liquidity.';
+    if (e.message === NovaireMarketError[6].message) return 'Price moved beyond your slippage tolerance.';
+    if (e.message === NovaireMarketError[4].message) return 'This market has matured.';
+    if (e.message === NovaireMarketError[3].message) return 'Authorization required.';
+    if (e.message === NovaireMarketError[7].message) return 'Please enter a valid amount.';
+    if (e.message === NovaireMarketError[11].message) return 'YT has no remaining value because PT has reached face value.';
+    if (e.message === NovaireMarketError[9].message) return 'Internal protocol state unavailable.';
+    if (e.message === NovaireMarketError[10].message) return 'Protocol invariant check failed.';
+  }
+
+  // Fallback for Host errors and unmapped network errors where structured info is unavailable
+  const msg = e?.message || String(e);
+  
+  if (msg.includes('Insufficient balance') || (msg.includes('HostError') && (msg.includes('balance') || msg.includes('transfer') || msg.includes('underfunded')))) return 'Insufficient balance.';
+  if (msg.includes('timeout') || msg.includes('Network error') || msg.includes('fetch') || msg.includes('Failed to fetch') || msg.includes('Simulation failed')) return 'Network error.';
+  if (msg.includes('User rejected') || msg.includes('UserRejected') || msg.includes('User declined')) return 'Transaction cancelled.';
+  
+  return 'Unexpected protocol error.';
+}
+
 function unwrapResult(result: any): bigint | null {
   if (result === undefined || result === null) return null;
   if (typeof result === 'bigint' || typeof result === 'number') return BigInt(result);
   if (typeof result === 'object') {
     if (typeof result.unwrap === 'function') {
-      try {
-        const unwrapped = result.unwrap();
-        return typeof unwrapped === 'bigint' ? unwrapped : BigInt(unwrapped);
-      } catch (e) {
-        return null;
-      }
+      const unwrapped = result.unwrap();
+      return typeof unwrapped === 'bigint' ? unwrapped : BigInt(unwrapped);
     }
-    if (result.ok !== undefined) return BigInt(result.ok);
   }
   return null;
 }
@@ -170,7 +190,7 @@ export function useTrade() {
       }
 
       if (outStroops === 0n) {
-        throw new Error('Insufficient liquidity for this trade size');
+        throw new Error('InsufficientLiquidity');
       }
 
       const expectedOutput = Number(outStroops) / STROOP_SCALE;
@@ -198,7 +218,7 @@ export function useTrade() {
       });
     } catch (e: any) {
       setQuote(null);
-      setQuoteError(e.message || 'Simulation failed');
+      setQuoteError(parseTradeError(e));
     } finally {
       setIsQuoting(false);
     }

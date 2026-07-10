@@ -17,13 +17,15 @@ export function YieldAnalytics() {
   const ytValue = portfolio?.assets.filter(a => a.assetType === 'yt').reduce((acc, curr) => acc + curr.valueUsd, 0) || 0;
   const walletValue = portfolio?.assets.filter(a => a.assetType === 'wallet').reduce((acc, curr) => acc + curr.valueUsd, 0) || 0;
   
-  const data = [
-    { name: 'PT Position', value: ptValue || 100 }, // Fallback to 100 for skeleton
-    { name: 'YT Position', value: ytValue || 50 },
-    { name: 'Wallet Assets', value: walletValue || 200 },
-  ];
-
   const isEmpty = ptValue === 0 && ytValue === 0 && walletValue === 0;
+
+  const data = isEmpty
+    ? [{ name: 'Empty', value: 1 }]
+    : [
+        { name: 'PT Position', value: ptValue },
+        { name: 'YT Position', value: ytValue },
+        { name: 'Wallet Assets', value: walletValue },
+      ];
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -34,31 +36,44 @@ export function YieldAnalytics() {
         className="rounded-2xl border border-nova-border bg-white/5 p-6 backdrop-blur-xl"
       >
         <h3 className="text-lg font-semibold text-white mb-6">Portfolio Allocation</h3>
-        <div className="h-64">
+        <div className="h-64 relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
                 data={data}
                 cx="50%"
                 cy="50%"
-                innerRadius={60}
-                outerRadius={80}
+                innerRadius={65}
+                outerRadius={85}
                 paddingAngle={5}
                 dataKey="value"
                 stroke="none"
+                isAnimationActive={!isEmpty}
               >
                 {data.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={isEmpty ? '#ffffff10' : COLORS[index % COLORS.length]} />
+                  <Cell key={`cell-${index}`} fill={isEmpty ? '#ffffff08' : COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
-              <RechartsTooltip
-                contentStyle={{ backgroundColor: '#0f1714', borderColor: '#ffffff10', borderRadius: '12px' }}
-                itemStyle={{ color: '#fff' }}
-                formatter={(value: any) => `$${Number(value).toFixed(2)}`}
-              />
-              <Legend verticalAlign="bottom" height={36} iconType="circle" />
+              {!isEmpty && (
+                <RechartsTooltip
+                  contentStyle={{ backgroundColor: '#0f1714', borderColor: '#ffffff10', borderRadius: '12px' }}
+                  itemStyle={{ color: '#fff' }}
+                  formatter={(value: any) => `$${Number(value).toFixed(2)}`}
+                />
+              )}
+              {!isEmpty && <Legend verticalAlign="bottom" height={36} iconType="circle" />}
             </PieChart>
           </ResponsiveContainer>
+          {isEmpty && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4 pointer-events-none">
+              <span className="text-[13px] font-medium text-white/80 tracking-wide font-sans mb-1">
+                No holdings yet
+              </span>
+              <span className="text-[10px] text-white/40 leading-snug font-sans max-w-[180px]">
+                Connect your wallet and deposit assets to view your allocation.
+              </span>
+            </div>
+          )}
         </div>
       </motion.div>
 

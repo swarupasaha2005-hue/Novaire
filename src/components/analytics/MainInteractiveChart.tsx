@@ -59,6 +59,9 @@ export function MainInteractiveChart() {
   }, [snapshots, activeKey]);
 
   const hasData = snapshots.length > 0;
+  
+  const currentPtPrice = snapshots.length > 0 ? (snapshots[snapshots.length - 1].ptPrice as number) : 0;
+  const isPTAbovePar = currentPtPrice >= 1.0;
 
   return (
     <div className="rounded-2xl border border-nova-border bg-white/5 p-6 backdrop-blur-xl relative overflow-hidden h-[500px] flex flex-col">
@@ -99,16 +102,49 @@ export function MainInteractiveChart() {
       </div>
       
       <div className="mb-2 flex items-baseline gap-3">
-        <h2 className="font-serif text-[32px] leading-none text-nova-text tracking-tight">
-          {dataMode === 'Fixed APY' ? `${currentVal.toFixed(2)}%` : `$${currentVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`}
-        </h2>
-        <span className={`text-sm font-medium ${percentChange === null ? 'text-nova-muted' : isPositive ? 'text-nova-accent' : 'text-red-400'}`}>
-          {percentChange === null ? '--' : `${isPositive ? '+' : ''}${percentChange.toFixed(2)}%`}
-        </span>
+        {dataMode !== 'Trading Volume' ? (
+          <>
+            <h2 className="font-serif text-[32px] leading-none text-nova-text tracking-tight">
+              {dataMode === 'Fixed APY' ? `${currentVal.toFixed(2)}%` : `$${currentVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`}
+            </h2>
+            <span className={`text-sm font-medium ${percentChange === null ? 'text-nova-muted' : isPositive ? 'text-nova-accent' : 'text-red-400'}`}>
+              {percentChange === null ? '--' : `${isPositive ? '+' : ''}${percentChange.toFixed(2)}%`}
+            </span>
+          </>
+        ) : (
+          <>
+            <h2 className="font-serif text-[32px] leading-none text-nova-text tracking-tight opacity-50">
+              --
+            </h2>
+          </>
+        )}
       </div>
 
+      {dataMode === 'YT Price' && isPTAbovePar && (
+        <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 backdrop-blur-md">
+          <div className="text-amber-400 text-sm font-semibold mb-0.5">YT Market Value = 0</div>
+          <div className="text-amber-400/80 text-xs">
+            PT is currently trading above par (1.0). Under the protocol's pricing model, YT has no market value until PT returns below par.
+          </div>
+        </div>
+      )}
+
+      {dataMode === 'Fixed APY' && isPTAbovePar && (
+        <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 backdrop-blur-md">
+          <div className="text-amber-400 text-sm font-semibold mb-0.5">Market-Implied APY: 0%</div>
+          <div className="text-amber-400/80 text-xs">
+            PT is trading above face value, so the implied fixed yield is currently zero.
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 w-full relative h-[300px]">
-        {hasData ? (
+        {dataMode === 'Trading Volume' ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
+            <span className="text-nova-text text-sm font-medium">No trading history available yet.</span>
+            <span className="text-nova-muted text-xs mt-2 max-w-[250px]">Trading volume will appear after completed marketplace swaps.</span>
+          </div>
+        ) : hasData ? (
           <InteractiveChart 
             lineData={lineData} 
             timeframe={timeframe} 

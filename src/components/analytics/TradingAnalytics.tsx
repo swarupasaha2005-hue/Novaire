@@ -1,60 +1,29 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Activity, ArrowDownRight, ArrowUpRight, BarChart3, TrendingUp } from 'lucide-react';
-import { useAnalyticsHistory } from '../../hooks/useAnalyticsHistory';
-import { useMemo } from 'react';
+import { Activity, ArrowRightLeft, BarChart3, TrendingUp, DollarSign, Percent } from 'lucide-react';
+import { useTrade } from '../../hooks/useTrade';
+import { ProtocolService, ProtocolState } from '../../services/protocolService';
+import { useEffect, useState } from 'react';
 
 export function TradingAnalytics() {
-  const { snapshots } = useAnalyticsHistory();
-  
-  // Calculate 24h Volume and other metrics from local snapshots
-  const metricsData = useMemo(() => {
-    if (!snapshots || snapshots.length === 0) {
-      return {
-        dailyVolume: 0,
-        totalTrades: 0,
-        avgTradeSize: 0,
-        buyVolume: 0,
-        sellVolume: 0
-      };
-    }
+  const { marketData } = useTrade();
+  const [protocolState, setProtocolState] = useState<ProtocolState | null>(null);
 
-    const currentVolume = snapshots[snapshots.length - 1].volume || 0;
-    
-    // Find snapshot from 24h ago
-    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
-    const pastSnapshots = snapshots.filter(s => s.timestamp <= oneDayAgo);
-    const pastVolume = pastSnapshots.length > 0 ? pastSnapshots[pastSnapshots.length - 1].volume : snapshots[0].volume;
-    
-    const dailyVolume = Math.max(0, currentVolume - (pastVolume || 0));
-    
-    // Derived approximations for UI
-    const totalTrades = Math.floor(currentVolume / 150) + 1; // Simulated trade count
-    const avgTradeSize = currentVolume > 0 ? currentVolume / totalTrades : 0;
-    
-    // Approximate Buy/Sell ratio (mostly random for demonstration)
-    const buyRatio = 0.6 + (Math.sin(Date.now() / 1000000) * 0.2); // oscillates around 60%
-    const buyVolume = dailyVolume * buyRatio;
-    const sellVolume = dailyVolume * (1 - buyRatio);
+  useEffect(() => {
+    ProtocolService.getProtocolState().then(setProtocolState).catch(console.error);
+  }, []);
 
-    return {
-      dailyVolume,
-      totalTrades,
-      avgTradeSize,
-      buyVolume,
-      sellVolume
-    };
-  }, [snapshots]);
-
-  const formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  const formatter = new Intl.NumberFormat('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+  const currencyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
   const metrics = [
-    { label: '24h Volume', value: formatter.format(metricsData.dailyVolume), icon: BarChart3 },
-    { label: 'Total Trades', value: metricsData.totalTrades.toLocaleString(), icon: Activity },
-    { label: 'Avg Trade Size', value: formatter.format(metricsData.avgTradeSize), icon: TrendingUp },
-    { label: 'Buy Volume', value: formatter.format(metricsData.buyVolume), icon: ArrowUpRight, color: 'text-green-400' },
-    { label: 'Sell Volume', value: formatter.format(metricsData.sellVolume), icon: ArrowDownRight, color: 'text-red-400' },
+    { label: 'PT Price', value: marketData ? `${formatter.format(marketData.ptPrice)} XLM` : 'No data available', icon: TrendingUp },
+    { label: 'YT Price', value: marketData ? `${formatter.format(marketData.ytPrice)} XLM` : 'No data available', icon: TrendingUp },
+    { label: 'PT TWAP', value: marketData ? formatter.format(marketData.twap) : 'No data available', icon: Activity },
+    { label: 'Protocol TVL', value: protocolState ? currencyFormatter.format(protocolState.tvlUsd) : 'No data available', icon: DollarSign },
+    { label: 'Pool Liquidity', value: marketData ? `${marketData.underlyingReserve.toLocaleString(undefined, { maximumFractionDigits: 2 })} XLM` : 'No data available', icon: BarChart3 },
+    { label: 'Current APY', value: protocolState ? `${protocolState.impliedYieldApy.toFixed(2)}%` : 'No data available', icon: Percent, color: 'text-green-400' },
   ];
 
   return (
@@ -76,7 +45,7 @@ export function TradingAnalytics() {
               <span className="text-sm text-gray-400">{metric.label}</span>
             </div>
             <span className="text-sm font-medium text-white">
-              {snapshots.length > 0 ? metric.value : <div className="h-4 w-12 animate-pulse bg-white/10 rounded"></div>}
+              {metric.value !== 'No data available' ? metric.value : <span className="text-nova-muted text-xs italic">No data available</span>}
             </span>
           </div>
         ))}

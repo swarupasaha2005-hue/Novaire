@@ -172,7 +172,7 @@ async function run() {
     }
 
     // Step 3a: Mint fresh PT/YT to provide as liquidity.
-    const DEPOSIT_AMOUNT = "100000000"; // 10 XLM
+    const DEPOSIT_AMOUNT = "500000000"; // 50 XLM
     console.log(`3a. Vault.deposit(${DEPOSIT_AMOUNT})...`);
     let sy_shares_str = invoke(d.vault, 'deposit', `--depositor ${adminAddress} --amount ${DEPOSIT_AMOUNT}`, adminKp.secret()).trim();
     sy_shares_str = sy_shares_str.replace(/"/g, '');
