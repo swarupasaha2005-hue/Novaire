@@ -141,7 +141,7 @@ export function MainInteractiveChart() {
       <div className="flex-1 w-full relative h-[300px]">
         {dataMode === 'Trading Volume' ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
-            <span className="text-nova-text text-sm font-medium">No trading history available yet.</span>
+            <span className="text-nova-text text-sm font-medium">No trading history yet. Chart data will appear once trades execute.</span>
             <span className="text-nova-muted text-xs mt-2 max-w-[250px]">Trading volume will appear after completed marketplace swaps.</span>
           </div>
         ) : hasData ? (

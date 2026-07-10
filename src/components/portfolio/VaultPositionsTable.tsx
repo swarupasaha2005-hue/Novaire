@@ -70,7 +70,7 @@ export function VaultPositionsTable() {
   let emptyState = null;
   if (loading) emptyState = <div className="animate-pulse h-4 w-full bg-white/5 rounded"></div>;
   else if (isDisconnected) emptyState = "Connect Wallet to view vault positions";
-  else if (positions.length === 0) emptyState = "No Vault Positions Found";
+  else if (positions.length === 0) emptyState = "No open vault positions.";
 
   return (
     <SectionCard className="p-0">

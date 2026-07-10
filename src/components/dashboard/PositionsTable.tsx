@@ -112,7 +112,7 @@ export function PositionsTable() {
             {isEmpty && (
               <tr>
                 <td colSpan={11} className="px-6 py-12 text-center text-nova-muted">
-                  No Active Positions
+                  No open positions.<br/>Deposit assets to open a position.
                 </td>
               </tr>
             )}

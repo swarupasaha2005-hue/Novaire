@@ -112,7 +112,7 @@ export function YieldPositionsTable() {
               <tr>
                 <td colSpan={8} className="px-6 py-12 text-center">
                   <div className="flex flex-col items-center justify-center space-y-4">
-                    <span className="text-nova-muted">No Yield Positions Yet</span>
+                    <span className="text-nova-muted">No yield positions.<br/>Mint PT & YT to begin.</span>
                     <button
                       onClick={() => setIsMintModalOpen(true)}
                       className="rounded-xl bg-nova-accent px-5 py-2 text-sm font-semibold text-black transition-transform hover:scale-105 active:scale-95"

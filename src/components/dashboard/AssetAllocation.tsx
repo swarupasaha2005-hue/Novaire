@@ -35,8 +35,8 @@ export function AssetAllocation() {
     return (
       <div className="flex h-[320px] flex-col rounded-2xl border border-nova-border bg-nova-surface p-6">
         <h3 className="font-sans font-medium ">Asset Allocation</h3>
-        <div className="mt-6 flex flex-1 items-center justify-center text-nova-muted text-sm">
-          No Assets
+        <div className="mt-6 flex flex-1 items-center justify-center text-nova-muted text-sm text-center px-4">
+          No holdings yet.<br/>Connect your wallet and deposit assets to view your allocation.
         </div>
       </div>
     );

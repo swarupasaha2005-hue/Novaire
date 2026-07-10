@@ -138,7 +138,7 @@ export function AutomationDashboard() {
     if (activeStrategies.length === 0) {
       return (
         <div className="mt-1">
-          <p className="text-[17px] font-semibold text-white">No upcoming executions</p>
+          <p className="text-[17px] font-semibold text-white">No scheduled executions.</p>
         </div>
       );
     }

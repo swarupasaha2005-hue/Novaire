@@ -15,15 +15,15 @@ export function ProtocolOverview() {
   const activeVaults = vaults.length;
   const avgApy = activeVaults > 0 
     ? (vaults.reduce((sum, v) => sum + v.fixedApy, 0) / activeVaults).toFixed(1) + '%'
-    : 'Coming Soon';
+    : 'Not available';
 
   const METRICS = [
     { label: 'Protocol TVL', value: 'Unavailable on Testnet' },
-    { label: '30 Day Volume', value: 'Coming Soon' },
-    { label: 'Active Vaults', value: activeVaults > 0 ? activeVaults.toString() : 'Coming Soon' },
+    { label: '30 Day Volume', value: 'Not available' },
+    { label: 'Active Vaults', value: activeVaults > 0 ? activeVaults.toString() : 'Not available' },
     { label: 'Avg Fixed APY', value: avgApy },
-    { label: 'Utilization', value: 'Coming Soon' },
-    { label: 'Total Users', value: 'Coming Soon' },
+    { label: 'Utilization', value: 'Not available' },
+    { label: 'Total Users', value: 'Not available' },
   ];
 
   return (

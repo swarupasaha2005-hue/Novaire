@@ -56,7 +56,7 @@ export function WalletAssetsTable() {
             {isEmpty && (
               <tr>
                 <td colSpan={5} className="px-6 py-12 text-center text-nova-muted">
-                  No Assets Found
+                  No assets found in wallet.
                 </td>
               </tr>
             )}

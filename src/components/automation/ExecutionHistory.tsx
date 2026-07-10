@@ -56,8 +56,8 @@ export function ExecutionHistory({ upcoming = [] }: ExecutionHistoryProps) {
             </div>
           )) : (
             <div className="flex flex-col items-center justify-center rounded-xl border border-nova-border bg-white/[0.01] py-8 text-center">
-              <span className="rounded-full bg-white/5 px-3 py-1 text-xs font-medium text-white/50 mb-3">No active automations yet</span>
-              <p className="text-sm text-white/40">Register an Auto Roll strategy to begin automated execution.</p>
+              <span className="rounded-full bg-white/5 px-3 py-1 text-xs font-medium text-white/50 mb-3">No active automations</span>
+              <p className="text-sm text-white/40">No automation history yet. Create a strategy to begin.</p>
             </div>
           )}
         </div>

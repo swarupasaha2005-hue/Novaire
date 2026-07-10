@@ -48,7 +48,7 @@ export function RecentActivity() {
         {loading ? (
            <div className="flex justify-center py-10 text-nova-muted text-sm">Loading activity...</div>
         ) : activities.length === 0 ? (
-           <div className="flex justify-center py-10 text-nova-muted text-sm">No recent activity</div>
+           <div className="flex justify-center py-10 text-nova-muted text-sm text-center">No activity yet.<br/>Your transactions will appear here.</div>
         ) : (
           <div className="relative border-l border-nova-border ml-4 space-y-6 pb-2">
             {activities.map((item, i) => (

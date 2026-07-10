@@ -28,8 +28,8 @@ export function YieldBreakdown() {
       <h3 className="font-sans font-medium ">Yield Breakdown</h3>
       
       {!hasVault ? (
-        <div className="mt-6 flex flex-1 flex-col items-center justify-center text-nova-muted text-sm">
-          Coming Soon
+        <div className="mt-6 flex flex-1 flex-col items-center justify-center text-nova-muted text-sm text-center px-4">
+          No yield has accrued yet.<br/>Yield becomes claimable after the protocol harvests yield.
         </div>
       ) : (
         <div className="mt-6 flex flex-1 items-center justify-between">
@@ -87,7 +87,7 @@ export function YieldBreakdown() {
                 <div className="h-1.5 w-1.5 rounded-full bg-[#F5F5F2]" />
                 <span className="text-xs text-nova-muted">Est. Variable Yield</span>
               </div>
-              <div className="pl-3.5 font-medium text-nova-text text-sm">Coming Soon</div>
+              <div className="pl-3.5 font-medium text-nova-text text-sm">Not available</div>
             </motion.div>
 
           </div>

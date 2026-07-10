@@ -23,9 +23,12 @@ export default function SidebarNav() {
             <li key={idx}>
               <Link 
                 href={link.href} 
-                className={`block font-semibold transition-colors ${isActive ? 'text-nova-accent' : 'text-white hover:text-nova-accent'}`}
+                className={`group relative inline-block font-semibold transition-colors ${isActive ? 'text-[#3ECF8E]' : 'text-white'}`}
               >
                 {link.title}
+                {!isActive && (
+                  <span className="absolute left-0 -bottom-1 h-[2px] w-0 bg-[#3ECF8E] transition-all duration-200 ease-in-out md:group-hover:w-full" />
+                )}
               </Link>
             </li>
           );

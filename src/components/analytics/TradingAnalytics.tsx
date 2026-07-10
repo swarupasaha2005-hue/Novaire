@@ -45,7 +45,7 @@ export function TradingAnalytics() {
               <span className="text-sm text-gray-400">{metric.label}</span>
             </div>
             <span className="text-sm font-medium text-white">
-              {metric.value !== 'No data available' ? metric.value : <span className="text-nova-muted text-xs italic">No data available</span>}
+              {metric.value !== 'No data available' ? metric.value : <span className="text-nova-muted text-xs italic">Waiting for protocol data.</span>}
             </span>
           </div>
         ))}
