@@ -360,10 +360,6 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
               </div>
             </div>
           </div>
-
-          <div className="mt-4">
-            {renderDeployButton("w-full py-3.5 text-base shadow-md")}
-          </div>
         </div>
       );
     }
@@ -954,6 +950,12 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
               
               {renderTriggerFields()}
             </div>
+            {/* Deploy Strategy inline for s1 */}
+            {initialTemplate?.id === 's1' && (
+              <div className="py-2">
+                {renderDeployButton("w-full py-4 text-base shadow-xl")}
+              </div>
+            )}
 
             {/* THEN Section */}
             <div className="space-y-3">
