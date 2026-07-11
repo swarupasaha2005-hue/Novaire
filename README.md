@@ -122,15 +122,15 @@ flowchart TD
 
 | Contract | Mainnet Address |
 | :--- | :--- |
-| **Factory** | `To be updated after Mainnet deployment` |
-| **SY Wrapper** | `To be updated after Mainnet deployment` |
-| **Vault** | `To be updated after Mainnet deployment` |
-| **Tokenizer** | `To be updated after Mainnet deployment` |
-| **Marketplace** | `To be updated after Mainnet deployment` |
-| **PT Token** | `To be updated after Mainnet deployment` |
-| **YT Token** | `To be updated after Mainnet deployment` |
-| **Intent Engine** | `To be updated after Mainnet deployment` |
-| **Rollover** | `To be updated after Mainnet deployment` |
+| **Factory** | `CBVQZ35ACRAI7Q2SLJSHWYKU2OK33AUGNPVBQ4DCMJBV3DTY6WASIG7O` |
+| **SY Wrapper** | `CB63OU5PQPQ3CXET2XH4CI3Z5XKEJUSQTQPH6BLSN5CBC6T3UBFFBFH4` |
+| **Vault** | `CDJIHR67ZNUNAKMQ2KJ5GYNG3UQAF4V6PPWT7F7M5L7HIJUU3REKSL76` |
+| **Tokenizer** | `CCJOCOKLN3JUGGIUCCCMHYXMQ4FIBG3HX7SYZQYOKIJNUKRY75ASNWC2` |
+| **Marketplace** | `CDU3YFWCPBPZN6SYWKIP6TCFNGZ3G4MJWNLBB2RVNZGBUJR6HGZXPZKD` |
+| **PT Token** | `CAF2CCGNH5GQBOQP4NQQKYCT6MCAUZVU4JPSBIIT4426GFV2RQ74C32G` |
+| **YT Token** | `CCLVZNCS6PWYEXY4P53JPDDEPJFVX726OZYJE7LOMIALPEPVQWNKF32F` |
+| **Intent Engine** | `CCSRZVD7DOGERXLMRUAZRDQHPPPYJUL7O6HS7KDW3JCSSMZACM63KF4T` |
+| **Rollover** | `CB4IO2FGJHVHT3L3G32HCHRXG6BV57SY5WCE2ITFOOWJ7W6TMU2M4WYZ` |
 
 ---
 
