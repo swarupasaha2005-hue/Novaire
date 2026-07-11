@@ -336,8 +336,6 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
               </div>
             ) : null}
           </div>
-
-          </div>
         </div>
       );
     }
