@@ -360,6 +360,10 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
               </div>
             </div>
           </div>
+
+          <div className="mt-4">
+            {renderDeployButton("w-full py-3.5 text-base shadow-md")}
+          </div>
         </div>
       );
     }
@@ -857,6 +861,53 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
 
   const showSlippage = initialTemplate?.id === 's3' || initialTemplate?.id === 's4' || !initialTemplate;
 
+  const isDeployDisabled = 
+    isSubmitting || 
+    (initialTemplate?.id === 's1' && (parseFloat(s1Amount) <= 0 || isNaN(parseFloat(s1Amount)))) ||
+    (initialTemplate?.id === 's2' && parseFloat(s2Threshold) <= 0) ||
+    (initialTemplate?.id === 's3' && (parseFloat(s3Amount) <= 0 || parseFloat(s3Target) <= 0 || isNaN(parseFloat(s3Amount)) || isNaN(parseFloat(s3Target)))) ||
+    (initialTemplate?.id === 's4' && (() => {
+      const parsedAmount = parseFloat(s4Amount);
+      const parsedTarget = parseFloat(s4Target);
+      
+      let availableYt = 0;
+      if (portfolio) {
+        const selectedVault = vaults.find(v => v.id === selectedVaultId);
+        const underlying = selectedVault?.asset || 'XLM';
+        const ytAsset = portfolio.assets.find((a: any) => a.assetType === 'yt' && a.assetCode.includes(underlying));
+        if (ytAsset && !isNaN(ytAsset.balance)) availableYt = ytAsset.balance;
+      }
+      
+      return isNaN(parsedAmount) || parsedAmount <= 0 || isNaN(parsedTarget) || parsedTarget <= 0 || parsedAmount > availableYt;
+    })()) ||
+    (initialTemplate?.id === 's5' && (() => {
+      const parsedAmount = parseFloat(s5Amount);
+      const parsedTarget = parseFloat(s5Target);
+      
+      let availableXlm = 0;
+      if (isConnected) {
+        const xlmBalance = balances.find((b: any) => b.assetCode === 'XLM' || b.isNative);
+        if (xlmBalance && !isNaN(parseFloat(xlmBalance.amount))) availableXlm = parseFloat(xlmBalance.amount);
+      }
+      
+      return !isConnected || isNaN(parsedAmount) || parsedAmount <= 0 || isNaN(parsedTarget) || parsedTarget <= 0 || parsedAmount > availableXlm;
+    })());
+
+  const renderDeployButton = (className?: string) => (
+    <button
+      onClick={handleSubmit}
+      disabled={isDeployDisabled}
+      className={`flex items-center justify-center gap-2 rounded-xl bg-nova-accent px-5 py-3 text-sm font-medium text-black transition-all duration-200 hover:brightness-110 hover:-translate-y-[1px] shadow-sm disabled:opacity-50 active:scale-[0.98] ${className || ''}`}
+    >
+      {isSubmitting ? (
+        <div className="h-4 w-4 animate-spin rounded-full border-2 border-black border-t-transparent" />
+      ) : (
+        <Zap className="h-4 w-4" />
+      )}
+      Deploy Strategy
+    </button>
+  );
+
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
@@ -1029,58 +1080,19 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
 
 
           {/* Footer Actions – always pinned */}
-          <div className="border-t border-nova-border px-5 py-3 flex-shrink-0">
-            <div className="flex items-center justify-end gap-3">
-              <button
-                onClick={onClose}
-                className="rounded-xl border border-nova-border px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-white/5"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSubmit}
-                disabled={
-                  isSubmitting || 
-                  (initialTemplate?.id === 's2' && parseFloat(s2Threshold) <= 0) ||
-                  (initialTemplate?.id === 's3' && (parseFloat(s3Amount) <= 0 || parseFloat(s3Target) <= 0 || isNaN(parseFloat(s3Amount)) || isNaN(parseFloat(s3Target)))) ||
-                  (initialTemplate?.id === 's4' && (() => {
-                    const parsedAmount = parseFloat(s4Amount);
-                    const parsedTarget = parseFloat(s4Target);
-                    
-                    let availableYt = 0;
-                    if (portfolio) {
-                      const selectedVault = vaults.find(v => v.id === selectedVaultId);
-                      const underlying = selectedVault?.asset || 'XLM';
-                      const ytAsset = portfolio.assets.find((a: any) => a.assetType === 'yt' && a.assetCode.includes(underlying));
-                      if (ytAsset && !isNaN(ytAsset.balance)) availableYt = ytAsset.balance;
-                    }
-                    
-                    return isNaN(parsedAmount) || parsedAmount <= 0 || isNaN(parsedTarget) || parsedTarget <= 0 || parsedAmount > availableYt;
-                  })()) ||
-                  (initialTemplate?.id === 's5' && (() => {
-                    const parsedAmount = parseFloat(s5Amount);
-                    const parsedTarget = parseFloat(s5Target);
-                    
-                    let availableXlm = 0;
-                    if (isConnected) {
-                      const xlmBalance = balances.find((b: any) => b.assetCode === 'XLM' || b.isNative);
-                      if (xlmBalance && !isNaN(parseFloat(xlmBalance.amount))) availableXlm = parseFloat(xlmBalance.amount);
-                    }
-                    
-                    return !isConnected || isNaN(parsedAmount) || parsedAmount <= 0 || isNaN(parsedTarget) || parsedTarget <= 0 || parsedAmount > availableXlm;
-                  })())
-                }
-                className="flex items-center gap-2 rounded-xl bg-nova-accent px-5 py-2.5 text-sm font-medium text-black transition-all duration-200 hover:brightness-110 hover:-translate-y-[1px] shadow-sm disabled:opacity-50 active:scale-[0.98]"
-              >
-                {isSubmitting ? (
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-black border-t-transparent" />
-                ) : (
-                  <Zap className="h-4 w-4" />
-                )}
-                Deploy Strategy
-              </button>
+          {initialTemplate?.id !== 's1' && (
+            <div className="border-t border-nova-border px-5 py-3 flex-shrink-0">
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  onClick={onClose}
+                  className="rounded-xl border border-nova-border px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-white/5"
+                >
+                  Cancel
+                </button>
+                {renderDeployButton()}
+              </div>
             </div>
-          </div>
+          )}
         </motion.div>
       </div>
     </AnimatePresence>
