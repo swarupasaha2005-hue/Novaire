@@ -951,11 +951,17 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
               {renderTriggerFields()}
             </div>
             {/* Deploy Strategy inline for s1 */}
-            {initialTemplate?.id === 's1' && (
-              <div className="py-2">
-                {renderDeployButton("w-full py-4 text-base shadow-xl")}
-              </div>
-            )}
+            {(() => {
+              console.log("[DEBUG] initialTemplate?.id:", initialTemplate?.id);
+              if (initialTemplate?.id === 's1') {
+                return (
+                  <div className="py-2" style={{ border: '2px solid red' }}>
+                    {renderDeployButton("w-full py-4 text-base shadow-xl")}
+                  </div>
+                );
+              }
+              return null;
+            })()}
 
             {/* THEN Section */}
             <div className="space-y-3">
