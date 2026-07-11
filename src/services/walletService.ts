@@ -157,7 +157,11 @@ export class WalletService {
         isConnected: true
       });
 
-      await this.refreshBalances();
+      // Non-blocking: connected state is visible immediately.
+      // Balances (including slow Soroban RPC calls) load in the background.
+      this.refreshBalances().catch(err => {
+        if (IS_DEV) console.error('Background balance refresh failed:', err);
+      });
     } catch (error: any) {
       if (IS_DEV) console.error("7. Caught error in WalletService.connectWallet:", error);
       this.setState({
@@ -282,7 +286,16 @@ export class WalletService {
           publicKey: address
         });
 
-        const ptTx = await ptClient.balance({ id: address });
+        // Wrap Soroban calls in a 10-second timeout to prevent browser hangs.
+        const withTimeout = <T>(p: Promise<T>, ms: number): Promise<T> =>
+          Promise.race([
+            p,
+            new Promise<T>((_, reject) =>
+              setTimeout(() => reject(new Error(`Soroban RPC timed out after ${ms}ms`)), ms)
+            )
+          ]);
+
+        const ptTx = await withTimeout(ptClient.balance({ id: address }), 10000);
         let rawPt = ptTx.result;
         if (rawPt && typeof rawPt === 'object') {
           if (typeof (rawPt as any).unwrap === 'function') rawPt = (rawPt as any).unwrap();
@@ -299,7 +312,7 @@ export class WalletService {
           });
         }
 
-        const ytTx = await ytClient.balance({ id: address });
+        const ytTx = await withTimeout(ytClient.balance({ id: address }), 10000);
         let rawYt = ytTx.result;
         if (rawYt && typeof rawYt === 'object') {
           if (typeof (rawYt as any).unwrap === 'function') rawYt = (rawYt as any).unwrap();
