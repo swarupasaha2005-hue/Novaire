@@ -918,8 +918,27 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
                 </div>
               ) : (
                 <div className="mb-4">
-                  <label className="mb-2 block text-sm font-medium text-white/70">Action</label>
                   {renderActionFields()}
+                </div>
+              )}
+            </div>
+
+            {/* Execution Settings – inside scroll so footer stays pinned */}
+            <div className="flex gap-4 pt-1">
+              {initialTemplate?.id === 's4' && (
+                <div className="flex-1 rounded-xl border border-nova-border bg-white/[0.02] p-3">
+                  <div className="mb-1 text-xs text-white/40">Estimated Receive</div>
+                  <div className="text-sm font-medium text-white">≈ {((parseFloat(s4Amount) || 0) * currentYtPrice).toFixed(4)} XLM</div>
+                </div>
+              )}
+              <div className="flex-1 rounded-xl border border-nova-border bg-white/[0.02] p-3">
+                <div className="mb-1 text-xs text-white/40">Network Fee</div>
+                <div className="text-sm font-medium text-white">~0.0001 XLM</div>
+              </div>
+              {(!initialTemplate?.id || initialTemplate?.id === 's3' || initialTemplate?.id === 's4') && (
+                <div className="flex-1 rounded-xl border border-nova-border bg-white/[0.02] p-3">
+                  <div className="mb-1 text-xs text-white/40">Slippage Tolerance</div>
+                  <div className="text-sm font-medium text-white">{slippage}%</div>
                 </div>
               )}
             </div>
@@ -989,28 +1008,9 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
             </div>
           )}
 
-          {/* Execution Settings */}
-          <div className="px-6 flex gap-4">
-            {initialTemplate?.id === 's4' && (
-              <div className="flex-1 rounded-xl border border-nova-border bg-white/[0.02] p-4">
-                <div className="mb-1 text-xs text-white/40">Estimated Receive</div>
-                <div className="text-sm font-medium text-white">≈ {((parseFloat(s4Amount) || 0) * currentYtPrice).toFixed(4)} XLM</div>
-              </div>
-            )}
-            <div className="flex-1 rounded-xl border border-nova-border bg-white/[0.02] p-4">
-              <div className="mb-1 text-xs text-white/40">Network Fee</div>
-              <div className="text-sm font-medium text-white">~0.0001 XLM</div>
-            </div>
-            {(!initialTemplate?.id || initialTemplate?.id === 's3' || initialTemplate?.id === 's4') && (
-              <div className="flex-1 rounded-xl border border-nova-border bg-white/[0.02] p-4">
-                <div className="mb-1 text-xs text-white/40">Slippage Tolerance</div>
-                <div className="text-sm font-medium text-white">{slippage}%</div>
-              </div>
-            )}
-          </div>
 
-          {/* Footer Actions */}
-          <div className="mt-4 border-t border-nova-border px-6 py-4 flex-shrink-0">
+          {/* Footer Actions – always pinned */}
+          <div className="border-t border-nova-border px-6 py-4 flex-shrink-0">
             <div className="flex items-center justify-end gap-3">
               <button
                 onClick={onClose}
