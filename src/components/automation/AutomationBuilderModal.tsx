@@ -42,6 +42,8 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
   const [s5Target, setS5Target] = useState('15');
   const [s5Operator, setS5Operator] = useState('>=');
   const [s5Amount, setS5Amount] = useState('500');
+  
+  const [isExecutionExpanded, setIsExecutionExpanded] = useState(false);
 
   const [vaults, setVaults] = useState<any[]>([]);
   const [selectedVaultId, setSelectedVaultId] = useState<string>('');
@@ -336,6 +338,28 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
               </div>
             ) : null}
           </div>
+
+          <div className="rounded-xl border border-nova-border bg-white/[0.02] p-4">
+            <div className="mb-2 flex items-center gap-2 text-sm font-medium text-white/70">
+              <Clock className="h-4 w-4" />
+              At Vault Maturity
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <div className="mb-0.5 text-xs text-white/40">Vault</div>
+                <div className="text-sm font-medium text-white">{vaultName}</div>
+              </div>
+              <div>
+                <div className="mb-0.5 text-xs text-white/40">Epoch</div>
+                <div className="text-sm font-medium text-white">{epoch}</div>
+              </div>
+              <div>
+                <div className="mb-0.5 text-xs text-white/40">Execution</div>
+                <div className="text-sm font-medium text-blue-400">{maturityDate}</div>
+              </div>
+            </div>
+          </div>
         </div>
       );
     }
@@ -573,68 +597,67 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
     const id = initialTemplate?.id;
 
     if (id === 's1') {
-      const selectedVault = vaults.find(v => v.id === selectedVaultId);
-      const vaultName = selectedVault ? `${selectedVault.protocol} ${selectedVault.asset} Vault` : '-';
-      const epoch = selectedVault?.epoch || '-';
-      const maturityDate = selectedVault ? new Date(selectedVault.maturityDate).toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric'
-      }) : '-';
-
       return (
-        <div className="rounded-xl border border-nova-border bg-white/[0.02] p-4">
-          <div className="mb-3 grid grid-cols-3 gap-3 border-b border-nova-border pb-3">
-            <div>
-              <div className="text-[11px] text-white/40 uppercase tracking-wider mb-0.5">Vault</div>
-              <div className="text-xs font-medium text-white">{vaultName}</div>
+        <div className="rounded-xl border border-nova-border bg-white/[0.02] overflow-hidden">
+          <button 
+            onClick={() => setIsExecutionExpanded(!isExecutionExpanded)}
+            className="w-full flex items-center justify-between p-4 bg-white/[0.02] hover:bg-white/[0.04] transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-white/90">Execution Details</span>
             </div>
-            <div>
-              <div className="text-[11px] text-white/40 uppercase tracking-wider mb-0.5">Epoch</div>
-              <div className="text-xs font-medium text-white">{epoch}</div>
-            </div>
-            <div>
-              <div className="text-[11px] text-white/40 uppercase tracking-wider mb-0.5">Execution</div>
-              <div className="text-xs font-medium text-blue-400">{maturityDate}</div>
-            </div>
-          </div>
-
-          <div className="mb-4 rounded-md bg-blue-500/10 px-3 py-2 text-[11px] leading-tight text-blue-300">
-            Auto Roll compounds your principal automatically. New YT are sold and XLM proceeds sent to your wallet. Behavior is fixed (yt_sale_percentage = 100) for Mainnet. Keeper executes on maturity.
-          </div>
-
-          <h4 className="mb-2 text-xs font-medium text-white/70 uppercase tracking-wider">Execution Sequence</h4>
+            <ChevronDown className={`h-4 w-4 text-white/50 transition-transform ${isExecutionExpanded ? 'rotate-180' : ''}`} />
+          </button>
           
-          <div className="flex flex-col gap-0.5 text-xs text-white/80">
-            <div className="flex gap-2.5 items-start">
-              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/10 text-[9px] font-bold text-white/70 shrink-0 mt-0.5">1</span>
-              <span className="leading-tight pt-0.5">Redeem selected PT into XLM</span>
-            </div>
-            <div className="ml-2 w-[1px] h-1.5 bg-white/10 my-0.5"></div>
-            
-            <div className="flex gap-2.5 items-start">
-              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/10 text-[9px] font-bold text-white/70 shrink-0 mt-0.5">2</span>
-              <span className="leading-tight pt-0.5">Mint new PT and YT for next epoch</span>
-            </div>
-            <div className="ml-2 w-[1px] h-1.5 bg-white/10 my-0.5"></div>
-            
-            <div className="flex gap-2.5 items-start">
-              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/10 text-[9px] font-bold text-white/70 shrink-0 mt-0.5">3</span>
-              <span className="leading-tight pt-0.5">Sell 100% of newly minted YT</span>
-            </div>
-            <div className="ml-2 w-[1px] h-1.5 bg-white/10 my-0.5"></div>
-            
-            <div className="flex gap-2.5 items-start">
-              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/10 text-[9px] font-bold text-white/70 shrink-0 mt-0.5">4</span>
-              <span className="leading-tight pt-0.5">Send XLM proceeds to your wallet</span>
-            </div>
-            <div className="ml-2 w-[1px] h-1.5 bg-white/10 my-0.5"></div>
-            
-            <div className="flex gap-2.5 items-start">
-              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/10 text-[9px] font-bold text-white/70 shrink-0 mt-0.5">5</span>
-              <span className="leading-tight pt-0.5">Keep new PT registered for next cycle</span>
-            </div>
-          </div>
+          <AnimatePresence>
+            {isExecutionExpanded && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="px-4 pb-4"
+              >
+                <div className="pt-2 border-t border-nova-border/50">
+                  <div className="mb-4 rounded-md bg-blue-500/10 px-3 py-2 text-[11px] leading-tight text-blue-300">
+                    Auto Roll compounds your principal automatically. New YT are sold and XLM proceeds sent to your wallet. Behavior is fixed (yt_sale_percentage = 100) for Mainnet. Keeper executes on maturity.
+                  </div>
+
+                  <h4 className="mb-2 text-xs font-medium text-white/70 uppercase tracking-wider">Execution Sequence</h4>
+                  
+                  <div className="flex flex-col gap-0.5 text-xs text-white/80">
+                    <div className="flex gap-2.5 items-start">
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/10 text-[9px] font-bold text-white/70 shrink-0 mt-0.5">1</span>
+                      <span className="leading-tight pt-0.5">Redeem selected PT into XLM</span>
+                    </div>
+                    <div className="ml-2 w-[1px] h-1.5 bg-white/10 my-0.5"></div>
+                    
+                    <div className="flex gap-2.5 items-start">
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/10 text-[9px] font-bold text-white/70 shrink-0 mt-0.5">2</span>
+                      <span className="leading-tight pt-0.5">Mint new PT and YT for next epoch</span>
+                    </div>
+                    <div className="ml-2 w-[1px] h-1.5 bg-white/10 my-0.5"></div>
+                    
+                    <div className="flex gap-2.5 items-start">
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/10 text-[9px] font-bold text-white/70 shrink-0 mt-0.5">3</span>
+                      <span className="leading-tight pt-0.5">Sell 100% of newly minted YT</span>
+                    </div>
+                    <div className="ml-2 w-[1px] h-1.5 bg-white/10 my-0.5"></div>
+                    
+                    <div className="flex gap-2.5 items-start">
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/10 text-[9px] font-bold text-white/70 shrink-0 mt-0.5">4</span>
+                      <span className="leading-tight pt-0.5">Send XLM proceeds to your wallet</span>
+                    </div>
+                    <div className="ml-2 w-[1px] h-1.5 bg-white/10 my-0.5"></div>
+                    
+                    <div className="flex gap-2.5 items-start">
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/10 text-[9px] font-bold text-white/70 shrink-0 mt-0.5">5</span>
+                      <span className="leading-tight pt-0.5">Keep new PT registered for next cycle</span>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       );
     }
