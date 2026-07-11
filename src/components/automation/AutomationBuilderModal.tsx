@@ -337,30 +337,6 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
             ) : null}
           </div>
 
-          <div className="rounded-xl border border-nova-border bg-white/[0.02] p-4">
-            <div className="mb-2 flex items-center gap-2 text-sm font-medium text-white/70">
-              <Clock className="h-4 w-4" />
-              At Vault Maturity
-            </div>
-
-            <div className="mb-2 grid grid-cols-3 gap-3">
-              <div>
-                <div className="mb-0.5 text-xs text-white/40">Vault</div>
-                <div className="text-sm font-medium text-white">{vaultName}</div>
-              </div>
-              <div>
-                <div className="mb-0.5 text-xs text-white/40">Epoch</div>
-                <div className="text-sm font-medium text-white">{epoch}</div>
-              </div>
-              <div>
-                <div className="mb-0.5 text-xs text-white/40">Execution Date</div>
-                <div className="text-sm font-medium text-blue-400">{maturityDate}</div>
-              </div>
-            </div>
-
-            <div className="rounded-lg bg-blue-500/10 px-3 py-2 text-xs leading-relaxed text-blue-300">
-              This strategy will register an on-chain transaction. Once maturity is reached, the Keeper will automatically roll your position.
-            </div>
           </div>
         </div>
       );
@@ -599,44 +575,66 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
     const id = initialTemplate?.id;
 
     if (id === 's1') {
+      const selectedVault = vaults.find(v => v.id === selectedVaultId);
+      const vaultName = selectedVault ? `${selectedVault.protocol} ${selectedVault.asset} Vault` : '-';
+      const epoch = selectedVault?.epoch || '-';
+      const maturityDate = selectedVault ? new Date(selectedVault.maturityDate).toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      }) : '-';
+
       return (
-        <div className="space-y-3">
-          <div className="rounded-xl border border-nova-border bg-white/[0.02] p-3">
-            <h4 className="mb-2 text-sm font-medium text-white/90">What happens at maturity?</h4>
-            
-            <div className="flex flex-col gap-0.5 text-[13px] text-white/70">
-              <div className="flex gap-3">
-                <span className="text-blue-400">✓</span>
-                <span>Redeem your selected PT into XLM</span>
-              </div>
-              <div className="ml-1.5 w-[2px] h-2.5 bg-white/10 my-0.5"></div>
-              
-              <div className="flex gap-3">
-                <span className="text-blue-400">✓</span>
-                <span>Mint a new PT and a new YT for the next epoch</span>
-              </div>
-              <div className="ml-1.5 w-[2px] h-2.5 bg-white/10 my-0.5"></div>
-              
-              <div className="flex gap-3">
-                <span className="text-blue-400">✓</span>
-                <span>Automatically sell 100% of the newly minted YT</span>
-              </div>
-              <div className="ml-1.5 w-[2px] h-2.5 bg-white/10 my-0.5"></div>
-              
-              <div className="flex gap-3">
-                <span className="text-blue-400">✓</span>
-                <span>Send the XLM proceeds from the YT sale directly to your wallet</span>
-              </div>
-              <div className="ml-1.5 w-[2px] h-2.5 bg-white/10 my-0.5"></div>
-              
-              <div className="flex gap-3">
-                <span className="text-blue-400">✓</span>
-                <span>Keep the new PT registered for the next rollover cycle</span>
-              </div>
+        <div className="rounded-xl border border-nova-border bg-white/[0.02] p-4">
+          <div className="mb-3 grid grid-cols-3 gap-3 border-b border-nova-border pb-3">
+            <div>
+              <div className="text-[11px] text-white/40 uppercase tracking-wider mb-0.5">Vault</div>
+              <div className="text-xs font-medium text-white">{vaultName}</div>
             </div>
+            <div>
+              <div className="text-[11px] text-white/40 uppercase tracking-wider mb-0.5">Epoch</div>
+              <div className="text-xs font-medium text-white">{epoch}</div>
+            </div>
+            <div>
+              <div className="text-[11px] text-white/40 uppercase tracking-wider mb-0.5">Execution</div>
+              <div className="text-xs font-medium text-blue-400">{maturityDate}</div>
+            </div>
+          </div>
+
+          <div className="mb-4 rounded-md bg-blue-500/10 px-3 py-2 text-[11px] leading-tight text-blue-300">
+            Auto Roll compounds your principal automatically. New YT are sold and XLM proceeds sent to your wallet. Behavior is fixed (yt_sale_percentage = 100) for Mainnet. Keeper executes on maturity.
+          </div>
+
+          <h4 className="mb-2 text-xs font-medium text-white/70 uppercase tracking-wider">Execution Sequence</h4>
+          
+          <div className="flex flex-col gap-0.5 text-xs text-white/80">
+            <div className="flex gap-2.5 items-start">
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/10 text-[9px] font-bold text-white/70 shrink-0 mt-0.5">1</span>
+              <span className="leading-tight pt-0.5">Redeem selected PT into XLM</span>
+            </div>
+            <div className="ml-2 w-[1px] h-1.5 bg-white/10 my-0.5"></div>
             
-            <div className="mt-2 rounded-lg bg-blue-500/10 px-3 py-2 text-xs leading-relaxed text-blue-300">
-              Auto Roll compounds your principal automatically. Newly minted YT are immediately sold and XLM proceeds sent to your wallet. Behavior is fixed (yt_sale_percentage = 100) for Mainnet.
+            <div className="flex gap-2.5 items-start">
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/10 text-[9px] font-bold text-white/70 shrink-0 mt-0.5">2</span>
+              <span className="leading-tight pt-0.5">Mint new PT and YT for next epoch</span>
+            </div>
+            <div className="ml-2 w-[1px] h-1.5 bg-white/10 my-0.5"></div>
+            
+            <div className="flex gap-2.5 items-start">
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/10 text-[9px] font-bold text-white/70 shrink-0 mt-0.5">3</span>
+              <span className="leading-tight pt-0.5">Sell 100% of newly minted YT</span>
+            </div>
+            <div className="ml-2 w-[1px] h-1.5 bg-white/10 my-0.5"></div>
+            
+            <div className="flex gap-2.5 items-start">
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/10 text-[9px] font-bold text-white/70 shrink-0 mt-0.5">4</span>
+              <span className="leading-tight pt-0.5">Send XLM proceeds to your wallet</span>
+            </div>
+            <div className="ml-2 w-[1px] h-1.5 bg-white/10 my-0.5"></div>
+            
+            <div className="flex gap-2.5 items-start">
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/10 text-[9px] font-bold text-white/70 shrink-0 mt-0.5">5</span>
+              <span className="leading-tight pt-0.5">Keep new PT registered for next cycle</span>
             </div>
           </div>
         </div>
@@ -872,9 +870,9 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
             </button>
           </div>
 
-          <div className="overflow-y-auto flex-1 p-5 space-y-5">
+          <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
             {/* IF Section */}
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="flex items-center gap-3">
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500/10 text-blue-400">
                   <span className="text-sm font-bold">IF</span>
@@ -886,7 +884,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
             </div>
 
             {/* THEN Section */}
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="flex items-center gap-3">
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400">
                   <span className="text-sm font-bold">THEN</span>
@@ -1010,7 +1008,7 @@ export function AutomationBuilderModal({ isOpen, onClose, onSubmit, initialTempl
 
 
           {/* Footer Actions – always pinned */}
-          <div className="border-t border-nova-border px-6 py-4 flex-shrink-0">
+          <div className="border-t border-nova-border px-5 py-3 flex-shrink-0">
             <div className="flex items-center justify-end gap-3">
               <button
                 onClick={onClose}

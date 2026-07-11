@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Bell, Wallet, CircleUser, Plus } from 'lucide-react';
 import { useWallet } from '../../hooks/useWallet';
@@ -8,9 +8,16 @@ import { MintModal } from '../modals/MintModal';
 import { usePortfolio } from '../../hooks/usePortfolio';
 
 export function DashboardHeader() {
-  const { isConnected, address, connect, disconnect } = useWallet();
+  const { isConnected, address, connect, disconnect, error } = useWallet();
   const { refresh: refreshPortfolio } = usePortfolio();
   const [isMintModalOpen, setIsMintModalOpen] = useState(false);
+
+  // If there's an error, we show an alert to the user.
+  useEffect(() => {
+    if (error && error !== 'Wallet not connected') {
+      alert(`Wallet Connection Error: ${error}`);
+    }
+  }, [error]);
 
   const formattedAddress = address 
     ? `${address.slice(0, 4)}...${address.slice(-4)}`
