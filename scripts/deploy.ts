@@ -9,7 +9,7 @@ import { saveDeployments } from './utils';
 const NETWORK = (process.env.NETWORK || 'testnet').toLowerCase();
 const isMainnet = NETWORK === 'mainnet';
 
-const RPC_URL = process.env.RPC_URL || (isMainnet ? 'https://soroban-mainnet.stellar.org' : 'https://soroban-testnet.stellar.org');
+const RPC_URL = process.env.RPC_URL || (isMainnet ? 'https://mainnet.sorobanrpc.com' : 'https://soroban-testnet.stellar.org');
 const NETWORK_PASSPHRASE = process.env.NETWORK_PASSPHRASE || (isMainnet ? Networks.PUBLIC : Networks.TESTNET);
 const DEPLOYMENTS_FILE = path.resolve(__dirname, `deployments.${NETWORK}.json`);
 const KEYS_FILE = path.resolve(__dirname, isMainnet ? 'mainnet_keys.json' : 'testnet_keys.json');
@@ -108,7 +108,7 @@ async function deploy() {
         if (!deployments[`${name}_wasm`]) {
             console.log(`Uploading WASM for ${name}...`);
             const wasmPath = path.resolve(__dirname, `../contracts/target/wasm32v1-none/release/${name}.wasm`);
-            const wasmId = runCmd(`stellar contract upload --wasm ${wasmPath} --source ${admin.secret()} --rpc-url ${RPC_URL} --network-passphrase "${NETWORK_PASSPHRASE}"`);
+            const wasmId = runCmd(`stellar contract upload --wasm ${wasmPath} --source ${admin.secret()} --rpc-url ${RPC_URL} --network-passphrase "${NETWORK_PASSPHRASE}" --inclusion-fee 1000000`);
             deployments[`${name}_wasm`] = wasmId;
             saveDeployments(__dirname, deployments);
             console.log(`Uploaded ${name} Wasm: ${wasmId}`);
@@ -119,7 +119,7 @@ async function deploy() {
         if (!deployments[name]) {
             console.log(`Deploying raw contract ${name}...`);
             const wasmId = deployments[`${name}_wasm`];
-            const contractId = runCmd(`stellar contract deploy --wasm-hash ${wasmId} --source ${admin.secret()} --rpc-url ${RPC_URL} --network-passphrase "${NETWORK_PASSPHRASE}"`);
+            const contractId = runCmd(`stellar contract deploy --wasm-hash ${wasmId} --source ${admin.secret()} --rpc-url ${RPC_URL} --network-passphrase "${NETWORK_PASSPHRASE}" --inclusion-fee 1000000`);
             deployments[name] = contractId;
             saveDeployments(__dirname, deployments);
             console.log(`${name} deployed -> ${contractId}`);
@@ -130,7 +130,7 @@ async function deploy() {
 
     if (!deployments['factory_initialized']) {
         console.log("Initializing Factory...");
-        const out = runCmdNoFail(`stellar contract invoke --id ${deployments.factory} --source ${admin.secret()} --rpc-url ${RPC_URL} --network-passphrase "${NETWORK_PASSPHRASE}" -- initialize --admin ${admin.publicKey()} --protocol_version 1`);
+        const out = runCmdNoFail(`stellar contract invoke --id ${deployments.factory} --source ${admin.secret()} --rpc-url ${RPC_URL} --network-passphrase "${NETWORK_PASSPHRASE}" --inclusion-fee 1000000 -- initialize --admin ${admin.publicKey()} --protocol_version 1`);
         if (out.includes("AlreadyInitialized") || !out.includes("error")) {
             console.log("Factory initialized successfully (or already was).");
             deployments['factory_initialized'] = "true";
@@ -169,6 +169,7 @@ async function deploy() {
             `--source ${admin.secret()}`,
             `--rpc-url ${RPC_URL}`,
             `--network-passphrase "${NETWORK_PASSPHRASE}"`,
+            `--inclusion-fee 1000000`,
             `--`,
             `deploy_epoch`,
             `--params '${paramsJson}'`
@@ -199,22 +200,26 @@ async function deploy() {
     console.log("Generating TypeScript Bindings...");
     for (const name of contractsToDeploy) {
         if (!deployments[`${name}_bindings`]) {
-            runCmd(`stellar contract bindings typescript --id ${deployments[name]} --network ${NETWORK} --overwrite --output-dir ./packages/bindings/${name}`);
+            runCmd(`stellar contract bindings typescript --id ${deployments[name]} --network ${NETWORK} --rpc-url ${RPC_URL} --network-passphrase "${NETWORK_PASSPHRASE}" --overwrite --output-dir ./packages/bindings/${name}`);
             deployments[`${name}_bindings`] = "true";
             saveDeployments(__dirname, deployments);
         }
     }
     console.log("Deployment and Wiring Complete!");
 
-    console.log("\nStarting Automatic Protocol Bootstrap...");
-    try {
-        const bootstrapCmd = `npx ts-node scripts/bootstrap_liquidity.ts`;
-        console.log(`Executing: ${bootstrapCmd}`);
-        execSync(`npx tsx ${path.resolve(__dirname, 'bootstrap_liquidity.ts')}`, { stdio: 'inherit' });
-        console.log("Bootstrap completed successfully!");
-    } catch (e) {
-        console.error("Bootstrap failed during deployment:", e);
-        throw e;
+    if (process.env.SKIP_BOOTSTRAP === 'true') {
+        console.log('\n⏭️  Skipping bootstrap (SKIP_BOOTSTRAP=true). Run bootstrap_liquidity.ts separately when ready.');
+    } else {
+        console.log('\nStarting Automatic Protocol Bootstrap...');
+        try {
+            const bootstrapCmd = `npx ts-node scripts/bootstrap_liquidity.ts`;
+            console.log(`Executing: ${bootstrapCmd}`);
+            execSync(`npx tsx ${path.resolve(__dirname, 'bootstrap_liquidity.ts')}`, { stdio: 'inherit' });
+            console.log('Bootstrap completed successfully!');
+        } catch (e) {
+            console.error('Bootstrap failed during deployment:', e);
+            throw e;
+        }
     }
 }
 

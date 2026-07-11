@@ -8,7 +8,7 @@ import { saveDeployments } from './utils';
 const NETWORK = (process.env.NETWORK || 'testnet').toLowerCase();
 const isMainnet = NETWORK === 'mainnet';
 
-const RPC_URL = process.env.RPC_URL || (isMainnet ? 'https://soroban-mainnet.stellar.org' : 'https://soroban-testnet.stellar.org');
+const RPC_URL = process.env.RPC_URL || (isMainnet ? 'https://mainnet.sorobanrpc.com' : 'https://soroban-testnet.stellar.org');
 const NETWORK_PASSPHRASE = process.env.NETWORK_PASSPHRASE || (isMainnet ? Networks.PUBLIC : Networks.TESTNET);
 const DEPLOYMENTS_FILE = path.resolve(__dirname, `deployments.${NETWORK}.json`);
 const KEYS_FILE = path.resolve(__dirname, isMainnet ? 'mainnet_keys.json' : 'testnet_keys.json');

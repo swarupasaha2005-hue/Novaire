@@ -8,7 +8,7 @@ const ROLLOVER_CONTRACT_ID = process.env.ROLLOVER_CONTRACT_ID;
 const NETWORK = (process.env.NETWORK || 'testnet').toLowerCase();
 const isMainnet = NETWORK === 'mainnet';
 
-const RPC_URL = process.env.RPC_URL || (isMainnet ? 'https://soroban-mainnet.stellar.org' : 'https://soroban-testnet.stellar.org');
+const RPC_URL = process.env.RPC_URL || (isMainnet ? 'https://mainnet.sorobanrpc.com' : 'https://soroban-testnet.stellar.org');
 const NETWORK_PASSPHRASE = process.env.NETWORK_PASSPHRASE || (isMainnet ? Networks.PUBLIC : Networks.TESTNET);
 
 if (!KEEPER_SECRET || !ROLLOVER_CONTRACT_ID) {

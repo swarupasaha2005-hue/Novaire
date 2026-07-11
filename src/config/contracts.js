@@ -22,6 +22,6 @@ exports.CONTRACTS = {
     MOCK_USDC: deployments.underlying_token || '',
 };
 exports.RPC_URL = process.env.NEXT_PUBLIC_RPC_URL ||
-    (isMainnet ? 'https://soroban-mainnet.stellar.org' : 'https://soroban-testnet.stellar.org');
+    (isMainnet ? 'https://mainnet.sorobanrpc.com' : 'https://soroban-testnet.stellar.org');
 exports.NETWORK_PASSPHRASE = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ||
     (isMainnet ? 'Public Global Stellar Network ; September 2015' : 'Test SDF Network ; September 2015');

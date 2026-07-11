@@ -7,7 +7,7 @@ import axios from 'axios';
 const NETWORK = (process.env.NETWORK || 'testnet').toLowerCase();
 const isMainnet = NETWORK === 'mainnet';
 
-const RPC_URL = process.env.RPC_URL || (isMainnet ? 'https://soroban-mainnet.stellar.org' : 'https://soroban-testnet.stellar.org');
+const RPC_URL = process.env.RPC_URL || (isMainnet ? 'https://mainnet.sorobanrpc.com' : 'https://soroban-testnet.stellar.org');
 const NETWORK_PASSPHRASE = process.env.NETWORK_PASSPHRASE || (isMainnet ? Networks.PUBLIC : Networks.TESTNET);
 
 const DEPLOYMENTS_FILE = path.resolve(__dirname, `deployments.${NETWORK}.json`);
@@ -28,7 +28,7 @@ async function fundAccount(publicKey: string) {
 
 function invoke(contractId: string, fn: string, args: string, secret: string) {
     try {
-        const cmd = `stellar contract invoke --id ${contractId} --source ${secret} --rpc-url ${RPC_URL} --network-passphrase "${NETWORK_PASSPHRASE}" -- ${fn} ${args}`;
+        const cmd = `stellar contract invoke --id ${contractId} --source ${secret} --rpc-url ${RPC_URL} --network-passphrase "${NETWORK_PASSPHRASE}" --inclusion-fee 1000000 -- ${fn} ${args}`;
         return execSync(cmd, { stdio: ['pipe', 'pipe', 'pipe'] }).toString().trim();
     } catch (e: any) {
         console.error(`Failed to invoke ${fn} on ${contractId}:`, e?.stderr?.toString() || e);
@@ -177,7 +177,7 @@ async function run() {
     }
 
     // Step 3a: Mint fresh PT/YT to provide as liquidity.
-    const DEPOSIT_AMOUNT = "500000000"; // 50 XLM
+    const DEPOSIT_AMOUNT = process.env.BOOTSTRAP_AMOUNT || "120000000"; // 12 XLM default (override with BOOTSTRAP_AMOUNT env)
     console.log(`3a. Vault.deposit(${DEPOSIT_AMOUNT})...`);
     let sy_shares_str = invoke(d.vault, 'deposit', `--depositor ${adminAddress} --amount ${DEPOSIT_AMOUNT}`, adminKp.secret()).trim();
     sy_shares_str = sy_shares_str.replace(/"/g, '');
