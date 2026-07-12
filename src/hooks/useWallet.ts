@@ -5,14 +5,17 @@ export function useWallet() {
   const [state, setState] = useState(WalletService.getState());
 
   useEffect(() => {
-    // Automatically try to reconnect when the hook is first used
-    // (This runs on application load)
-    WalletService.init();
-
-    // Subscribe to any state changes from the WalletService
+    // 1. Subscribe to any state changes from the WalletService
     const unsubscribe = WalletService.onConnectionChange(() => {
       setState(WalletService.getState());
     });
+
+    // 2. Catch any state changes that occurred between render and effect execution
+    // (Crucial for React 18 Strict Mode where init() might resolve between unmount and remount)
+    setState(WalletService.getState());
+
+    // 3. Automatically try to reconnect when the hook is first used
+    WalletService.init();
 
     return () => {
       unsubscribe();
